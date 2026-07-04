@@ -132,11 +132,6 @@ func (r *accountRepository) Create(ctx context.Context, account *service.Account
 		builder.SetSessionWindowStatus(account.SessionWindowStatus)
 	}
 
-	builder.SetQuotaDimension(dbaccount.QuotaDimension(account.QuotaDimensionOrDefault()))
-	if account.ParentAccountID != nil {
-		builder.SetParentAccountID(*account.ParentAccountID)
-	}
-
 	created, err := builder.Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
@@ -270,11 +265,7 @@ func (r *accountRepository) GetByCRSAccountID(ctx context.Context, crsAccountID 
 	}
 
 	// 使用 sqljson.ValueEQ 生成 JSON 路径过滤，避免手写 SQL 片段导致语法兼容问题。
-	// 排除 spark 影子账号(parent_account_id 非空):影子不持凭据,绝不能被 CRS 当作普通账号
-	// 更新而覆盖 type/credentials/proxy。即便影子 Extra 被误写入 crs_account_id 也不会命中
-	// (外审第7轮 P1)。
 	m, err := r.client.Account.Query().
-		Where(dbaccount.ParentAccountIDIsNil()).
 		Where(func(s *entsql.Selector) {
 			s.Where(sqljson.ValueEQ(dbaccount.FieldExtra, crsAccountID, sqljson.Path("crs_account_id")))
 		}).
@@ -297,13 +288,10 @@ func (r *accountRepository) GetByCRSAccountID(ctx context.Context, crsAccountID 
 }
 
 func (r *accountRepository) ListCRSAccountIDs(ctx context.Context) (map[string]int64, error) {
-	// parent_account_id IS NULL 排除 spark 影子账号:影子不是 CRS 账号,绝不能进 CRS 同步映射
-	// (否则会被当普通账号更新而覆盖 type/credentials/proxy)(外审第7轮 P1)。
 	rows, err := r.sql.QueryContext(ctx, `
 		SELECT id, extra->>'crs_account_id'
 		FROM accounts
 		WHERE deleted_at IS NULL
-			AND parent_account_id IS NULL
 			AND extra->>'crs_account_id' IS NOT NULL
 			AND extra->>'crs_account_id' != ''
 	`)
@@ -408,9 +396,6 @@ func (r *accountRepository) Update(ctx context.Context, account *service.Account
 		builder.ClearNotes()
 	}
 
-	builder.SetQuotaDimension(dbaccount.QuotaDimension(account.QuotaDimensionOrDefault()))
-	builder.SetNillableParentAccountID(account.ParentAccountID)
-
 	updated, err := builder.Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrAccountNotFound, nil)
@@ -479,10 +464,175 @@ func (r *accountRepository) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *accountRepository) List(ctx context.Context, params pagination.PaginationParams) ([]service.Account, *pagination.PaginationResult, error) {
-	return r.ListWithFilters(ctx, params, "", "", "", "", 0, "")
+	return r.ListWithFilters(ctx, params, "", "", "", "", "", 0, "")
 }
 
-func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
+func accountTimeFieldFuturePredicate(field string) dbpredicate.Account {
+	return dbpredicate.Account(func(s *entsql.Selector) {
+		col := s.C(field)
+		s.Where(entsql.And(
+			entsql.Not(entsql.IsNull(col)),
+			entsql.GT(col, entsql.Expr("NOW()")),
+		))
+	})
+}
+
+func accountTimeFieldPastOrNilPredicate(field string) dbpredicate.Account {
+	return dbpredicate.Account(func(s *entsql.Selector) {
+		col := s.C(field)
+		s.Where(entsql.Or(
+			entsql.IsNull(col),
+			entsql.LTE(col, entsql.Expr("NOW()")),
+		))
+	})
+}
+
+func accountExpiredPausePredicate() dbpredicate.Account {
+	return dbpredicate.Account(func(s *entsql.Selector) {
+		expiresAt := s.C(dbaccount.FieldExpiresAt)
+		autoPause := s.C(dbaccount.FieldAutoPauseOnExpired)
+		s.Where(entsql.P(func(b *entsql.Builder) {
+			b.WriteString("(").
+				Ident(autoPause).
+				WriteString(" = TRUE AND ").
+				Ident(expiresAt).
+				WriteString(" IS NOT NULL AND ").
+				Ident(expiresAt).
+				WriteString(" <= NOW())")
+		}))
+	})
+}
+
+func accountNotExpiredPausePredicate() dbpredicate.Account {
+	return dbaccount.Or(
+		dbaccount.AutoPauseOnExpiredEQ(false),
+		dbaccount.ExpiresAtIsNil(),
+		dbaccount.ExpiresAtGT(time.Now()),
+	)
+}
+
+func accountQuotaExceededPredicate() dbpredicate.Account {
+	return dbpredicate.Account(func(s *entsql.Selector) {
+		extra := s.C(dbaccount.FieldExtra)
+		s.Where(entsql.P(func(b *entsql.Builder) {
+			b.WriteString("(").
+				WriteString("(COALESCE((").Ident(extra).WriteString("->>'quota_limit')::numeric, 0) > 0 AND COALESCE((").Ident(extra).WriteString("->>'quota_used')::numeric, 0) >= COALESCE((").Ident(extra).WriteString("->>'quota_limit')::numeric, 0))").
+				WriteString(" OR ").
+				WriteString("(COALESCE((").Ident(extra).WriteString("->>'quota_daily_limit')::numeric, 0) > 0 AND COALESCE((").Ident(extra).WriteString("->>'quota_daily_used')::numeric, 0) >= COALESCE((").Ident(extra).WriteString("->>'quota_daily_limit')::numeric, 0))").
+				WriteString(" OR ").
+				WriteString("(COALESCE((").Ident(extra).WriteString("->>'quota_weekly_limit')::numeric, 0) > 0 AND COALESCE((").Ident(extra).WriteString("->>'quota_weekly_used')::numeric, 0) >= COALESCE((").Ident(extra).WriteString("->>'quota_weekly_limit')::numeric, 0))").
+				WriteString(")")
+		}))
+	})
+}
+
+func accountAuthFailedPredicate() dbpredicate.Account {
+	return dbaccount.Or(
+		dbaccount.ErrorMessageContainsFold("401"),
+		dbaccount.ErrorMessageContainsFold("403"),
+		dbaccount.ErrorMessageContainsFold("unauthorized"),
+		dbaccount.ErrorMessageContainsFold("forbidden"),
+		dbaccount.ErrorMessageContainsFold("invalid api key"),
+		dbaccount.ErrorMessageContainsFold("api key not found"),
+		dbaccount.ErrorMessageContainsFold("authentication"),
+		dbaccount.ErrorMessageContainsFold("token expired"),
+		dbaccount.ErrorMessageContainsFold("refresh token"),
+		dbaccount.ErrorMessageContainsFold("invalid_grant"),
+		dbaccount.ErrorMessageContainsFold("session expired"),
+		dbaccount.ErrorMessageContainsFold("login"),
+	)
+}
+
+func applyAccountAnomalyReasonFilter(q *dbent.AccountQuery, anomalyReason string) *dbent.AccountQuery {
+	if anomalyReason == "" {
+		return q
+	}
+
+	switch anomalyReason {
+	case service.AccountAnomalyReasonExpiredPause:
+		return q.Where(accountExpiredPausePredicate())
+	case service.AccountAnomalyReasonTempUnschedulable:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldFuturePredicate(dbaccount.FieldTempUnschedulableUntil),
+		)
+	case service.AccountAnomalyReasonRateLimited:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldFuturePredicate(dbaccount.FieldRateLimitResetAt),
+		)
+	case service.AccountAnomalyReasonOverloaded:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldRateLimitResetAt),
+			accountTimeFieldFuturePredicate(dbaccount.FieldOverloadUntil),
+		)
+	case service.AccountAnomalyReasonAuthFailed:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldRateLimitResetAt),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldOverloadUntil),
+			dbaccount.StatusEQ(service.StatusError),
+			accountAuthFailedPredicate(),
+		)
+	case service.AccountAnomalyReasonErrorState:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldRateLimitResetAt),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldOverloadUntil),
+			dbaccount.StatusEQ(service.StatusError),
+			dbaccount.Not(accountAuthFailedPredicate()),
+		)
+	case service.AccountAnomalyReasonQuotaExhausted:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldRateLimitResetAt),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldOverloadUntil),
+			dbaccount.Not(dbaccount.StatusEQ(service.StatusError)),
+			accountQuotaExceededPredicate(),
+		)
+	case service.AccountAnomalyReasonManualPause:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldRateLimitResetAt),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldOverloadUntil),
+			dbaccount.Not(dbaccount.StatusEQ(service.StatusError)),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				extra := s.C(dbaccount.FieldExtra)
+				s.Where(entsql.P(func(b *entsql.Builder) {
+					b.WriteString("NOT (").
+						WriteString("(COALESCE((").Ident(extra).WriteString("->>'quota_limit')::numeric, 0) > 0 AND COALESCE((").Ident(extra).WriteString("->>'quota_used')::numeric, 0) >= COALESCE((").Ident(extra).WriteString("->>'quota_limit')::numeric, 0))").
+						WriteString(" OR ").
+						WriteString("(COALESCE((").Ident(extra).WriteString("->>'quota_daily_limit')::numeric, 0) > 0 AND COALESCE((").Ident(extra).WriteString("->>'quota_daily_used')::numeric, 0) >= COALESCE((").Ident(extra).WriteString("->>'quota_daily_limit')::numeric, 0))").
+						WriteString(" OR ").
+						WriteString("(COALESCE((").Ident(extra).WriteString("->>'quota_weekly_limit')::numeric, 0) > 0 AND COALESCE((").Ident(extra).WriteString("->>'quota_weekly_used')::numeric, 0) >= COALESCE((").Ident(extra).WriteString("->>'quota_weekly_limit')::numeric, 0))").
+						WriteString(")")
+				}))
+			}),
+			dbaccount.StatusEQ(service.StatusActive),
+			dbaccount.SchedulableEQ(false),
+		)
+	case service.AccountAnomalyReasonInactive:
+		return q.Where(
+			accountNotExpiredPausePredicate(),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldTempUnschedulableUntil),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldRateLimitResetAt),
+			accountTimeFieldPastOrNilPredicate(dbaccount.FieldOverloadUntil),
+			dbaccount.Not(dbaccount.StatusEQ(service.StatusError)),
+			dbaccount.StatusEQ(service.StatusDisabled),
+		)
+	default:
+		return q
+	}
+}
+
+func (r *accountRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, accountType, status, anomalyReason, search string, groupID int64, privacyMode string) ([]service.Account, *pagination.PaginationResult, error) {
 	q := r.client.Account.Query()
 
 	if platform != "" {
@@ -574,12 +724,11 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 			}
 		}))
 	}
+	if anomalyReason != "" {
+		q = applyAccountAnomalyReasonFilter(q, anomalyReason)
+	}
 
-	// Clone before Count so interceptor-appended predicates (SoftDeleteMixin's
-	// deleted_at IS NULL) don't accumulate on the shared builder and pollute the
-	// subsequent list query. Same pattern used in group_repo/promo_code_repo/user_repo
-	// (P1-03 audit fix, commit 2588fa6a).
-	total, err := q.Clone().Count(ctx)
+	total, err := q.Count(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -601,41 +750,6 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 		return nil, nil, err
 	}
 	return outAccounts, paginationResultFromTotal(int64(total), params), nil
-}
-
-func (r *accountRepository) ListOpsAccountsForStats(ctx context.Context, platformFilter string, groupIDFilter *int64) ([]service.Account, error) {
-	if r == nil || r.client == nil {
-		return []service.Account{}, nil
-	}
-
-	q := r.client.Account.Query()
-	if platformFilter = strings.TrimSpace(platformFilter); platformFilter != "" {
-		q = q.Where(dbaccount.PlatformEQ(platformFilter))
-	}
-	if groupIDFilter != nil && *groupIDFilter > 0 {
-		q = q.Where(dbaccount.HasAccountGroupsWith(dbaccountgroup.GroupIDEQ(*groupIDFilter)))
-	}
-
-	accounts, err := q.
-		Select(
-			dbaccount.FieldID,
-			dbaccount.FieldName,
-			dbaccount.FieldPlatform,
-			dbaccount.FieldConcurrency,
-			dbaccount.FieldLoadFactor,
-			dbaccount.FieldStatus,
-			dbaccount.FieldErrorMessage,
-			dbaccount.FieldSchedulable,
-			dbaccount.FieldRateLimitResetAt,
-			dbaccount.FieldOverloadUntil,
-			dbaccount.FieldTempUnschedulableUntil,
-		).
-		Order(dbent.Asc(dbaccount.FieldID)).
-		All(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return r.accountsToService(ctx, accounts)
 }
 
 func accountListOrder(params pagination.PaginationParams) []func(*entsql.Selector) {
@@ -1059,90 +1173,6 @@ func (r *accountRepository) ListSchedulableByGroupID(ctx context.Context, groupI
 		status:      service.StatusActive,
 		schedulable: true,
 	})
-}
-
-func (r *accountRepository) ListSchedulableCapacityByGroupIDs(ctx context.Context, groupIDs []int64) ([]service.GroupAccountCapacityRow, error) {
-	groupIDs = uniquePositiveInt64s(groupIDs)
-	if len(groupIDs) == 0 {
-		return []service.GroupAccountCapacityRow{}, nil
-	}
-	if r.sql == nil {
-		rows := make([]service.GroupAccountCapacityRow, 0)
-		for _, groupID := range groupIDs {
-			accounts, err := r.ListSchedulableByGroupID(ctx, groupID)
-			if err != nil {
-				return nil, err
-			}
-			for i := range accounts {
-				acc := &accounts[i]
-				rows = append(rows, service.GroupAccountCapacityRow{
-					GroupID:             groupID,
-					AccountID:           acc.ID,
-					Concurrency:         acc.Concurrency,
-					Extra:               copyJSONMap(acc.Extra),
-					SessionWindowStart:  acc.SessionWindowStart,
-					SessionWindowEnd:    acc.SessionWindowEnd,
-					SessionWindowStatus: acc.SessionWindowStatus,
-				})
-			}
-		}
-		return rows, nil
-	}
-
-	rows, err := r.sql.QueryContext(ctx, `
-		SELECT
-			ag.group_id,
-			a.id AS account_id,
-			a.concurrency,
-			COALESCE(a.extra, '{}'::jsonb)::text AS extra,
-			a.session_window_start,
-			a.session_window_end,
-			COALESCE(a.session_window_status, '') AS session_window_status
-		FROM account_groups ag
-		JOIN accounts a ON a.id = ag.account_id
-		WHERE ag.group_id = ANY($1)
-			AND a.deleted_at IS NULL
-			AND a.status = $2
-			AND a.schedulable = TRUE
-			AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= $3)
-			AND (a.expires_at IS NULL OR a.expires_at > $3 OR a.auto_pause_on_expired = FALSE)
-			AND (a.overload_until IS NULL OR a.overload_until <= $3)
-			AND (a.rate_limit_reset_at IS NULL OR a.rate_limit_reset_at <= $3)
-		ORDER BY ag.group_id ASC, ag.priority ASC, a.priority ASC, a.id ASC
-	`, pq.Array(groupIDs), service.StatusActive, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	out := make([]service.GroupAccountCapacityRow, 0)
-	for rows.Next() {
-		var row service.GroupAccountCapacityRow
-		var extraRaw string
-		if err := rows.Scan(
-			&row.GroupID,
-			&row.AccountID,
-			&row.Concurrency,
-			&extraRaw,
-			&row.SessionWindowStart,
-			&row.SessionWindowEnd,
-			&row.SessionWindowStatus,
-		); err != nil {
-			return nil, err
-		}
-		if extraRaw != "" && extraRaw != "null" {
-			var extra map[string]any
-			if err := json.Unmarshal([]byte(extraRaw), &extra); err != nil {
-				return nil, err
-			}
-			row.Extra = extra
-		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (r *accountRepository) ListSchedulableByPlatform(ctx context.Context, platform string) ([]service.Account, error) {
@@ -2068,8 +2098,6 @@ func accountEntityToService(m *dbent.Account) *service.Account {
 		SessionWindowStart:      m.SessionWindowStart,
 		SessionWindowEnd:        m.SessionWindowEnd,
 		SessionWindowStatus:     derefString(m.SessionWindowStatus),
-		ParentAccountID:         m.ParentAccountID,
-		QuotaDimension:          string(m.QuotaDimension),
 	}
 }
 
@@ -2361,22 +2389,4 @@ func (r *accountRepository) RevertProxyFallback(ctx context.Context, accountID i
 		logger.LegacyPrintf("repository.account", "[SchedulerOutbox] revert fallback enqueue failed: account=%d err=%v", accountID, err)
 	}
 	return nil
-}
-
-// ListShadowsByParent 返回指定父账号的影子账号；当前实现仅查 quota_dimension='spark'（唯一预设）。
-// 同时过滤 parent_account_id 和 quota_dimension='spark'，防止未来其它 linked 维度被误伤。
-// ⚠️ 新增影子维度时：须更新此函数（或新增维度专用列举），并检查所有调用点（级联删除/一母一影校验/type 守卫），否则会静默漏掉新维度。
-// 软删除行由 SoftDeleteMixin 拦截器自动排除，无需手写 deleted_at IS NULL。
-func (r *accountRepository) ListShadowsByParent(ctx context.Context, parentID int64) ([]*service.Account, error) {
-	rows, err := r.client.Account.Query().
-		Where(dbaccount.ParentAccountIDEQ(parentID), dbaccount.QuotaDimensionEQ(dbaccount.QuotaDimensionSpark)).
-		All(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]*service.Account, 0, len(rows))
-	for _, m := range rows {
-		out = append(out, accountEntityToService(m))
-	}
-	return out, nil
 }

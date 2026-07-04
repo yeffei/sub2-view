@@ -14,6 +14,8 @@ export interface OpsRequestDetailsPreset {
   sort?: OpsRequestDetailsParams['sort']
   min_duration_ms?: number
   max_duration_ms?: number
+  start_time?: string
+  end_time?: string
 }
 
 interface Props {
@@ -43,12 +45,27 @@ const pageSize = ref(10)
 const close = () => emit('update:modelValue', false)
 
 const rangeLabel = computed(() => {
+  if (props.preset.start_time && props.preset.end_time) {
+    const start = new Date(props.preset.start_time)
+    const end = new Date(props.preset.end_time)
+    const minutes = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000))
+    if (minutes >= 60) return t('admin.ops.requestDetails.rangeHours', { n: Math.round(minutes / 60) })
+    return t('admin.ops.requestDetails.rangeMinutes', { n: minutes })
+  }
+
   const minutes = parseTimeRangeMinutes(props.timeRange)
   if (minutes >= 60) return t('admin.ops.requestDetails.rangeHours', { n: Math.round(minutes / 60) })
   return t('admin.ops.requestDetails.rangeMinutes', { n: minutes })
 })
 
 function buildTimeParams(): Pick<OpsRequestDetailsParams, 'start_time' | 'end_time'> {
+  if (props.preset.start_time && props.preset.end_time) {
+    return {
+      start_time: props.preset.start_time,
+      end_time: props.preset.end_time
+    }
+  }
+
   const minutes = parseTimeRangeMinutes(props.timeRange)
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - minutes * 60 * 1000)
@@ -109,7 +126,9 @@ watch(
     props.preset.kind,
     props.preset.sort,
     props.preset.min_duration_ms,
-    props.preset.max_duration_ms
+    props.preset.max_duration_ms,
+    props.preset.start_time,
+    props.preset.end_time
   ],
   () => {
     if (!props.modelValue) return

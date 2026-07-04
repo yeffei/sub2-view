@@ -7,7 +7,7 @@
       :disabled="disabled"
       :aria-expanded="isOpen"
       :aria-haspopup="true"
-      aria-label="Select option"
+      :aria-label="ariaLabel ?? t('common.selectOption')"
       :class="[
         'select-trigger',
         isOpen && 'select-trigger-open',
@@ -50,7 +50,7 @@
           v-if="isOpen"
           ref="dropdownRef"
           class="select-dropdown-portal"
-          :class="[instanceId]"
+          :class="[instanceId, dropdownClass]"
           :style="dropdownStyle"
           role="listbox"
           @click.stop
@@ -137,6 +137,7 @@ export interface SelectOption {
 interface Props {
   modelValue: string | number | boolean | null | undefined
   options: SelectOption[] | Array<Record<string, unknown>>
+  ariaLabel?: string
   placeholder?: string
   disabled?: boolean
   error?: boolean
@@ -148,6 +149,7 @@ interface Props {
   creatable?: boolean
   creatablePrefix?: string
   clearable?: boolean
+  dropdownClass?: string
 }
 
 interface Emits {

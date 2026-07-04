@@ -114,6 +114,11 @@ func (s *OpsSystemLogSink) shouldIndex(event *logger.LogEvent) bool {
 	if strings.Contains(component, "audit") {
 		return true
 	}
+	// routing.explanation 是 upstream-pools 页面最近路由观测的数据源，
+	// 需要保留 info 级别事件用于后台回看 24h 选路解释。
+	if strings.Contains(component, "routing.explanation") {
+		return true
+	}
 	return false
 }
 
@@ -206,7 +211,6 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 		}
 
 		userID := asInt64Ptr(fields["user_id"])
-		apiKeyID := asInt64Ptr(fields["api_key_id"])
 		accountID := asInt64Ptr(fields["account_id"])
 
 		// 统一脱敏后写入索引。
@@ -226,7 +230,6 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 			RequestID:       requestID,
 			ClientRequestID: clientRequestID,
 			UserID:          userID,
-			APIKeyID:        apiKeyID,
 			AccountID:       accountID,
 			Platform:        platform,
 			Model:           model,

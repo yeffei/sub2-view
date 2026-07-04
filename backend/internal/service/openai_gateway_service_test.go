@@ -83,6 +83,214 @@ type groupAwareStubOpenAIAccountRepo struct {
 	stubOpenAIAccountRepo
 }
 
+type stubOpenAIUpstreamPoolRepo struct {
+	memberIDs                      map[int64]struct{}
+	stickyEscapeEnabled            *bool
+	stickyEscapeErrorRateThreshold float64
+	stickyEscapeTTFTMSThreshold    int
+	failoverEnabled                *bool
+	maxFailoverHops                int
+	policyJSON                     map[string]any
+}
+
+func (r stubOpenAIUpstreamPoolRepo) ListUpstreamPools(ctx context.Context) ([]UpstreamPool, error) {
+	return nil, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetUpstreamPoolByID(ctx context.Context, id int64) (*UpstreamPool, error) {
+	return &UpstreamPool{ID: id, Platform: PlatformOpenAI, Enabled: true}, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) CreateUpstreamPool(ctx context.Context, input *UpstreamPool) (*UpstreamPool, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) UpdateUpstreamPool(ctx context.Context, input *UpstreamPool) (*UpstreamPool, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamPool(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) ListUpstreamPoolMembers(ctx context.Context, poolID int64) ([]UpstreamPoolMember, error) {
+	return nil, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetUpstreamPoolMemberByID(ctx context.Context, id int64) (*UpstreamPoolMember, error) {
+	return nil, ErrUpstreamPoolNotFound
+}
+
+func (r stubOpenAIUpstreamPoolRepo) CreateUpstreamPoolMember(ctx context.Context, input *UpstreamPoolMember) (*UpstreamPoolMember, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) UpdateUpstreamPoolMember(ctx context.Context, input *UpstreamPoolMember) (*UpstreamPoolMember, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamPoolMember(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error) {
+	return nil, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetUpstreamPoolBindingByID(ctx context.Context, id int64) (*UpstreamPoolBinding, error) {
+	return nil, ErrUpstreamPoolNotFound
+}
+
+func (r stubOpenAIUpstreamPoolRepo) CreateUpstreamPoolBinding(ctx context.Context, input *UpstreamPoolBinding) (*UpstreamPoolBinding, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) UpdateUpstreamPoolBinding(ctx context.Context, input *UpstreamPoolBinding) (*UpstreamPoolBinding, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamPoolBinding(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) ListEnabledMemberAccountIDsByGroupAndPlatform(ctx context.Context, groupID int64, platform string) (map[int64]struct{}, error) {
+	if groupID <= 0 || platform != PlatformOpenAI || len(r.memberIDs) == 0 {
+		return nil, nil
+	}
+	out := make(map[int64]struct{}, len(r.memberIDs))
+	for id := range r.memberIDs {
+		out[id] = struct{}{}
+	}
+	return out, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetOpenAIRoutingPolicy(ctx context.Context, groupID int64) (*OpenAIRoutingPolicy, error) {
+	memberIDs, err := r.ListEnabledMemberAccountIDsByGroupAndPlatform(ctx, groupID, PlatformOpenAI)
+	if err != nil {
+		return nil, err
+	}
+	if groupID <= 0 {
+		return &OpenAIRoutingPolicy{}, nil
+	}
+	failoverEnabled := true
+	if r.failoverEnabled != nil {
+		failoverEnabled = *r.failoverEnabled
+	}
+	maxFailoverHops := 3
+	if r.maxFailoverHops > 0 {
+		maxFailoverHops = r.maxFailoverHops
+	}
+	policy := &OpenAIRoutingPolicy{
+		HasBinding:                     len(memberIDs) > 0,
+		PoolID:                         1,
+		PoolCode:                       "test",
+		PoolName:                       "test",
+		SchedulerMode:                  UpstreamPoolSchedulerModeAdvanced,
+		StickyEscapeEnabled:            r.stickyEscapeEnabled,
+		StickyEscapeErrorRateThreshold: r.stickyEscapeErrorRateThreshold,
+		StickyEscapeTTFTMSThreshold:    r.stickyEscapeTTFTMSThreshold,
+		LoadBalanceEnabled:             true,
+		FailoverEnabled:                failoverEnabled,
+		TopK:                           2,
+		MaxFailoverHops:                maxFailoverHops,
+		MaxWaiting:                     10,
+	}
+	ApplyOpenAIRoutingPolicyJSON(policy, r.policyJSON)
+	return policy, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetResolvedBindingByGroupAndPlatform(ctx context.Context, groupID int64, platform string) (*UpstreamPoolResolvedBinding, error) {
+	memberIDs, err := r.ListEnabledMemberAccountIDsByGroupAndPlatform(ctx, groupID, platform)
+	if err != nil || groupID <= 0 || platform != PlatformOpenAI {
+		return nil, err
+	}
+	return &UpstreamPoolResolvedBinding{
+		Binding: &UpstreamPoolBinding{
+			GroupID:  groupID,
+			Platform: platform,
+			Enabled:  true,
+		},
+		Pool: &UpstreamPool{
+			ID:       1,
+			Platform: platform,
+			Enabled:  true,
+		},
+		MemberIDs: memberIDs,
+	}, nil
+}
+
+func TestOpenAIGatewayService_OpenAIRoutingMaxFailoverHops(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(42)
+
+	t.Run("no_binding_uses_default", func(t *testing.T) {
+		svc := &OpenAIGatewayService{
+			upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{},
+		}
+
+		require.Equal(t, 7, svc.OpenAIRoutingMaxFailoverHops(ctx, &groupID, 7))
+	})
+
+	t.Run("pool_hops_override_default", func(t *testing.T) {
+		svc := &OpenAIGatewayService{
+			upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+				memberIDs:       map[int64]struct{}{101: {}},
+				maxFailoverHops: 2,
+			},
+		}
+
+		require.Equal(t, 2, svc.OpenAIRoutingMaxFailoverHops(ctx, &groupID, 7))
+	})
+
+	t.Run("pool_failover_disabled_returns_zero", func(t *testing.T) {
+		disabled := false
+		svc := &OpenAIGatewayService{
+			upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+				memberIDs:       map[int64]struct{}{101: {}},
+				failoverEnabled: &disabled,
+				maxFailoverHops: 2,
+			},
+		}
+
+		require.Equal(t, 0, svc.OpenAIRoutingMaxFailoverHops(ctx, &groupID, 7))
+	})
+}
+
+func TestOpenAIGatewayService_OpenAIRoutingPoolMode5xxCooldown(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(42)
+	svc := &OpenAIGatewayService{
+		upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+			memberIDs: map[int64]struct{}{101: {}},
+			policyJSON: map[string]any{
+				"circuit_breaker": map[string]any{
+					"openai_pool_mode_5xx_cooldown_minutes": 3,
+				},
+			},
+		},
+	}
+
+	require.Equal(t, 3*time.Minute, svc.OpenAIRoutingPoolMode5xxCooldown(ctx, &groupID, 10*time.Minute))
+}
+
+func TestApplyOpenAIRoutingPolicyJSON(t *testing.T) {
+	policy := &OpenAIRoutingPolicy{HasBinding: true}
+
+	ApplyOpenAIRoutingPolicyJSON(policy, map[string]any{
+		"cache_affinity": map[string]any{
+			"enabled": false,
+		},
+		"circuit_breaker": map[string]any{
+			"openai_pool_mode_5xx_cooldown_minutes":    float64(4),
+			"half_open_probe_failed_extension_seconds": "45",
+		},
+	})
+
+	require.False(t, policy.EffectiveCacheAffinityEnabled(true))
+	require.Equal(t, 4*time.Minute, policy.EffectivePoolMode5xxCooldown(10*time.Minute))
+	require.Equal(t, 45*time.Second, policy.EffectiveHalfOpenProbeFailedExtension(2*time.Minute))
+}
+
 func (r groupAwareStubOpenAIAccountRepo) ListSchedulableByGroupIDAndPlatform(ctx context.Context, groupID int64, platform string) ([]Account, error) {
 	var result []Account
 	for _, acc := range r.accounts {
@@ -980,6 +1188,45 @@ func TestOpenAISelectAccountForModelWithExclusions_NoAccounts(t *testing.T) {
 	}
 }
 
+func TestOpenAISelectAccountForModelWithExclusions_UsesResolvedPoolMembers(t *testing.T) {
+	groupID := int64(7)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 2},
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:      repo,
+		cache:            &stubGatewayCache{},
+		upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{memberIDs: map[int64]struct{}{2: {}}},
+	}
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-4", nil)
+	require.NoError(t, err)
+	require.NotNil(t, acc)
+	require.Equal(t, int64(2), acc.ID)
+}
+
+func TestOpenAISelectAccountForModelWithExclusions_NoFallbackWhenBindingHasNoMembers(t *testing.T) {
+	groupID := int64(7)
+	repo := stubOpenAIAccountRepo{
+		accounts: []Account{
+			{ID: 1, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1},
+			{ID: 2, Platform: PlatformOpenAI, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 2},
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:      repo,
+		cache:            &stubGatewayCache{},
+		upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{},
+	}
+
+	acc, err := svc.SelectAccountForModelWithExclusions(context.Background(), &groupID, "", "gpt-4", nil)
+	require.Error(t, err)
+	require.Nil(t, acc)
+}
+
 func TestOpenAISelectAccountWithLoadAwareness_NoCandidates(t *testing.T) {
 	groupID := int64(1)
 	resetAt := time.Now().Add(1 * time.Hour)
@@ -1330,130 +1577,6 @@ func TestOpenAIStreamingResponseFailedBeforeOutputCapacityErrorReturnsFailover(t
 	require.Empty(t, rec.Body.String())
 }
 
-func TestOpenAIStreamingResponseFailedBeforeOutputServerOverloadedCodeReturnsFailover(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{
-		Gateway: config.GatewayConfig{
-			StreamDataIntervalTimeout: 0,
-			StreamKeepaliveInterval:   0,
-			MaxLineSize:               defaultMaxLineSize,
-		},
-	}
-	svc := &OpenAIGatewayService{cfg: cfg}
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
-			"event: response.created",
-			`data: {"type":"response.created","response":{"id":"resp_1"}}`,
-			"",
-			"event: response.failed",
-			`data: {"type":"response.failed","response":{"id":"resp_1","error":{"code":"server_is_overloaded","message":"Please retry later."}}}`,
-			"",
-		}, "\n"))),
-		Header: http.Header{"X-Request-Id": []string{"rid-overloaded-failed"}},
-	}
-
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
-	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
-	require.ErrorAs(t, err, &failoverErr)
-	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
-	require.Contains(t, string(failoverErr.ResponseBody), "Please retry later")
-	require.False(t, c.Writer.Written())
-	require.Empty(t, rec.Body.String())
-}
-
-func TestOpenAIStreamingResponseFailedAfterOutputSanitizesVerboseResponseForClient(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{
-		Gateway: config.GatewayConfig{
-			StreamDataIntervalTimeout: 0,
-			StreamKeepaliveInterval:   0,
-			MaxLineSize:               defaultMaxLineSize,
-		},
-	}
-	svc := &OpenAIGatewayService{cfg: cfg}
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
-
-	longInstructions := strings.Repeat("You are GPT-5.1 running in the Codex CLI. ", 20)
-	failedPayload := fmt.Sprintf(
-		`{"type":"response.failed","response":{"id":"resp_failed","object":"response","created_at":1782446336,"status":"failed","instructions":%q,"output":[{"type":"message","content":[{"type":"output_text","text":"large"}]}],"usage":{"input_tokens":123,"output_tokens":0},"error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again."}}}`,
-		longInstructions,
-	)
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
-			"event: response.created",
-			`data: {"type":"response.created","response":{"id":"resp_failed"}}`,
-			"",
-			"event: response.output_text.delta",
-			`data: {"type":"response.output_text.delta","delta":"partial"}`,
-			"",
-			"event: response.failed",
-			"data: " + failedPayload,
-			"",
-		}, "\n"))),
-		Header: http.Header{"X-Request-Id": []string{"rid-failed-after-output"}},
-	}
-
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
-	require.Error(t, err)
-
-	body := rec.Body.String()
-	require.Contains(t, body, "event: response.failed")
-	require.Contains(t, body, "context_length_exceeded")
-	require.Contains(t, body, "Your input exceeds the context window")
-	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
-	require.NotContains(t, body, `"instructions"`)
-	require.NotContains(t, body, `"output"`)
-	require.NotContains(t, body, `"usage"`)
-}
-
-func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputPassesThrough(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{
-		Gateway: config.GatewayConfig{
-			StreamDataIntervalTimeout: 0,
-			StreamKeepaliveInterval:   0,
-			MaxLineSize:               defaultMaxLineSize,
-		},
-	}
-	svc := &OpenAIGatewayService{cfg: cfg}
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
-
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
-			"event: response.created",
-			`data: {"type":"response.created","response":{"id":"resp_1"}}`,
-			"",
-			"event: response.failed",
-			`data: {"type":"response.failed","error":{"type":"upstream_error","message":"Your input exceeds the context window of this model. Please adjust your input and try again.","code":null}}`,
-			"",
-		}, "\n"))),
-		Header: http.Header{"X-Request-Id": []string{"rid-context-window-failed"}},
-	}
-
-	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
-	require.Error(t, err)
-	var failoverErr *UpstreamFailoverError
-	require.False(t, errors.As(err, &failoverErr))
-	require.True(t, c.Writer.Written())
-	require.Contains(t, rec.Body.String(), "response.failed")
-	require.Contains(t, rec.Body.String(), "Your input exceeds the context window")
-}
-
 func TestOpenAIStreamingPreambleOnlyMissingTerminalReturnsFailover(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -1791,53 +1914,6 @@ func TestOpenAIStreamingPassthroughResponseFailedBeforeOutputReturnsFailover(t *
 	require.Contains(t, string(failoverErr.ResponseBody), "upstream processing failed")
 	require.False(t, c.Writer.Written())
 	require.Empty(t, rec.Body.String())
-}
-
-func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResponseForClient(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	cfg := &config.Config{
-		Gateway: config.GatewayConfig{
-			MaxLineSize: defaultMaxLineSize,
-		},
-	}
-	svc := &OpenAIGatewayService{cfg: cfg}
-
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
-
-	longInstructions := strings.Repeat("You are GPT-5.1 running in the Codex CLI. ", 20)
-	failedPayload := fmt.Sprintf(
-		`{"type":"response.failed","response":{"id":"resp_pass_failed","object":"response","created_at":1782446336,"status":"failed","instructions":%q,"output":[{"type":"message","content":[{"type":"output_text","text":"large"}]}],"usage":{"input_tokens":123,"output_tokens":0},"error":{"code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again."}}}`,
-		longInstructions,
-	)
-	resp := &http.Response{
-		StatusCode: http.StatusOK,
-		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
-			"event: response.created",
-			`data: {"type":"response.created","response":{"id":"resp_pass_failed"}}`,
-			"",
-			"event: response.output_text.delta",
-			`data: {"type":"response.output_text.delta","delta":"partial"}`,
-			"",
-			"event: response.failed",
-			"data: " + failedPayload,
-			"",
-		}, "\n"))),
-		Header: http.Header{"X-Request-Id": []string{"rid-pass-failed-after-output"}},
-	}
-
-	_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "", "")
-	require.Error(t, err)
-
-	body := rec.Body.String()
-	require.Contains(t, body, "event: response.failed")
-	require.Contains(t, body, "context_length_exceeded")
-	require.Contains(t, body, "Your input exceeds the context window")
-	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
-	require.NotContains(t, body, `"instructions"`)
-	require.NotContains(t, body, `"output"`)
-	require.NotContains(t, body, `"usage"`)
 }
 
 func TestOpenAIStreamingPassthroughResponseDoneWithoutDoneMarkerStillSucceeds(t *testing.T) {

@@ -341,7 +341,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+  <div class="ops-concurrency-shell flex h-full flex-col rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
     <!-- 头部 -->
     <div class="mb-4 flex shrink-0 items-center justify-between gap-3">
       <h3 class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
@@ -392,9 +392,9 @@ watch(
     </div>
 
     <!-- 数据展示区域 -->
-    <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
+    <div v-else class="ops-concurrency-board flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
       <!-- 维度标题栏 -->
-      <div class="flex shrink-0 items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
+      <div class="ops-concurrency-board-header flex shrink-0 items-center justify-between border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900">
         <span class="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
           {{ displayTitle }}
         </span>
@@ -409,8 +409,8 @@ watch(
       </div>
 
       <!-- 用户视图 -->
-      <div v-else-if="displayDimension === 'user'" class="custom-scrollbar max-h-[360px] flex-1 space-y-2 overflow-y-auto p-3">
-        <div v-for="row in (displayRows as UserRow[])" :key="row.key" class="rounded-lg bg-gray-50 p-2.5 dark:bg-dark-900">
+      <div v-else-if="displayDimension === 'user'" class="ops-concurrency-board-body custom-scrollbar max-h-[360px] flex-1 space-y-2 overflow-y-auto p-3">
+        <div v-for="row in (displayRows as UserRow[])" :key="row.key" class="ops-concurrency-item rounded-lg bg-gray-50 p-2.5 dark:bg-dark-900">
           <!-- 用户信息和并发 -->
           <div class="mb-1.5 flex items-center justify-between gap-2">
             <div class="flex min-w-0 flex-1 items-center gap-1.5">
@@ -442,8 +442,8 @@ watch(
       </div>
 
       <!-- 汇总视图（平台/分组） -->
-      <div v-else-if="displayDimension === 'platform' || displayDimension === 'group'" class="custom-scrollbar max-h-[360px] flex-1 space-y-2 overflow-y-auto p-3">
-        <div v-for="row in (displayRows as SummaryRow[])" :key="row.key" class="rounded-lg bg-gray-50 p-3 dark:bg-dark-900">
+      <div v-else-if="displayDimension === 'platform' || displayDimension === 'group'" class="ops-concurrency-board-body custom-scrollbar max-h-[360px] flex-1 space-y-2 overflow-y-auto p-3">
+        <div v-for="row in (displayRows as SummaryRow[])" :key="row.key" class="ops-concurrency-item rounded-lg bg-gray-50 p-3 dark:bg-dark-900">
           <!-- 标题行 -->
           <div class="mb-2 flex items-center justify-between gap-2">
             <div class="flex items-center gap-2">
@@ -516,8 +516,8 @@ watch(
       </div>
 
       <!-- 账号详细视图 -->
-      <div v-else class="custom-scrollbar max-h-[360px] flex-1 space-y-2 overflow-y-auto p-3">
-        <div v-for="row in (displayRows as AccountRow[])" :key="row.key" class="rounded-lg bg-gray-50 p-2.5 dark:bg-dark-900">
+      <div v-else class="ops-concurrency-board-body custom-scrollbar max-h-[360px] flex-1 space-y-2 overflow-y-auto p-3">
+        <div v-for="row in (displayRows as AccountRow[])" :key="row.key" class="ops-concurrency-item rounded-lg bg-gray-50 p-2.5 dark:bg-dark-900">
           <!-- 账号名称和并发 -->
           <div class="mb-1.5 flex items-center justify-between gap-2">
             <div class="min-w-0 flex-1">
@@ -620,5 +620,53 @@ watch(
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(156, 163, 175, 0.5);
+}
+</style>
+<style>
+.dark .ops-concurrency-shell {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.9) !important;
+  box-shadow: 0 18px 48px -42px rgba(0, 0, 0, 0.72) !important;
+}
+
+.dark .ops-concurrency-shell :is(.bg-white, .bg-gray-50, .bg-gray-100, .bg-gray-200) {
+  background-color: rgba(24, 26, 21, 0.74) !important;
+}
+
+.dark .ops-concurrency-shell :is(.bg-dark-900, .bg-dark-800, .bg-dark-700) {
+  background-color: rgba(17, 19, 15, 0.82) !important;
+}
+
+.dark .ops-concurrency-shell :is(.text-gray-900, .text-gray-800, .text-gray-700) {
+  color: #f4efe4 !important;
+}
+
+.dark .ops-concurrency-shell :is(.text-gray-600, .text-gray-500, .text-gray-400) {
+  color: #bdb5a8 !important;
+}
+
+.dark .ops-concurrency-shell :is(.border-gray-200, .border-gray-100) {
+  border-color: rgba(48, 52, 43, 0.8) !important;
+}
+
+.dark .ops-concurrency-shell :is(.bg-blue-100, .bg-green-100, .bg-amber-100, .bg-red-100, .bg-purple-100) {
+  background-color: rgba(24, 26, 21, 0.78) !important;
+}
+
+.dark .ops-concurrency-board {
+  background: rgba(22, 24, 19, 0.96) !important;
+}
+
+.dark .ops-concurrency-board-header {
+  background: rgba(42, 45, 36, 0.92) !important;
+}
+
+.dark .ops-concurrency-board-body {
+  background: rgba(22, 24, 19, 0.98) !important;
+}
+
+.dark .ops-concurrency-item {
+  background: rgba(42, 45, 36, 0.92) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
 }
 </style>

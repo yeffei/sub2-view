@@ -1,19 +1,19 @@
 <template>
   <button
     type="button"
-    class="group text-left p-5 rounded-2xl min-h-[280px] w-full bg-white/70 backdrop-blur-xl border border-gray-200/80 shadow-card dark:bg-dark-800/60 dark:border-dark-700/70 hover:-translate-y-1 hover:shadow-card-hover dark:hover:border-primary-500/30 hover:border-gray-300 transition-all duration-300 ease-out flex flex-col"
+    class="monitor-card group text-left p-4 rounded-[1rem] min-h-[236px] w-full overflow-hidden bg-white/70 backdrop-blur-xl border border-gray-200/80 shadow-card dark:border-[#44473a]/80 hover:-translate-y-0.5 hover:shadow-card-hover dark:hover:border-[#a73a2a]/40 hover:border-gray-300 transition-all duration-300 ease-out flex flex-col"
     @click="emit('click')"
   >
     <!-- Header: icon + name/model + status chip -->
-    <div class="flex items-start gap-3">
+    <div class="flex items-start gap-2.5">
       <span
-        class="w-9 h-9 rounded-xl ring-1 ring-black/5 dark:ring-white/10 grid place-items-center flex-shrink-0"
+        class="w-8 h-8 rounded-lg ring-1 ring-black/5 dark:ring-white/10 grid place-items-center flex-shrink-0"
         :class="[providerGradient(item.provider), providerTintClass]"
       >
-        <ProviderIcon :provider="item.provider" :size="20" />
+        <ProviderIcon :provider="item.provider" :size="18" />
       </span>
       <div class="flex-1 min-w-0">
-        <div class="text-base font-semibold truncate text-gray-900 dark:text-gray-100">
+        <div class="text-[15px] font-semibold truncate text-gray-900 dark:text-gray-100">
           {{ item.name }}
         </div>
         <div class="mt-0.5 flex items-center gap-1.5 min-w-0">
@@ -35,7 +35,7 @@
         </div>
       </div>
       <span
-        class="px-2.5 py-1 rounded-full text-xs font-semibold flex-shrink-0"
+        class="px-2.5 py-1 rounded-full text-[11px] font-semibold flex-shrink-0"
         :class="statusBadgeClass(item.primary_status)"
       >
         {{ statusLabel(item.primary_status) }}
@@ -55,7 +55,7 @@
     />
 
     <!-- Divider -->
-    <div class="mt-4 border-t border-gray-100 dark:border-dark-700/60"></div>
+  <div class="mt-3 border-t border-gray-100 dark:border-dark-700/60"></div>
 
     <!-- Availability row -->
     <MonitorAvailabilityRow
@@ -126,3 +126,24 @@ const extraModelsCountLabel = computed(() => {
   return t('monitorCommon.extraModelsCount', { n: count })
 })
 </script>
+
+<style scoped>
+.monitor-card {
+  min-width: 0;
+}
+
+.monitor-card :deep(*) {
+  min-width: 0;
+}
+
+.monitor-card :deep(.monitor-timeline) {
+  min-width: 0;
+}
+
+.dark .monitor-card {
+  background:
+    linear-gradient(180deg, rgba(255, 247, 235, 0.035), transparent 24%),
+    rgba(17, 19, 15, 0.78);
+  box-shadow: inset 0 1px 0 rgba(255, 247, 235, 0.025), 0 24px 54px -46px rgba(0, 0, 0, 0.72);
+}
+</style>

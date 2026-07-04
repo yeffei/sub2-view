@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="mx-auto max-w-6xl space-y-6">
+    <div class="admin-settings-shell mx-auto max-w-6xl space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div
@@ -10,6 +10,7 @@
 
       <!-- Settings Form -->
       <form v-else @submit.prevent="saveSettings" class="space-y-6" novalidate>
+
         <!-- Tab Navigation -->
         <div class="settings-tabs-shell">
           <nav
@@ -47,7 +48,7 @@
         <!-- Tab: Security — Admin API Key -->
         <div v-show="activeTab === 'security'" class="space-y-6">
           <!-- Admin API Key Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -60,9 +61,7 @@
             </div>
             <div class="space-y-4 p-6">
               <!-- Security Warning -->
-              <div
-                class="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
-              >
+              <div class="settings-highlight-row">
                 <div class="flex items-start">
                   <Icon
                     name="exclamationTriangle"
@@ -137,9 +136,7 @@
                     >
                       {{ t("admin.settings.adminApiKey.currentKey") }}
                     </label>
-                    <code
-                      class="rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-dark-700 dark:text-gray-100"
-                    >
+                    <code class="settings-code-chip">
                       {{ adminApiKeyMasked }}
                     </code>
                   </div>
@@ -168,19 +165,14 @@
                 </div>
 
                 <!-- Newly Generated Key Display -->
-                <div
-                  v-if="newAdminApiKey"
-                  class="space-y-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-900/20"
-                >
+                <div v-if="newAdminApiKey" class="settings-success-callout space-y-3">
                   <p
                     class="text-sm font-medium text-green-700 dark:text-green-300"
                   >
                     {{ t("admin.settings.adminApiKey.keyWarning") }}
                   </p>
                   <div class="flex items-center gap-2">
-                    <code
-                      class="flex-1 select-all break-all rounded border border-green-300 bg-white px-3 py-2 font-mono text-sm dark:border-green-700 dark:bg-dark-800"
-                    >
+                    <code class="settings-code-block flex-1 select-all break-all px-3 py-2 font-mono text-sm">
                       {{ newAdminApiKey }}
                     </code>
                     <button
@@ -204,7 +196,7 @@
         <!-- Tab: Gateway -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
           <!-- Overload Cooldown (529) Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -305,7 +297,7 @@
           </div>
 
           <!-- Rate Limit Cooldown (429) Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -412,7 +404,7 @@
           </div>
 
           <!-- Stream Timeout Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -592,7 +584,7 @@
           </div>
 
           <!-- Request Rectifier Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -791,7 +783,7 @@
             </div>
           </div>
           <!-- Beta Policy Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -819,7 +811,7 @@
                 <div
                   v-for="rule in betaPolicyForm.rules"
                   :key="rule.beta_token"
-                  class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                  class="settings-item-card rounded-lg border border-gray-200 p-4 dark:border-dark-600"
                 >
                   <div class="mb-3 flex items-center gap-2">
                     <span
@@ -1070,7 +1062,7 @@
             </div>
           </div>
           <!-- OpenAI Fast/Flex Policy Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1094,7 +1086,7 @@
               <div
                 v-for="(rule, ruleIndex) in openaiFastPolicyForm.rules"
                 :key="ruleIndex"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="settings-item-card rounded-lg border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <span
@@ -1354,7 +1346,7 @@
         <!-- Tab: Security — Registration, Turnstile, LinuxDo -->
         <div v-show="activeTab === 'security'" class="space-y-6">
           <!-- Registration Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1560,7 +1552,7 @@
           </div>
 
           <!-- API Key IP ACL Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1587,7 +1579,7 @@
           </div>
 
           <!-- Cloudflare Turnstile Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1670,7 +1662,7 @@
           </div>
 
           <!-- LinuxDo Connect OAuth 登录 -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -1788,7 +1780,7 @@
           </div>
 
           <!-- GitHub / Google 邮箱快捷登录 -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2014,7 +2006,7 @@
           </div>
 
           <!-- WeChat Connect OAuth 登录 -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2356,7 +2348,7 @@
           </div>
 
           <!-- DingTalk Connect OAuth 登录 -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -2537,7 +2529,7 @@
                         <input
                           v-model="form.dingtalk_connect_sync_display_name_attr_name"
                           type="text"
-                          :placeholder="localText('钉钉姓名', 'DingTalk Name')"
+                          placeholder="钉钉姓名"
                           class="input text-sm flex-1 max-w-xs"
                         />
                       </div>
@@ -2583,7 +2575,7 @@
                         <input
                           v-model="form.dingtalk_connect_sync_corp_email_attr_name"
                           type="text"
-                          :placeholder="localText('钉钉企业邮箱', 'DingTalk Corporate Email')"
+                          placeholder="钉钉企业邮箱"
                           class="input text-sm flex-1 max-w-xs"
                         />
                       </div>
@@ -2629,7 +2621,7 @@
                         <input
                           v-model="form.dingtalk_connect_sync_dept_attr_name"
                           type="text"
-                          :placeholder="localText('钉钉部门', 'DingTalk Department')"
+                          placeholder="钉钉部门"
                           class="input text-sm flex-1 max-w-xs"
                         />
                       </div>
@@ -2644,7 +2636,7 @@
           </div>
 
           <!-- Generic OIDC OAuth 登录 -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3057,7 +3049,7 @@
         <!-- Tab: Users -->
         <div v-show="activeTab === 'users'" class="space-y-6">
           <!-- Default Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3287,7 +3279,7 @@
                       </tr>
                     </thead>
                     <tbody class="space-y-2">
-                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const)" :key="p" class="align-top">
+                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity'] as const)" :key="p" class="align-top">
                         <td class="pr-4 py-1">
                           <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                         </td>
@@ -3330,7 +3322,7 @@
             </div>
           </div>
 
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3343,7 +3335,7 @@
             </div>
             <div class="space-y-6 p-6">
               <div
-                class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                class="settings-auth-source-email-row flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
               >
                 <div>
                   <label class="font-medium text-gray-900 dark:text-white">
@@ -3360,7 +3352,7 @@
                 <div
                   v-for="authSource in authSourceDefaultsMeta"
                   :key="authSource.source"
-                  class="rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+                  class="settings-auth-source-card rounded-xl border border-gray-200 p-4 dark:border-dark-700"
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div>
@@ -3425,7 +3417,7 @@
                     </div>
 
                     <div
-                      class="flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
+                      class="settings-auth-source-bind-row flex items-center justify-between rounded border border-gray-200 px-4 py-3 dark:border-dark-700"
                     >
                       <div>
                         <label
@@ -3622,7 +3614,7 @@
                             </tr>
                           </thead>
                           <tbody>
-                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
+                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
                               <td class="pr-4 py-1">
                                 <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                               </td>
@@ -3673,7 +3665,7 @@
         <!-- Tab: Gateway — Claude Code, Scheduling -->
         <div v-show="activeTab === 'gateway'" class="space-y-6">
           <!-- Claude Code Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -3724,256 +3716,8 @@
             </div>
           </div>
 
-          <!-- Codex Settings -->
-          <div class="card">
-            <div
-              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
-            >
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
-                {{ t("admin.settings.gatewayForwarding.codexHardeningTitle") }}
-              </h2>
-            </div>
-            <div class="p-6 space-y-4">
-                <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-white">
-                    {{ t("admin.settings.gatewayForwarding.codexClientRestrictionTitle") }}
-                  </h3>
-                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.gatewayForwarding.codexHardeningDesc") }}
-                  </p>
-                </div>
-                <div class="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label
-                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                    >
-                      {{ t("admin.settings.gatewayForwarding.minCodexVersion") }}
-                    </label>
-                    <input
-                      v-model="form.min_codex_version"
-                      type="text"
-                      class="input w-full font-mono text-sm"
-                      :placeholder="
-                        t(
-                          'admin.settings.gatewayForwarding.minCodexVersionPlaceholder',
-                        )
-                      "
-                    />
-                  </div>
-                  <div>
-                    <label
-                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                    >
-                      {{ t("admin.settings.gatewayForwarding.maxCodexVersion") }}
-                    </label>
-                    <input
-                      v-model="form.max_codex_version"
-                      type="text"
-                      class="input w-full font-mono text-sm"
-                      :placeholder="
-                        t(
-                          'admin.settings.gatewayForwarding.maxCodexVersionPlaceholder',
-                        )
-                      "
-                    />
-                  </div>
-                </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.gatewayForwarding.codexVersionHint") }}
-                </p>
-
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {{ t("admin.settings.gatewayForwarding.codexFingerprintSignals") }}
-                  </label>
-                  <p class="mb-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.gatewayForwarding.codexFingerprintSignalsDesc") }}
-                  </p>
-                  <div
-                    v-for="(row, i) in codexFingerprintRows"
-                    :key="`codex-fp-${i}`"
-                    class="mb-2 flex items-center gap-2"
-                  >
-                    <select v-model="row.type" class="input w-32 text-sm">
-                      <option value="header_exact">{{ t("admin.settings.gatewayForwarding.codexFpTypeHeaderExact") }}</option>
-                      <option value="header_prefix">{{ t("admin.settings.gatewayForwarding.codexFpTypeHeaderPrefix") }}</option>
-                      <option value="body_path">{{ t("admin.settings.gatewayForwarding.codexFpTypeBodyPath") }}</option>
-                    </select>
-                    <input
-                      v-model="row.match"
-                      type="text"
-                      class="input flex-1 font-mono text-sm"
-                      :placeholder="t('admin.settings.gatewayForwarding.codexFpMatchPlaceholder')"
-                    />
-                    <label class="flex shrink-0 items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-                      <input v-model="row.required" type="checkbox" />
-                      {{ t("admin.settings.gatewayForwarding.codexFpRequired") }}
-                    </label>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-sm shrink-0 text-red-600 hover:text-red-700 dark:text-red-400"
-                      @click="removeCodexFingerprintRow(i)"
-                    >
-                      {{ t("admin.settings.gatewayForwarding.codexRemoveRow") }}
-                    </button>
-                  </div>
-                  <button type="button" class="btn btn-secondary btn-sm" @click="addCodexFingerprintRow">
-                    {{ t("admin.settings.gatewayForwarding.codexAddRow") }}
-                  </button>
-                  <p
-                    v-if="codexFingerprintNoRequired"
-                    class="mt-2 text-xs text-amber-600 dark:text-amber-500"
-                  >
-                    {{ t("admin.settings.gatewayForwarding.codexFingerprintNoRequiredWarn") }}
-                  </p>
-                </div>
-
-                <div class="flex items-center justify-between">
-                  <div class="pr-4">
-                    <label
-                      class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                    >
-                      {{
-                        t("admin.settings.gatewayForwarding.codexAllowAppServer")
-                      }}
-                    </label>
-                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      {{
-                        t(
-                          "admin.settings.gatewayForwarding.codexAllowAppServerDesc",
-                        )
-                      }}
-                    </p>
-                  </div>
-                  <Toggle
-                    v-model="form.codex_cli_only_allow_app_server_clients"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{ t("admin.settings.gatewayForwarding.codexBlacklist") }}
-                  </label>
-                  <p class="mb-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.gatewayForwarding.codexBlacklistDesc") }}
-                  </p>
-                  <div
-                    v-for="(row, i) in codexBlacklistRows"
-                    :key="`codex-bl-${i}`"
-                    class="mb-2 flex gap-2"
-                  >
-                    <input
-                      v-model="row.originator"
-                      type="text"
-                      class="input w-1/3 font-mono text-sm"
-                      :placeholder="
-                        t(
-                          'admin.settings.gatewayForwarding.codexOriginatorPlaceholder',
-                        )
-                      "
-                    />
-                    <input
-                      v-model="row.uaContains"
-                      type="text"
-                      class="input flex-1 font-mono text-sm"
-                      :placeholder="
-                        t(
-                          'admin.settings.gatewayForwarding.codexUaContainsPlaceholder',
-                        )
-                      "
-                    />
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-sm shrink-0 text-red-600 hover:text-red-700 dark:text-red-400"
-                      @click="removeCodexBlacklistRow(i)"
-                    >
-                      {{ t("admin.settings.gatewayForwarding.codexRemoveRow") }}
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-sm"
-                    @click="addCodexBlacklistRow"
-                  >
-                    {{ t("admin.settings.gatewayForwarding.codexAddRow") }}
-                  </button>
-                </div>
-
-                <div>
-                  <label
-                    class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{ t("admin.settings.gatewayForwarding.codexWhitelist") }}
-                  </label>
-                  <p class="mb-2 mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.gatewayForwarding.codexWhitelistDesc") }}
-                  </p>
-                  <div
-                    v-for="(row, i) in codexWhitelistRows"
-                    :key="`codex-wl-${i}`"
-                    class="mb-2 flex gap-2"
-                  >
-                    <input
-                      v-model="row.originator"
-                      type="text"
-                      class="input w-1/3 font-mono text-sm"
-                      :placeholder="
-                        t(
-                          'admin.settings.gatewayForwarding.codexOriginatorPlaceholder',
-                        )
-                      "
-                    />
-                    <input
-                      v-model="row.uaContains"
-                      type="text"
-                      class="input flex-1 font-mono text-sm"
-                      :placeholder="
-                        t(
-                          'admin.settings.gatewayForwarding.codexUaContainsPlaceholder',
-                        )
-                      "
-                    />
-                    <label
-                      class="flex shrink-0 items-center gap-1 text-xs text-gray-600 dark:text-gray-400"
-                      :title="
-                        t(
-                          'admin.settings.gatewayForwarding.codexWhitelistSkipFingerprintTooltip',
-                        )
-                      "
-                    >
-                      <input
-                        v-model="row.skipEngineFingerprint"
-                        type="checkbox"
-                      />
-                      {{
-                        t(
-                          'admin.settings.gatewayForwarding.codexWhitelistSkipFingerprint',
-                        )
-                      }}
-                    </label>
-                    <button
-                      type="button"
-                      class="btn btn-secondary btn-sm shrink-0 text-red-600 hover:text-red-700 dark:text-red-400"
-                      @click="removeCodexWhitelistRow(i)"
-                    >
-                      {{ t("admin.settings.gatewayForwarding.codexRemoveRow") }}
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    class="btn btn-secondary btn-sm"
-                    @click="addCodexWhitelistRow"
-                  >
-                    {{ t("admin.settings.gatewayForwarding.codexAddRow") }}
-                  </button>
-                </div>
-            </div>
-          </div>
-
           <!-- Gateway Scheduling Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4018,7 +3762,7 @@
           </div>
 
           <!-- Gateway Forwarding Behavior -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4368,31 +4112,6 @@
                 <Toggle v-model="form.rewrite_message_cache_control" />
               </div>
 
-              <!-- 客户端 dateline 归一化（仅 Anthropic OAuth/SetupToken） -->
-              <div class="flex items-center justify-between">
-                <div>
-                  <label
-                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{
-                      t(
-                        "admin.settings.gatewayForwarding.clientDatelineNormalization",
-                      )
-                    }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{
-                      t(
-                        "admin.settings.gatewayForwarding.clientDatelineNormalizationHint",
-                      )
-                    }}
-                  </p>
-                </div>
-                <Toggle
-                  v-model="form.enable_client_dateline_normalization"
-                />
-              </div>
-
               <!-- Antigravity UA 版本 -->
               <div>
                 <label
@@ -4453,11 +4172,22 @@
                 </p>
               </div>
 
+              <!-- 是否允许在 Claude Code 中使用 Codex 插件（全局开关） -->
+              <div class="flex items-center justify-between">
+                <div class="pr-4">
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.gatewayForwarding.openaiAllowClaudeCodeCodexPlugin") }}
+                  </label>
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.openaiAllowClaudeCodeCodexPluginDesc") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.openai_allow_claude_code_codex_plugin" />
+              </div>
             </div>
           </div>
-
           <!-- Web Search Emulation -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4893,7 +4623,7 @@
           </div>
 
         <!-- Usage Records Settings -->
-        <div class="card">
+        <div class="card settings-section-card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.usageRecords.title') }}
@@ -4926,7 +4656,7 @@
         <!-- Tab: General -->
         <div v-show="activeTab === 'general'" class="space-y-6">
           <!-- Site Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -4940,7 +4670,7 @@
             <div class="space-y-6 p-6">
               <!-- Backend Mode -->
               <div
-                class="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
+                class="settings-highlight-row flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/20"
               >
                 <div>
                   <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -5071,7 +4801,7 @@
                   <div
                     v-for="(ep, index) in form.custom_endpoints"
                     :key="index"
-                    class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                    class="settings-item-card rounded-lg border border-gray-200 p-4 dark:border-dark-600"
                   >
                     <div class="mb-3 flex items-center justify-between">
                       <span
@@ -5280,7 +5010,7 @@
           </div>
 
           <!-- Custom Menu Items -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -5296,7 +5026,7 @@
               <div
                 v-for="(item, index) in form.custom_menu_items"
                 :key="item.id || index"
-                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="settings-item-card settings-fast-policy-card rounded-lg border border-gray-200 p-4 dark:border-dark-600"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <span
@@ -5474,7 +5204,7 @@
 
 	        <!-- Tab: Login Agreement -->
 	        <div v-show="activeTab === 'agreement'" class="space-y-6">
-	          <div class="card">
+	          <div class="card settings-section-card">
 	            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
 	              <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 	                <div>
@@ -5677,7 +5407,7 @@
 	        <!-- Tab: Features (功能开关) -->
         <div v-show="activeTab === 'features'" class="space-y-6">
 
-        <div class="card">
+        <div class="card settings-section-card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.channelMonitor.title') }}
@@ -5727,7 +5457,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card settings-section-card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.availableChannels.title') }}
@@ -5760,7 +5490,7 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card settings-section-card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.riskControl.title') }}
@@ -5819,7 +5549,7 @@
         </div>
 
         <!-- Affiliate (邀请返利) feature card -->
-        <div class="card">
+        <div class="card settings-section-card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
               {{ t('admin.settings.features.affiliate.title') }}
@@ -6224,7 +5954,7 @@
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
           <!-- Payment System Settings -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6280,7 +6010,7 @@
                       v-model="form.payment_product_name_prefix"
                       type="text"
                       class="input"
-                      placeholder="Sub2API"
+                      placeholder="山枢庭"
                     />
                   </div>
                   <div>
@@ -6302,7 +6032,7 @@
                       class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
                     >
                       {{
-                        (form.payment_product_name_prefix || "Sub2API") +
+                        (form.payment_product_name_prefix || "山枢庭") +
                         " 100 " +
                         (form.payment_product_name_suffix || "CNY")
                       }}
@@ -6469,7 +6199,103 @@
                     </p>
                   </div>
                 </div>
-                <!-- Row 3: Pending orders + load balance + cancel rate limit (all in one row) -->
+                <!-- Row 3: Recharge campaign -->
+                <div class="settings-payment-campaign-panel rounded-2xl border border-gray-200 bg-gray-50/70 p-4 dark:border-dark-700 dark:bg-dark-800/40">
+                  <div class="flex items-center justify-between gap-4">
+                    <div>
+                      <label class="font-medium text-gray-900 dark:text-white">
+                        {{ t("admin.settings.payment.rechargeCampaign") }}
+                      </label>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.payment.rechargeCampaignHint") }}
+                      </p>
+                    </div>
+                    <Toggle v-model="form.payment_recharge_campaign_enabled" />
+                  </div>
+                  <div
+                    v-if="form.payment_recharge_campaign_enabled"
+                    class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
+                  >
+                    <div>
+                      <label class="input-label">{{
+                        t("admin.settings.payment.rechargeCampaignAmount")
+                      }}</label>
+                      <input
+                        :value="form.payment_recharge_campaign_amount ?? ''"
+                        @input="
+                          form.payment_recharge_campaign_amount = Math.max(
+                            0,
+                            Math.round(
+                              parseFloat(
+                                ($event.target as HTMLInputElement).value || '0',
+                              ) * 100,
+                            ) / 100,
+                          )
+                        "
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        class="input"
+                      />
+                      <p class="mt-0.5 text-xs text-gray-400">
+                        {{ t("admin.settings.payment.rechargeCampaignAmountHint") }}
+                      </p>
+                    </div>
+                    <div>
+                      <label class="input-label">{{
+                        t("admin.settings.payment.rechargeCampaignBonusRate")
+                      }}</label>
+                      <div class="relative">
+                        <input
+                          :value="form.payment_recharge_campaign_bonus_rate ?? ''"
+                          @input="
+                            form.payment_recharge_campaign_bonus_rate = Math.min(
+                              100,
+                              Math.max(
+                                0,
+                                Math.round(
+                                  parseFloat(
+                                    ($event.target as HTMLInputElement).value ||
+                                      '0',
+                                  ) * 100,
+                                ) / 100,
+                              ),
+                            )
+                          "
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max="100"
+                          class="input pr-8"
+                        />
+                        <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">%</span>
+                      </div>
+                      <p class="mt-0.5 text-xs text-gray-400">
+                        {{ t("admin.settings.payment.rechargeCampaignBonusRateHint") }}
+                      </p>
+                    </div>
+                    <div>
+                      <label class="input-label">{{
+                        t("admin.settings.payment.rechargeCampaignPreview")
+                      }}</label>
+                      <div class="settings-payment-campaign-preview rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-900 dark:text-gray-300">
+                        {{
+                          t("admin.settings.payment.rechargeCampaignPreviewText", {
+                            amount: (
+                              Number(form.payment_recharge_campaign_amount) || 100
+                            ).toFixed(2),
+                            rate: (
+                              Number.isFinite(Number(form.payment_recharge_campaign_bonus_rate))
+                                ? Number(form.payment_recharge_campaign_bonus_rate)
+                                : 10
+                            ).toFixed(2),
+                          })
+                        }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <!-- Row 4: Pending orders + load balance + cancel rate limit (all in one row) -->
                 <div class="flex flex-wrap items-end gap-4">
                   <div class="w-28">
                     <label class="input-label">{{
@@ -6715,7 +6541,7 @@
 
         <div v-show="activeTab === 'email'" class="space-y-6">
           <!-- Email disabled hint - show when email_verify_enabled is off -->
-          <div v-if="!form.email_verify_enabled" class="card">
+          <div v-if="!form.email_verify_enabled" class="card settings-section-card">
             <div class="p-6">
               <div class="flex items-start gap-3">
                 <Icon
@@ -6736,7 +6562,7 @@
           </div>
 
           <!-- SMTP Settings - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_verify_enabled" class="card settings-section-card">
             <div
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6899,7 +6725,7 @@
           </div>
 
           <!-- Send Test Email - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_verify_enabled" class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6966,7 +6792,7 @@
           </div>
 
           <!-- 订阅到期提醒 -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -6997,7 +6823,7 @@
           <EmailTemplateEditor />
 
           <!-- Balance Low Notification -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -7057,7 +6883,7 @@
           </div>
 
           <!-- Account Quota Notification -->
-          <div class="card">
+          <div class="card settings-section-card">
             <div
               class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -7269,12 +7095,6 @@ import {
   normalizeRegistrationEmailSuffixDomains,
   parseRegistrationEmailSuffixWhitelistInput,
 } from "@/utils/registrationEmailPolicy";
-import {
-  parseFingerprintSignalsToRows,
-  serializeFingerprintRowsToJSON,
-  defaultFingerprintSignalRows,
-  type FingerprintSignalRow,
-} from "./codexFingerprintSignals";
 
 const { t, locale } = useI18n();
 const appStore = useAppStore();
@@ -7460,22 +7280,22 @@ function defaultLoginAgreementDocuments(): LoginAgreementDocument[] {
   return [
     {
       id: "terms",
-      title: localText("服务条款", "Terms of Service"),
+      title: "服务条款",
       content_md: "",
     },
     {
       id: "usage-policy",
-      title: localText("使用政策", "Usage Policy"),
+      title: "使用政策",
       content_md: "",
     },
     {
       id: "supported-regions",
-      title: localText("支持的国家和地区", "Supported Countries and Regions"),
+      title: "支持的国家和地区",
       content_md: "",
     },
     {
       id: "service-specific-terms",
-      title: localText("服务特定条款", "Service-Specific Terms"),
+      title: "服务特定条款",
       content_md: "",
     },
   ];
@@ -7903,6 +7723,9 @@ type SettingsForm = Omit<
   google_oauth_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
+  payment_recharge_campaign_enabled: boolean;
+  payment_recharge_campaign_amount: number;
+  payment_recharge_campaign_bonus_rate: number;
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
@@ -7930,9 +7753,9 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
-  site_name: "Sub2API",
+  site_name: "山枢庭",
   site_logo: "",
-  site_subtitle: "Subscription to API Conversion Platform",
+  site_subtitle: "统一入口，安静流转。",
   api_base_url: "",
   contact_info: "",
   doc_url: "",
@@ -7951,6 +7774,9 @@ const form = reactive<SettingsForm>({
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
   payment_recharge_fee_rate: 0,
+  payment_recharge_campaign_enabled: false,
+  payment_recharge_campaign_amount: 100,
+  payment_recharge_campaign_bonus_rate: 10,
   payment_enabled_types: [],
   payment_help_image_url: "",
   payment_help_text: "",
@@ -8014,9 +7840,9 @@ const form = reactive<SettingsForm>({
   dingtalk_connect_sync_corp_email_attr_key: "dingtalk_email",
   dingtalk_connect_sync_display_name_attr_key: "dingtalk_name",
   dingtalk_connect_sync_dept_attr_key: "dingtalk_department",
-  dingtalk_connect_sync_corp_email_attr_name: localText("钉钉企业邮箱", "DingTalk Corporate Email"),
-  dingtalk_connect_sync_display_name_attr_name: localText("钉钉姓名", "DingTalk Name"),
-  dingtalk_connect_sync_dept_attr_name: localText("钉钉部门", "DingTalk Department"),
+  dingtalk_connect_sync_corp_email_attr_name: "钉钉企业邮箱",
+  dingtalk_connect_sync_display_name_attr_name: "钉钉姓名",
+  dingtalk_connect_sync_dept_attr_name: "钉钉部门",
   wechat_connect_enabled: false,
   wechat_connect_app_id: "",
   wechat_connect_app_secret: "",
@@ -8103,16 +7929,9 @@ const form = reactive<SettingsForm>({
   claude_oauth_system_prompt_blocks: defaultClaudeOAuthSystemPromptBlocks,
   enable_anthropic_cache_ttl_1h_injection: false,
   rewrite_message_cache_control: false,
-  enable_client_dateline_normalization: true,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
-  // codex_cli_only 加固
-  min_codex_version: "",
-  max_codex_version: "",
-  codex_cli_only_blacklist: "",
-  codex_cli_only_whitelist: "",
-  codex_cli_only_allow_app_server_clients: false,
-  codex_cli_only_engine_fingerprint_signals: "",
+  openai_allow_claude_code_codex_plugin: false,
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -8122,7 +7941,7 @@ const form = reactive<SettingsForm>({
   account_quota_notify_emails: [] as NotifyEmailEntry[],
   // Channel Monitor feature switch
   channel_monitor_enabled: true,
-  channel_monitor_default_interval_seconds: 60,
+  channel_monitor_default_interval_seconds: 300,
   // Available Channels feature switch
   available_channels_enabled: false,
   // Affiliate (邀请返利) feature switch
@@ -8174,7 +7993,7 @@ const authSourceDefaultsMeta = computed(() => [
   },
   {
     source: "dingtalk" as AuthSourceType,
-    title: t("auth.dingtalkProviderName"),
+    title: "钉钉",
     description: localText(
       "通过钉钉首次注册或首次绑定时应用。",
       "Applied on first signup or first bind through DingTalk.",
@@ -8467,15 +8286,13 @@ const addQuotaNotifyEmail = () => {
 const currentOrigin =
   typeof window !== "undefined" ? window.location.origin : "";
 
-function buildApiCallbackUrl(path: string): string {
-  const base = (form.api_base_url || currentOrigin).replace(/\/+$/, "");
-  const apiRoot = base.endsWith("/api/v1") ? base : `${base}/api/v1`;
-  return `${apiRoot}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
 // LinuxDo OAuth redirect URL suggestion
 const linuxdoRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/linuxdo/callback");
+  if (typeof window === "undefined") return "";
+  const origin =
+    window.location.origin ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${origin}/api/v1/auth/oauth/linuxdo/callback`;
 });
 
 async function setAndCopyLinuxdoRedirectUrl() {
@@ -8492,11 +8309,19 @@ async function setAndCopyLinuxdoRedirectUrl() {
 type EmailOAuthProvider = "github" | "google";
 
 const githubOAuthRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/github/callback");
+  if (typeof window === "undefined") return "";
+  const origin =
+    window.location.origin ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${origin}/api/v1/auth/oauth/github/callback`;
 });
 
 const googleOAuthRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/google/callback");
+  if (typeof window === "undefined") return "";
+  const origin =
+    window.location.origin ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${origin}/api/v1/auth/oauth/google/callback`;
 });
 
 async function setAndCopyEmailOAuthRedirectUrl(provider: EmailOAuthProvider) {
@@ -8518,7 +8343,11 @@ async function setAndCopyEmailOAuthRedirectUrl(provider: EmailOAuthProvider) {
 }
 
 const wechatRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/wechat/callback");
+  if (typeof window === "undefined") return "";
+  const origin =
+    window.location.origin ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${origin}/api/v1/auth/oauth/wechat/callback`;
 });
 
 function syncWeChatConnectMode(preferredMode?: WeChatConnectMode) {
@@ -8583,7 +8412,11 @@ async function setAndCopyWeChatRedirectUrl() {
 }
 
 const oidcRedirectUrlSuggestion = computed(() => {
-  return buildApiCallbackUrl("/auth/oauth/oidc/callback");
+  if (typeof window === "undefined") return "";
+  const origin =
+    window.location.origin ||
+    `${window.location.protocol}//${window.location.host}`;
+  return `${origin}/api/v1/auth/oauth/oidc/callback`;
 });
 
 async function setAndCopyOIDCRedirectUrl() {
@@ -8704,82 +8537,6 @@ function parseTablePageSizeOptionsInput(raw: string): number[] | null {
   return deduped;
 }
 
-// ── codex_cli_only 黑/白名单结构化编辑（行 ↔ JSON）──
-interface CodexClientRow {
-  originator: string;
-  uaContains: string; // 逗号分隔，序列化时拆成 ua_contains 数组
-  skipEngineFingerprint?: boolean; // 仅白名单：命中即跳过引擎指纹门
-}
-const codexBlacklistRows = ref<CodexClientRow[]>([]);
-const codexWhitelistRows = ref<CodexClientRow[]>([]);
-const codexFingerprintRows = ref<FingerprintSignalRow[]>([]);
-const codexFingerprintNoRequired = computed(
-  () => !codexFingerprintRows.value.some((r) => r.required),
-);
-function addCodexFingerprintRow(): void {
-  codexFingerprintRows.value.push({ type: "header_exact", match: "", required: false });
-}
-function removeCodexFingerprintRow(i: number): void {
-  codexFingerprintRows.value.splice(i, 1);
-}
-
-function parseCodexEntriesToRows(raw: string): CodexClientRow[] {
-  if (!raw || !raw.trim()) return [];
-  try {
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr)) return [];
-    return arr.map((e) => ({
-      originator: typeof e?.originator === "string" ? e.originator : "",
-      uaContains: Array.isArray(e?.ua_contains)
-        ? e.ua_contains
-            .filter((x: unknown) => typeof x === "string")
-            .join(", ")
-        : "",
-      skipEngineFingerprint: e?.skip_engine_fingerprint === true,
-    }));
-  } catch {
-    return [];
-  }
-}
-
-function serializeCodexRowsToJSON(rows: CodexClientRow[]): string {
-  const entries = rows
-    .map((r) => {
-      const entry: {
-        originator: string;
-        ua_contains: string[];
-        skip_engine_fingerprint?: boolean;
-      } = {
-        originator: r.originator.trim(),
-        ua_contains: r.uaContains
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s.length > 0),
-      };
-      if (r.skipEngineFingerprint) entry.skip_engine_fingerprint = true;
-      return entry;
-    })
-    .filter((e) => e.originator !== "" || e.ua_contains.length > 0);
-  return entries.length > 0 ? JSON.stringify(entries) : "";
-}
-
-function addCodexBlacklistRow(): void {
-  codexBlacklistRows.value.push({ originator: "", uaContains: "" });
-}
-function removeCodexBlacklistRow(i: number): void {
-  codexBlacklistRows.value.splice(i, 1);
-}
-function addCodexWhitelistRow(): void {
-  codexWhitelistRows.value.push({
-    originator: "",
-    uaContains: "",
-    skipEngineFingerprint: false,
-  });
-}
-function removeCodexWhitelistRow(i: number): void {
-  codexWhitelistRows.value.splice(i, 1);
-}
-
 async function loadSettings() {
   loading.value = true;
   loadFailed.value = false;
@@ -8802,15 +8559,6 @@ async function loadSettings() {
       form.claude_oauth_system_prompt,
     );
     syncClaudeOAuthSystemPromptBlocksFormField();
-    codexBlacklistRows.value = parseCodexEntriesToRows(
-      form.codex_cli_only_blacklist,
-    );
-    codexWhitelistRows.value = parseCodexEntriesToRows(
-      form.codex_cli_only_whitelist,
-    );
-    codexFingerprintRows.value = form.codex_cli_only_engine_fingerprint_signals
-      ? parseFingerprintSignalsToRows(form.codex_cli_only_engine_fingerprint_signals)
-      : defaultFingerprintSignalRows();
     form.login_agreement_mode =
       settings.login_agreement_mode === "checkbox" ? "checkbox" : "modal";
     form.login_agreement_updated_at =
@@ -9308,25 +9056,11 @@ async function saveSettings() {
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
-      enable_client_dateline_normalization:
-        form.enable_client_dateline_normalization,
       antigravity_user_agent_version:
         form.antigravity_user_agent_version?.trim() || "",
       openai_codex_user_agent:
         form.openai_codex_user_agent?.trim() || "",
-      min_codex_version: form.min_codex_version?.trim() || "",
-      max_codex_version: form.max_codex_version?.trim() || "",
-      codex_cli_only_allow_app_server_clients:
-        form.codex_cli_only_allow_app_server_clients,
-      codex_cli_only_engine_fingerprint_signals: serializeFingerprintRowsToJSON(
-        codexFingerprintRows.value,
-      ),
-      codex_cli_only_blacklist: serializeCodexRowsToJSON(
-        codexBlacklistRows.value,
-      ),
-      codex_cli_only_whitelist: serializeCodexRowsToJSON(
-        codexWhitelistRows.value,
-      ),
+      openai_allow_claude_code_codex_plugin: form.openai_allow_claude_code_codex_plugin,
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
@@ -9343,6 +9077,13 @@ async function saveSettings() {
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
+      payment_recharge_campaign_enabled: form.payment_recharge_campaign_enabled,
+      payment_recharge_campaign_amount:
+        Number(form.payment_recharge_campaign_amount) || 100,
+      payment_recharge_campaign_bonus_rate:
+        Number.isFinite(Number(form.payment_recharge_campaign_bonus_rate))
+          ? Number(form.payment_recharge_campaign_bonus_rate)
+          : 10,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,
@@ -10137,15 +9878,7 @@ async function loadProviders() {
   providersLoading.value = true;
   try {
     const res = await adminAPI.payment.getProviders();
-    // Normalize supported_types: backend returns null when the list is empty
-    // (Go nil slice → JSON null). Without this, ProviderCard's isSelected()
-    // throws TypeError on null.includes(), causing the card to vanish.
-    providers.value = (res.data || []).map((p) => ({
-      ...p,
-      supported_types: Array.isArray(p.supported_types)
-        ? p.supported_types
-        : [],
-    }));
+    providers.value = res.data || [];
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, "payment.errors", t("common.error")));
   } finally {
@@ -10239,12 +9972,9 @@ async function handleToggleField(
 }
 
 async function handleToggleType(provider: ProviderInstance, type: string) {
-  const currentTypes = Array.isArray(provider.supported_types)
-    ? provider.supported_types
-    : [];
-  const updated = currentTypes.includes(type)
-    ? currentTypes.filter((t) => t !== type)
-    : [...currentTypes, type];
+  const updated = provider.supported_types.includes(type)
+    ? provider.supported_types.filter((t) => t !== type)
+    : [...provider.supported_types, type];
   const conflict = findProviderEnablementConflict({
     id: provider.id,
     provider_key: provider.provider_key,
@@ -10683,6 +10413,89 @@ watch(
 </script>
 
 <style scoped>
+.settings-section-card {
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.04), transparent 28%),
+    rgba(250, 247, 239, 0.76);
+}
+
+.settings-section-card > .border-b {
+  border-color: rgba(198, 184, 157, 0.38);
+}
+
+.settings-item-card {
+  border-color: rgba(198, 184, 157, 0.38);
+  background: rgba(255, 252, 245, 0.82);
+}
+
+.settings-highlight-row {
+  border: 1px solid rgba(221, 171, 121, 0.42);
+  background: rgba(255, 245, 224, 0.72);
+}
+
+.settings-success-callout {
+  border: 1px solid rgba(143, 171, 118, 0.42);
+  background: rgba(234, 247, 229, 0.72);
+}
+
+.settings-code-chip,
+.settings-code-block {
+  border: 1px solid rgba(198, 184, 157, 0.46);
+  border-radius: 0.55rem;
+  background: rgba(250, 247, 239, 0.94);
+  color: #1f2320;
+}
+
+.settings-code-chip {
+  display: inline-flex;
+  align-items: center;
+}
+
+.settings-code-block {
+  display: block;
+}
+
+.settings-highlight-row p,
+.settings-success-callout p {
+  color: #5f675d;
+}
+
+.settings-highlight-row .text-amber-700,
+.settings-highlight-row .text-amber-300 {
+  color: #8b6427;
+}
+
+.settings-success-callout .text-green-700,
+.settings-success-callout .text-green-300 {
+  color: #51624f;
+}
+
+.settings-highlight-row .text-amber-500 {
+  color: #b9832e;
+}
+
+.settings-success-callout .text-green-600,
+.settings-success-callout .text-green-400 {
+  color: #5d7258;
+}
+
+.settings-item-card .rounded.bg-gray-100,
+.settings-item-card .rounded.bg-gray-50,
+.settings-item-card .rounded-lg.bg-gray-50,
+.settings-item-card .rounded-lg.bg-white,
+.settings-item-card .rounded-lg.border,
+.settings-item-card .rounded.border {
+  border-color: rgba(198, 184, 157, 0.38);
+  background: rgba(250, 247, 239, 0.82);
+}
+
+.settings-item-card .select-all.break-all.rounded,
+.settings-item-card .inline-flex.items-center.gap-1.rounded {
+  border-color: rgba(198, 184, 157, 0.46);
+  background: rgba(250, 247, 239, 0.9);
+  color: #445046;
+}
+
 .default-sub-group-select :deep(.select-trigger) {
   @apply h-[42px];
 }
@@ -10691,13 +10504,76 @@ watch(
   @apply h-[42px];
 }
 
+.admin-settings-shell {
+  padding: clamp(0.2rem, 0.5vw, 0.4rem);
+}
+
+.admin-settings-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem 1.3rem 1.1rem;
+  border: 1px solid rgba(198, 184, 157, 0.52);
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.055), transparent 30%),
+    linear-gradient(180deg, rgba(255, 252, 245, 0.92), rgba(246, 241, 231, 0.8));
+}
+
+.admin-settings-kicker,
+.admin-settings-meta strong {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-settings-hero h2 {
+  margin-top: 0.45rem;
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: clamp(1.45rem, 2vw, 1.9rem);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.admin-settings-hero p {
+  max-width: 40rem;
+  margin-top: 0.55rem;
+  color: #5f675d;
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.admin-settings-meta {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10rem;
+  padding: 0.9rem 0.95rem;
+  border: 1px solid rgba(198, 184, 157, 0.44);
+  border-radius: 10px;
+  background: rgba(250, 247, 239, 0.74);
+  text-align: right;
+}
+
+.admin-settings-meta span {
+  color: #1f2320;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 /* ============ 系统设置 Tab 导航 ============ */
 .settings-tabs-shell {
-  @apply sticky z-20 -mx-1 rounded-2xl border border-white/80 bg-white/90 p-1.5 backdrop-blur-xl;
+  @apply sticky z-20 -mx-1 rounded-2xl border p-1.5 backdrop-blur-xl;
   top: 4.75rem;
+  border-color: rgba(198, 184, 157, 0.52);
+  background: rgba(250, 247, 239, 0.86);
   box-shadow:
-    0 12px 28px rgb(15 23 42 / 0.07),
-    0 1px 0 rgb(255 255 255 / 0.9) inset;
+    0 18px 42px -38px rgba(31, 35, 32, 0.26),
+    0 1px 0 rgba(255, 255, 255, 0.88) inset;
 }
 
 .settings-tabs-scroll {
@@ -10735,7 +10611,7 @@ watch(
 .settings-tab::before {
   @apply absolute inset-0 -z-10 rounded-xl opacity-0 transition-opacity duration-200;
   content: "";
-  background: linear-gradient(135deg, rgb(248 250 252 / 0.95), rgb(241 245 249 / 0.8));
+  background: linear-gradient(135deg, rgba(255, 252, 245, 0.95), rgba(242, 235, 220, 0.84));
 }
 
 .settings-tab:hover::before,
@@ -10744,11 +10620,15 @@ watch(
 }
 
 .settings-tab:focus-visible {
-  @apply ring-2 ring-primary-500/40 ring-offset-2 ring-offset-white dark:ring-offset-dark-900;
+  @apply ring-2 ring-offset-2 ring-offset-white dark:ring-offset-dark-900;
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.14);
 }
 
 .settings-tab-active {
-  @apply border-primary-200/80 bg-white text-primary-700 shadow-sm dark:border-primary-400/30 dark:bg-dark-700/95 dark:text-primary-200;
+  @apply shadow-sm dark:bg-dark-700/95;
+  border-color: rgba(198, 184, 157, 0.6);
+  background: rgba(255, 252, 245, 0.94);
+  color: #a73a2a;
   box-shadow:
     0 8px 18px rgb(15 23 42 / 0.08),
     0 1px 0 rgb(255 255 255 / 0.92) inset;
@@ -10766,7 +10646,7 @@ watch(
   height: 2px;
   border-radius: 9999px;
   content: "";
-  background: linear-gradient(90deg, #14b8a6, #0ea5e9);
+  background: linear-gradient(90deg, rgba(167, 58, 42, 0.9), rgba(155, 129, 85, 0.72));
 }
 
 .settings-tab-icon {
@@ -10779,7 +10659,9 @@ watch(
 }
 
 .settings-tab-active .settings-tab-icon {
-  @apply bg-primary-50 text-primary-600 dark:bg-primary-400/10 dark:text-primary-300;
+  @apply dark:bg-primary-400/10;
+  background: rgba(167, 58, 42, 0.08);
+  color: #a73a2a;
 }
 
 .settings-tab-label {
@@ -10791,21 +10673,180 @@ watch(
 /* Dark-mode overrides for the settings tabs shell. Kept in an UNSCOPED block
    because Vue's scoped-CSS compiler was dropping the `:global(.dark) ...`
    rules in the production build, leaving inactive tabs unreadable on dark. */
+.dark .admin-settings-hero {
+  border-color: rgba(48, 52, 43, 0.92);
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(24, 26, 21, 0.92), rgba(17, 19, 15, 0.84));
+}
+
+.dark .admin-settings-hero h2,
+.dark .admin-settings-meta span {
+  color: #f4efe4;
+}
+
+.dark .admin-settings-hero p {
+  color: #bdb5a8;
+}
+
+.dark .admin-settings-meta {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(24, 26, 21, 0.68);
+}
+
+.dark .settings-section-card {
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.06), transparent 28%),
+    rgba(24, 26, 21, 0.94) !important;
+  border-color: rgba(48, 52, 43, 0.86) !important;
+  box-shadow: 0 18px 42px -34px rgba(0, 0, 0, 0.34) !important;
+}
+
+.dark .settings-section-card > .border-b {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+}
+
+.dark .settings-item-card {
+  border-color: rgba(48, 52, 43, 0.84) !important;
+  background: rgba(22, 24, 19, 0.96) !important;
+}
+
+.dark .settings-highlight-row {
+  border-color: rgba(167, 58, 42, 0.3) !important;
+  background: rgba(50, 29, 19, 0.85) !important;
+}
+
+.dark .settings-success-callout {
+  border-color: rgba(47, 111, 94, 0.3) !important;
+  background: rgba(22, 33, 27, 0.88) !important;
+}
+
+.dark .settings-code-chip,
+.dark .settings-code-block {
+  border-color: rgba(48, 52, 43, 0.84) !important;
+  background: rgba(17, 19, 15, 0.94) !important;
+  color: #f4efe4 !important;
+}
+
+.dark .settings-highlight-row p,
+.dark .settings-success-callout p {
+  color: #d7d0c2 !important;
+}
+
+.dark .settings-highlight-row .text-amber-700,
+.dark .settings-highlight-row .text-amber-300 {
+  color: #efc27f !important;
+}
+
+.dark .settings-success-callout .text-green-700,
+.dark .settings-success-callout .text-green-300 {
+  color: #c4d5be !important;
+}
+
+.dark .settings-highlight-row .text-amber-500 {
+  color: #f0a94b !important;
+}
+
+.dark .settings-success-callout .text-green-600,
+.dark .settings-success-callout .text-green-400 {
+  color: #8fbc8a !important;
+}
+
+.dark .settings-item-card .rounded.bg-gray-100,
+.dark .settings-item-card .rounded.bg-gray-50,
+.dark .settings-item-card .rounded-lg.bg-gray-50,
+.dark .settings-item-card .rounded-lg.bg-white,
+.dark .settings-item-card .rounded-lg.border,
+.dark .settings-item-card .rounded.border {
+  border-color: rgba(48, 52, 43, 0.8) !important;
+  background: rgba(22, 24, 19, 0.96) !important;
+}
+
+.dark .settings-item-card .select-all.break-all.rounded,
+.dark .settings-item-card .inline-flex.items-center.gap-1.rounded {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+  background: rgba(17, 19, 15, 0.92) !important;
+  color: #d7d0c2 !important;
+}
+
+.dark .settings-auth-source-email-row,
+.dark .settings-auth-source-bind-row {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+  background: rgba(22, 24, 19, 0.94) !important;
+}
+
+.dark .settings-auth-source-card {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+  background: rgba(22, 24, 19, 0.96) !important;
+}
+
+.dark .settings-fast-policy-card {
+  background: linear-gradient(180deg, rgba(24, 26, 21, 0.97), rgba(19, 21, 16, 0.98)) !important;
+}
+
+.dark .settings-payment-campaign-panel {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+  background: rgba(22, 24, 19, 0.94) !important;
+}
+
+.dark .settings-payment-campaign-preview {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+  background: rgba(17, 19, 15, 0.92) !important;
+  color: #d7d0c2 !important;
+}
+
+.dark .settings-section-card .rounded-lg.border.border-gray-200,
+.dark .settings-section-card .rounded-lg.border.border-gray-300,
+.dark .settings-section-card .rounded-lg.border.border-dashed,
+.dark .settings-section-card .rounded-xl.bg-white,
+.dark .settings-section-card .rounded-lg.bg-white,
+.dark .settings-section-card .rounded-lg.bg-gray-50,
+.dark .settings-section-card .rounded-lg.bg-gray-100,
+.dark .settings-section-card .bg-white,
+.dark .settings-section-card .bg-gray-50,
+.dark .settings-section-card .bg-gray-100 {
+  border-color: rgba(48, 52, 43, 0.82) !important;
+  background: rgba(22, 24, 19, 0.94) !important;
+}
+
+.dark .settings-section-card .border-gray-300 {
+  border-color: rgba(80, 74, 58, 0.52) !important;
+}
+
+.dark .settings-section-card .bg-primary-50 {
+  background: rgba(72, 41, 31, 0.84) !important;
+}
+
+.dark .settings-section-card .border-primary-200,
+.dark .settings-section-card .dark\:border-primary-700\/50 {
+  border-color: rgba(167, 58, 42, 0.32) !important;
+}
+
+.dark .settings-section-card thead.bg-gray-50 {
+  background: rgba(17, 19, 15, 0.94) !important;
+}
+
+.dark .settings-section-card tbody.bg-white {
+  background: rgba(22, 24, 19, 0.96) !important;
+}
+
 .dark .settings-tabs-shell {
-  border-color: rgb(51 65 85 / 0.65);
-  background: rgb(15 23 42 / 0.86);
+  border-color: rgba(48, 52, 43, 0.78);
+  background: rgba(24, 26, 21, 0.86);
   box-shadow:
     0 16px 36px rgb(0 0 0 / 0.28),
     0 1px 0 rgb(255 255 255 / 0.06) inset;
 }
 
 .dark .settings-tab::before {
-  background: linear-gradient(135deg, rgb(30 41 59 / 0.9), rgb(51 65 85 / 0.62));
+  background: linear-gradient(135deg, rgba(38, 32, 28, 0.86), rgba(48, 52, 43, 0.7));
 }
 
 .dark .settings-tab-active {
+  color: #f0b4a8;
   box-shadow:
     0 12px 26px rgb(0 0 0 / 0.22),
     0 1px 0 rgb(255 255 255 / 0.08) inset;
 }
 </style>
+

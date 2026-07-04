@@ -122,11 +122,9 @@ func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 			UserEmail:        "secret@example.com",
 			ClientIP:         func() *string { s := "1.2.3.4"; return &s }(),
 			UpstreamEndpoint: "https://api.openai.com/v1/chat/completions",
-			UserAgent:        "codex_cli_rs/0.125.0",
-			GroupName:        "grp-a",
-			Stream:           true,
 		},
 		ErrorBody:          `{"error":{"message":"upstream failed","type":"server_error"}}`,
+		UserAgent:          "Mozilla/5.0 secret-agent",
 		UpstreamStatusCode: &upstreamStatus,
 	}
 
@@ -148,19 +146,14 @@ func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 	if out.UpstreamStatusCode == nil || *out.UpstreamStatusCode != 503 {
 		t.Errorf("UpstreamStatusCode mismatch")
 	}
-
-	// client_ip / user_agent / group_name / stream 经产品决策开放（与用量明细口径对齐）
-	if out.ClientIP != "1.2.3.4" {
-		t.Errorf("want client_ip=1.2.3.4, got %q", out.ClientIP)
+	if out.Diagnosis == nil {
+		t.Fatal("expected diagnosis")
 	}
-	if out.UserAgent != "codex_cli_rs/0.125.0" {
-		t.Errorf("want user_agent=codex_cli_rs/0.125.0, got %q", out.UserAgent)
+	if out.Diagnosis.ReasonCode != "upstream_temporarily_unavailable" {
+		t.Fatalf("unexpected reason code: %q", out.Diagnosis.ReasonCode)
 	}
-	if out.GroupName != "grp-a" {
-		t.Errorf("want group_name=grp-a, got %q", out.GroupName)
-	}
-	if !out.Stream {
-		t.Errorf("want stream=true")
+	if !out.Diagnosis.Retryable || !out.Diagnosis.Temporary {
+		t.Fatalf("expected retryable temporary diagnosis, got %+v", out.Diagnosis)
 	}
 
 	// 序列化后不含敏感字段
@@ -169,10 +162,89 @@ func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 		t.Fatalf("json.Marshal failed: %v", err)
 	}
 	raw := string(b)
-	for _, forbidden := range []string{"user_email", "upstream_endpoint"} {
+	for _, forbidden := range []string{"user_email", "client_ip", "upstream_endpoint", "user_agent"} {
 		if strings.Contains(raw, forbidden) {
 			t.Errorf("sensitive field %q leaked in JSON output: %s", forbidden, raw)
 		}
+	}
+}
+
+func TestBuildUserErrorDiagnosis_SpecificReasons(t *testing.T) {
+	cases := []struct {
+		name string
+		in   *OpsErrorLogDetail
+		want string
+	}{
+		{
+			name: "deleted key auth",
+			in: &OpsErrorLogDetail{
+				OpsErrorLog: OpsErrorLog{
+					Phase:         "auth",
+					Type:          "api_error",
+					APIKeyDeleted: true,
+					Message:       "invalid api key",
+				},
+			},
+			want: "auth_key_deleted",
+		},
+		{
+			name: "subscription quota",
+			in: &OpsErrorLogDetail{
+				OpsErrorLog: OpsErrorLog{
+					Phase:   "request",
+					Type:    "subscription_error",
+					Message: "subscription expired",
+				},
+			},
+			want: "quota_subscription_exhausted",
+		},
+		{
+			name: "model unsupported",
+			in: &OpsErrorLogDetail{
+				OpsErrorLog: OpsErrorLog{
+					Phase:   "request",
+					Type:    "invalid_request_error",
+					Message: "model not found",
+				},
+			},
+			want: "request_model_not_supported",
+		},
+		{
+			name: "service model unavailable",
+			in: &OpsErrorLogDetail{
+				OpsErrorLog: OpsErrorLog{
+					Phase:          "routing",
+					Type:           "api_error",
+					Message:        "no available OpenAI accounts supporting model: gpt-5.5",
+					RequestedModel: "gpt-5.5",
+				},
+			},
+			want: "service_model_not_available",
+		},
+		{
+			name: "service model rate limited",
+			in: &OpsErrorLogDetail{
+				OpsErrorLog: OpsErrorLog{
+					Phase:          "routing",
+					Type:           "api_error",
+					Message:        "no available accounts supporting model: gpt-5.5 (total=3 eligible=0 excluded=0 unschedulable=0 platform_filtered=0 model_unsupported=0 model_rate_limited=3)",
+					RequestedModel: "gpt-5.5",
+				},
+			},
+			want: "service_model_rate_limited",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := buildUserErrorDiagnosis(tc.in)
+			if got == nil {
+				t.Fatal("expected diagnosis")
+			}
+			if got.ReasonCode != tc.want {
+				t.Fatalf("reason_code=%q want %q", got.ReasonCode, tc.want)
+			}
+		})
 	}
 }
 

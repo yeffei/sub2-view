@@ -2,12 +2,12 @@
   <AuthLayout>
     <div class="space-y-6">
       <!-- Title -->
-      <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-          {{ t('auth.welcomeBack') }}
+      <div class="auth-form-header text-center">
+        <h2 class="auth-form-title font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper">
+          确认身份
         </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
-          {{ t('auth.signInToAccount') }}
+        <p class="auth-form-subtitle mt-2 text-sm leading-6 text-zen-mist dark:text-zen-stone">
+          以邮箱进入你的账户、账册与调用入口。
         </p>
       </div>
       <!-- Login Form -->
@@ -71,7 +71,7 @@
             <router-link
               v-if="passwordResetEnabled && !backendModeEnabled"
               to="/forgot-password"
-              class="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+              class="auth-inline-link text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
             >
               {{ t('auth.forgotPassword') }}
             </router-link>
@@ -132,12 +132,12 @@
         />
 
         <div v-if="showOAuthLogin" class="space-y-3 pt-1">
-          <div class="flex items-center gap-3">
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-            <span class="text-xs text-gray-500 dark:text-dark-400">
+          <div class="auth-divider flex items-center gap-3">
+            <div class="auth-divider-line h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
+            <span class="auth-divider-label text-xs text-gray-500 dark:text-dark-400">
               {{ t('auth.oauthOrContinue') }}
             </span>
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
+            <div class="auth-divider-line h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
           </div>
 
           <EmailOAuthButtons
@@ -174,11 +174,11 @@
 
     <!-- Footer -->
     <template v-if="!backendModeEnabled" #footer>
-      <p class="text-gray-500 dark:text-dark-400">
+      <p class="auth-footer-copy text-gray-500 dark:text-dark-400">
         {{ t('auth.dontHaveAccount') }}
         <router-link
           to="/register"
-          class="font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
+          class="auth-inline-link font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
         >
           {{ t('auth.signUp') }}
         </router-link>
@@ -285,6 +285,12 @@ const agreementGateActive = computed(
 const authActionDisabled = computed(
   () => isLoading.value || !publicSettingsLoaded.value || agreementGateActive.value
 )
+
+const resolvePostLoginRedirect = () => {
+  const routeRedirect = router.currentRoute.value.query.redirect as string | undefined
+  if (routeRedirect) return routeRedirect
+  return authStore.isAdmin ? '/admin/dashboard' : '/dashboard'
+}
 
 const showOAuthLogin = computed(
   () =>
@@ -397,7 +403,7 @@ function rejectLoginAgreement(): void {
   localStorage.removeItem(LOGIN_AGREEMENT_STORAGE_KEY)
   agreementAccepted.value = false
   showAgreementModal.value = false
-  appStore.showWarning(t('legal.loginAgreementPrompt.loginRejectedWarning'))
+  appStore.showWarning('未同意最新条款前，无法输入账号密码或使用快捷登录。')
 }
 
 // ==================== Turnstile Handlers ====================
@@ -428,7 +434,7 @@ function validateForm(): boolean {
   let isValid = true
 
   if (agreementGateActive.value) {
-    appStore.showWarning(t('legal.loginAgreementPrompt.loginRequiredWarning'))
+    appStore.showWarning('请先阅读并同意最新条款后再登录。')
     if (loginAgreementMode.value !== 'checkbox') {
       showAgreementModal.value = true
     }
@@ -498,7 +504,7 @@ async function handleLogin(): Promise<void> {
     appStore.showSuccess(t('auth.loginSuccess'))
 
     // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    const redirectTo = resolvePostLoginRedirect()
     await router.push(redirectTo)
   } catch (error: unknown) {
     // Reset Turnstile on error
@@ -532,7 +538,7 @@ async function handle2FAVerify(code: string): Promise<void> {
     appStore.showSuccess(t('auth.loginSuccess'))
 
     // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    const redirectTo = resolvePostLoginRedirect()
     await router.push(redirectTo)
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: { message?: string } } }

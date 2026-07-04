@@ -211,6 +211,7 @@ var providerOpenAIChatAdapter = providerAdapter{
 			"model":      model,
 			"messages":   []map[string]string{{"role": "user", "content": prompt}},
 			"max_tokens": monitorChallengeMaxTokens,
+			"temperature": 0,
 			"stream":     false,
 		})
 	},
@@ -226,9 +227,10 @@ var providerOpenAIResponsesAdapter = providerAdapter{
 	buildBody: func(model, prompt string) ([]byte, error) {
 		return json.Marshal(map[string]any{
 			"model":             model,
-			"instructions":      "You are a channel health-check endpoint. Answer the arithmetic challenge exactly and briefly.",
+			"instructions":      "Reply with the exact same single word from the input. Do not add punctuation or extra words.",
 			"input":             prompt,
 			"max_output_tokens": monitorChallengeMaxTokens,
+			"temperature":       0,
 			"stream":            false,
 		})
 	},

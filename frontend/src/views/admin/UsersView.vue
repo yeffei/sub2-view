@@ -1,9 +1,10 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
+    <div class="admin-users-shell space-y-5">
+      <TablePageLayout>
       <!-- Single Row: Search, Filters, and Actions -->
       <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="admin-users-toolbar flex flex-wrap items-center gap-3">
           <!-- Left: Search + Active Filters -->
           <div class="flex flex-1 flex-wrap items-center gap-3">
             <!-- Search Box -->
@@ -149,14 +150,14 @@
                 <!-- Dropdown menu -->
                 <div
                   v-if="showFilterDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                  class="admin-users-popover admin-users-filter-popover absolute right-0 top-full z-50 mt-1 w-48 py-1"
                 >
                   <!-- Built-in filters -->
                   <button
                     v-for="filter in builtInFilters"
                     :key="filter.key"
                     @click="toggleBuiltInFilter(filter.key)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                    class="admin-users-popover-item flex w-full items-center justify-between px-4 py-2 text-left text-sm"
                   >
                     <span>{{ filter.name }}</span>
                     <Icon
@@ -170,14 +171,14 @@
                   <!-- Divider if custom attributes exist -->
                   <div
                     v-if="filterableAttributes.length > 0"
-                    class="my-1 border-t border-gray-100 dark:border-dark-700"
+                    class="admin-users-popover-divider my-1"
                   ></div>
                   <!-- Custom attribute filters -->
                   <button
                     v-for="attr in filterableAttributes"
                     :key="attr.id"
                     @click="toggleAttributeFilter(attr)"
-                    class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                    class="admin-users-popover-item flex w-full items-center justify-between px-4 py-2 text-left text-sm"
                   >
                     <span>{{ attr.name }}</span>
                     <Icon
@@ -205,7 +206,7 @@
                 <!-- Dropdown menu -->
                 <div
                   v-if="showColumnDropdown"
-                  class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                  class="admin-users-popover admin-users-column-popover absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto py-1"
                 >
                   <button
                     v-for="col in toggleableColumns"
@@ -213,7 +214,7 @@
                     :disabled="isForcedVisibleColumn(col.key)"
                     @click="toggleColumn(col.key)"
                     :class="[
-                      'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
+                      'admin-users-popover-item flex w-full items-center justify-between px-4 py-2 text-left text-sm',
                       isForcedVisibleColumn(col.key)
                         ? 'cursor-not-allowed text-gray-400 dark:text-gray-500'
                         : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'
@@ -330,9 +331,9 @@
                 <!-- Hover tooltip（操作菜单未打开时显示） -->
                 <div
                   v-if="expandedGroupUserId !== row.id"
-                  class="pointer-events-none absolute left-0 top-full z-50 mt-1.5 rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover/ex:opacity-100 dark:bg-dark-600"
+                  class="admin-users-tooltip pointer-events-none absolute left-0 top-full z-50 mt-1.5 px-2.5 py-1.5 text-xs opacity-0 transition-opacity duration-75 group-hover/ex:opacity-100"
                 >
-                  <div class="absolute left-4 bottom-full border-4 border-transparent border-b-gray-900 dark:border-b-dark-600"></div>
+                  <div class="admin-users-tooltip-caret absolute left-4 bottom-full border-4 border-transparent"></div>
                   <div class="flex flex-col gap-0.5 whitespace-nowrap">
                     <span v-for="g in getUserGroups(row).exclusive" :key="g.id">{{ g.name }}</span>
                   </div>
@@ -340,15 +341,15 @@
                 <!-- 点击展开分组操作菜单 -->
                 <div
                   v-if="expandedGroupUserId === row.id"
-                  class="absolute left-0 top-full z-50 mt-1.5 min-w-[160px] overflow-hidden rounded-lg border border-gray-200 bg-white py-1 text-xs shadow-xl dark:border-dark-600 dark:bg-dark-700"
+                  class="admin-users-popover admin-users-group-menu absolute left-0 top-full z-50 mt-1.5 min-w-[160px] overflow-hidden py-1 text-xs"
                 >
-                  <div class="border-b border-gray-100 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:border-dark-600 dark:text-dark-400">
+                  <div class="admin-users-popover-divider px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider">
                     {{ t('admin.users.clickToReplace') }}
                   </div>
                   <div
                     v-for="g in getUserGroups(row).exclusive"
                     :key="g.id"
-                    class="flex cursor-pointer items-center gap-2 px-3 py-2 text-gray-700 transition-colors hover:bg-primary-50 hover:text-primary-600 dark:text-dark-200 dark:hover:bg-primary-900/30 dark:hover:text-primary-400"
+                    class="admin-users-popover-item flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors"
                     @click.stop="openGroupReplace(row, g)"
                   >
                     <Icon name="swap" size="xs" class="h-3.5 w-3.5 flex-shrink-0 opacity-50" />
@@ -365,8 +366,8 @@
                 <span class="font-medium text-gray-600 dark:text-dark-300">{{ getUserGroups(row).publicGroups.length }}</span>
                 <span class="text-gray-400 dark:text-dark-500">{{ t('admin.users.publicLabel') }}</span>
                 <!-- Tooltip: 向下弹出 -->
-                <div class="pointer-events-none absolute left-0 top-full z-50 mt-1.5 rounded bg-gray-900 px-2.5 py-1.5 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover/pub:opacity-100 dark:bg-dark-600">
-                  <div class="absolute left-4 bottom-full border-4 border-transparent border-b-gray-900 dark:border-b-dark-600"></div>
+                <div class="admin-users-tooltip pointer-events-none absolute left-0 top-full z-50 mt-1.5 px-2.5 py-1.5 text-xs opacity-0 transition-opacity duration-75 group-hover/pub:opacity-100">
+                  <div class="admin-users-tooltip-caret absolute left-4 bottom-full border-4 border-transparent"></div>
                   <div class="flex flex-col gap-0.5 whitespace-nowrap">
                     <span v-for="g in getUserGroups(row).publicGroups" :key="g.id">{{ g.name }}</span>
                   </div>
@@ -375,10 +376,10 @@
               <!-- 都没有 -->
               <span
                 v-if="getUserGroups(row).exclusive.length === 0 && getUserGroups(row).publicGroups.length === 0"
-                class="text-xs text-gray-400 dark:text-dark-500"
+                class="admin-users-empty-cell text-xs"
               >-</span>
             </div>
-            <span v-else class="text-xs text-gray-400 dark:text-dark-500">-</span>
+            <span v-else class="admin-users-empty-cell text-xs">-</span>
           </template>
 
           <template #cell-subscriptions="{ row }">
@@ -399,7 +400,7 @@
             </div>
             <span
               v-else
-              class="inline-flex items-center gap-1.5 rounded-md bg-gray-50 px-2 py-1 text-xs text-gray-400 dark:bg-dark-700/50 dark:text-dark-500"
+              class="admin-users-subscription-pill inline-flex items-center gap-1.5 px-2 py-1 text-xs"
             >
               <Icon name="ban" size="xs" class="h-3.5 w-3.5" />
               <span>{{ t('admin.users.noSubscription') }}</span>
@@ -416,9 +417,9 @@
                   ${{ value.toFixed(2) }}
                 </button>
                 <!-- Instant tooltip -->
-                <div class="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity duration-75 group-hover:opacity-100 dark:bg-dark-600">
+                <div class="admin-users-tooltip admin-users-balance-tip pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-xs opacity-0 transition-opacity duration-75 group-hover:opacity-100">
                   {{ t('admin.users.balanceHistoryTip') }}
-                  <div class="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-dark-600"></div>
+                  <div class="admin-users-tooltip-caret absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent"></div>
                 </div>
               </div>
               <button
@@ -460,7 +461,6 @@
                     ? 'text-primary-600 dark:text-primary-400'
                     : 'text-gray-400 dark:text-dark-500'"
                   :title="t('admin.users.sortBy')"
-                  :data-test="`usage-sort-trigger-${usageKey}`"
                   @click.stop="toggleUsageSortMenu(usageKey)"
                 >
                   <span
@@ -497,7 +497,6 @@
                     :class="isUsageSortActive(usageKey, metric)
                       ? 'font-medium text-primary-600 dark:text-primary-400'
                       : 'text-gray-700 dark:text-gray-300'"
-                    :data-test="`usage-sort-${usageKey}-${metric}`"
                     @click.stop="toggleUsageSort(usageKey, metric)"
                   >
                     <span>{{ metric === 'today' ? t('admin.users.today') : t('admin.users.total') }}</span>
@@ -651,7 +650,7 @@
     <Teleport to="body">
       <div
         v-if="activeMenuId !== null && menuPosition"
-        class="action-menu-content fixed z-[9999] w-48 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 dark:bg-dark-800 dark:ring-white/10"
+        class="action-menu-content admin-users-action-menu fixed z-[9999] w-48 overflow-hidden"
         :style="{ top: menuPosition.top + 'px', left: menuPosition.left + 'px' }"
       >
         <div class="py-1">
@@ -660,7 +659,7 @@
               <!-- View API Keys -->
               <button
                 @click="handleViewApiKeys(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="admin-users-action-menu-item flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <Icon name="key" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.apiKeys') }}
@@ -669,18 +668,18 @@
               <!-- Allowed Groups -->
               <button
                 @click="handleAllowedGroups(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="admin-users-action-menu-item flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <Icon name="users" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.groups') }}
               </button>
 
-              <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+              <div class="admin-users-action-menu-divider my-1"></div>
 
               <!-- Deposit -->
               <button
                 @click="handleDeposit(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="admin-users-action-menu-item flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <Icon name="plus" size="sm" class="text-emerald-500" :stroke-width="2" />
                 {{ t('admin.users.deposit') }}
@@ -689,7 +688,7 @@
               <!-- Withdraw -->
               <button
                 @click="handleWithdraw(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="admin-users-action-menu-item flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <svg class="h-4 w-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4" />
@@ -700,7 +699,7 @@
               <!-- Platform Quotas -->
               <button
                 @click="handlePlatformQuota(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="admin-users-action-menu-item flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <Icon name="chartBar" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.platformQuota.menuItem') }}
@@ -709,19 +708,19 @@
               <!-- Balance History -->
               <button
                 @click="handleBalanceHistory(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                class="admin-users-action-menu-item flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <Icon name="dollar" size="sm" class="text-gray-400" :stroke-width="2" />
                 {{ t('admin.users.balanceHistory') }}
               </button>
 
-              <div class="my-1 border-t border-gray-100 dark:border-dark-700"></div>
+              <div class="admin-users-action-menu-divider my-1"></div>
 
               <!-- Delete (not for admin) -->
               <button
                 v-if="user.role !== 'admin'"
                 @click="handleDelete(user); closeActionMenu()"
-                class="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                class="admin-users-action-menu-item admin-users-action-menu-danger flex w-full items-center gap-2 px-4 py-2 text-sm"
               >
                 <Icon name="trash" size="sm" :stroke-width="2" />
                 {{ t('common.delete') }}
@@ -747,6 +746,7 @@
     <UserBalanceHistoryModal :show="showBalanceHistoryModal" :user="balanceHistoryUser" @close="closeBalanceHistoryModal" @deposit="handleDepositFromHistory" @withdraw="handleWithdrawFromHistory" />
     <GroupReplaceModal :show="showGroupReplaceModal" :user="groupReplaceUser" :old-group="groupReplaceOldGroup" :all-groups="allGroups" @close="closeGroupReplaceModal" @success="loadUsers" />
     <UserAttributesConfigModal :show="showAttributesModal" @close="handleAttributesModalClose" />
+    </div>
   </AppLayout>
 </template>
 
@@ -1182,8 +1182,6 @@ const getPlatformUsage = (userId: number, platform: string) =>
 type UsageMetric = 'today' | 'total'
 type UsageSortState = { key: string; metric: UsageMetric; order: 'asc' | 'desc' } | null
 const USAGE_SORT_STORAGE_KEY = 'admin-users-usage-sort'
-// 列头排序按钮点击后弹出的"今日/近30天"选择菜单，同时只允许一个列展开。
-const openUsageSortMenu = ref<string | null>(null)
 
 const loadInitialUsageSort = (): UsageSortState => {
   try {
@@ -1210,12 +1208,6 @@ const persistUsageSort = () => {
     console.error('Failed to persist usage sort:', e)
   }
 }
-const clearUsageSort = () => {
-  if (!usageSort.value) return
-  usageSort.value = null
-  openUsageSortMenu.value = null
-  persistUsageSort()
-}
 
 const isUsageSortActive = (key: string, metric: UsageMetric) =>
   !!usageSort.value && usageSort.value.key === key && usageSort.value.metric === metric
@@ -1235,7 +1227,9 @@ const toggleUsageSort = (key: string, metric: UsageMetric) => {
   openUsageSortMenu.value = null
 }
 
+// 列头排序按钮点击后弹出的"今日/近30天"选择菜单，同时只允许一个列展开。
 // 点击图标本身不触发排序，仅开关菜单；首次排序由用户在菜单内选择 metric 触发（默认 desc，详见 toggleUsageSort）。
+const openUsageSortMenu = ref<string | null>(null)
 const toggleUsageSortMenu = (key: string) => {
   openUsageSortMenu.value = openUsageSortMenu.value === key ? null : key
 }
@@ -1607,7 +1601,6 @@ const handlePageSizeChange = (pageSize: number) => {
 }
 
 const handleSort = (key: string, order: 'asc' | 'desc') => {
-  clearUsageSort()
   sortState.sort_by = key
   sortState.sort_order = order
   pagination.page = 1
@@ -1807,3 +1800,199 @@ onUnmounted(() => {
   abortController?.abort()
 })
 </script>
+
+<style scoped>
+.admin-users-shell {
+  padding: clamp(0.2rem, 0.6vw, 0.4rem);
+}
+
+.admin-page-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem 1.05rem;
+  border: 1px solid rgba(198, 184, 157, 0.52);
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.055), transparent 30%),
+    linear-gradient(180deg, rgba(255, 252, 245, 0.9), rgba(246, 241, 231, 0.78));
+}
+
+.admin-page-kicker {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-page-hero h2 {
+  margin-top: 0.45rem;
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: clamp(1.4rem, 1.8vw, 1.82rem);
+  font-weight: 600;
+}
+
+.admin-page-hero p {
+  max-width: 40rem;
+  margin-top: 0.5rem;
+  color: #5f675d;
+  font-size: 0.94rem;
+  line-height: 1.7;
+}
+
+.admin-users-toolbar {
+  border: 1px solid rgba(198, 184, 157, 0.42);
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.04), transparent 28%),
+    rgba(250, 247, 239, 0.64);
+  padding: 0.9rem;
+}
+
+.admin-users-popover,
+.admin-users-action-menu {
+  border: 1px solid rgba(198, 184, 157, 0.6);
+  border-radius: 12px;
+  background: rgba(250, 247, 239, 0.98);
+  box-shadow: 0 22px 44px -34px rgba(31, 35, 32, 0.36);
+  color: #38413a;
+  backdrop-filter: blur(10px);
+}
+
+.admin-users-popover-item {
+  color: #38413a;
+}
+
+.admin-users-popover-item:hover,
+.admin-users-popover-item:focus-visible,
+.admin-users-action-menu-item:hover,
+.admin-users-action-menu-item:focus-visible {
+  background: rgba(167, 58, 42, 0.06);
+  color: #a73a2a;
+  outline: none;
+}
+
+.admin-users-popover-item:disabled {
+  color: #a6a09a;
+  cursor: not-allowed;
+}
+
+.admin-users-popover-divider,
+.admin-users-action-menu-divider {
+  border-top: 1px solid rgba(198, 184, 157, 0.38);
+}
+
+.admin-users-tooltip {
+  border: 1px solid rgba(31, 35, 32, 0.9);
+  border-radius: 0.5rem;
+  background: rgba(31, 35, 32, 0.96);
+  color: #faf7ef;
+  box-shadow: 0 18px 34px -26px rgba(31, 35, 32, 0.5);
+}
+
+.admin-users-tooltip-caret {
+  border-top-color: rgba(31, 35, 32, 0.96);
+}
+
+.admin-users-subscription-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(198, 184, 157, 0.38);
+  background: rgba(249, 245, 236, 0.92);
+  color: #6f7a70;
+}
+
+.admin-users-empty-cell {
+  color: #8b958a;
+}
+
+.admin-users-action-menu-danger {
+  color: #b4533c;
+}
+
+.admin-users-action-menu-danger:hover,
+.admin-users-action-menu-danger:focus-visible {
+  background: rgba(167, 58, 42, 0.08);
+  color: #8f2f23;
+}
+
+</style>
+<style>
+.dark .admin-page-hero {
+  border-color: rgba(48, 52, 43, 0.92);
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(24, 26, 21, 0.92), rgba(17, 19, 15, 0.84));
+}
+
+.dark .admin-page-hero h2 {
+  color: #f4efe4;
+}
+
+.dark .admin-page-hero p {
+  color: #bdb5a8;
+}
+
+.dark .admin-users-toolbar {
+  border-color: rgba(48, 52, 43, 0.92);
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 30%),
+    rgba(24, 26, 21, 0.68);
+}
+
+.dark .admin-users-popover,
+.dark .admin-users-action-menu {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.98);
+  color: #d9d0be;
+}
+
+.dark .admin-users-popover-item {
+  color: #d9d0be;
+}
+
+.dark .admin-users-popover-item:hover,
+.dark .admin-users-popover-item:focus-visible,
+.dark .admin-users-action-menu-item:hover,
+.dark .admin-users-action-menu-item:focus-visible {
+  background: rgba(167, 58, 42, 0.12);
+  color: #f0b4a8;
+}
+
+.dark .admin-users-popover-item:disabled {
+  color: #6d7469;
+}
+
+.dark .admin-users-popover-divider,
+.dark .admin-users-action-menu-divider {
+  border-top-color: rgba(48, 52, 43, 0.92);
+}
+
+.dark .admin-users-tooltip {
+  border-color: rgba(48, 52, 43, 0.98);
+  background: rgba(17, 19, 15, 0.96);
+  color: #f4efe4;
+}
+
+.dark .admin-users-tooltip-caret {
+  border-top-color: rgba(17, 19, 15, 0.96);
+}
+
+.dark .admin-users-subscription-pill {
+  border-color: rgba(48, 52, 43, 0.92);
+  background: rgba(24, 26, 21, 0.74);
+  color: #bdb5a8;
+}
+
+.dark .admin-users-empty-cell {
+  color: #879186;
+}
+
+.dark .admin-users-action-menu-danger {
+  color: #f0b4a8;
+}
+</style>
+

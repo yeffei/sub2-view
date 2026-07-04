@@ -307,3 +307,48 @@ func TestRateLimitService_RecoverAccountState_InvalidatesOAuthTokenOnErrorRecove
 	require.Len(t, invalidator.accounts, 1)
 	require.Equal(t, int64(21), invalidator.accounts[0].ID)
 }
+
+func TestHasRecoverableRuntimeState_IgnoresExpiredRuntimeMarkers(t *testing.T) {
+	now := time.Now()
+	past := now.Add(-2 * time.Minute)
+
+	account := &Account{
+		Status:                 StatusActive,
+		Schedulable:            true,
+		RateLimitedAt:          &past,
+		RateLimitResetAt:       &past,
+		OverloadUntil:          &past,
+		TempUnschedulableUntil: &past,
+		Extra: map[string]any{
+			"model_rate_limits": map[string]any{
+				"gpt-4.1": map[string]any{
+					"rate_limit_reset_at": past.UTC().Format(time.RFC3339),
+				},
+			},
+		},
+	}
+
+	require.False(t, hasRecoverableRuntimeState(account))
+}
+
+func TestHasRecoverableRuntimeState_DetectsActiveRuntimeMarkers(t *testing.T) {
+	now := time.Now()
+	future := now.Add(2 * time.Minute)
+
+	account := &Account{
+		Status:                 StatusActive,
+		Schedulable:            true,
+		RateLimitedAt:          &now,
+		RateLimitResetAt:       &future,
+		TempUnschedulableUntil: &future,
+		Extra: map[string]any{
+			"model_rate_limits": map[string]any{
+				"gpt-4.1": map[string]any{
+					"rate_limit_reset_at": future.UTC().Format(time.RFC3339),
+				},
+			},
+		},
+	}
+
+	require.True(t, hasRecoverableRuntimeState(account))
+}

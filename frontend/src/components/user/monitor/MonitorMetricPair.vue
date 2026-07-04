@@ -1,29 +1,29 @@
 <template>
-  <div class="mt-5 grid grid-cols-2 gap-2">
+  <div class="mt-4 grid grid-cols-2 gap-2">
     <div
-      class="rounded-xl p-3 bg-gray-50/80 dark:bg-dark-900/40 border border-gray-100 dark:border-dark-700/50"
+      class="monitor-metric rounded-lg border border-stone-200/70 bg-stone-100/35 p-2.5 dark:border-[#44473a]/80"
     >
       <div
-        class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+        class="flex items-center gap-1.5 text-[10px] font-medium text-gray-500"
       >
         <Icon :name="primaryIcon" size="xs" />
         <span>{{ primaryLabel }}</span>
       </div>
-      <div class="mt-1.5 text-lg font-bold font-mono tabular-nums text-gray-900 dark:text-gray-100">
-        {{ primaryValue }}<span class="text-xs font-normal text-gray-400 ml-0.5">{{ primaryUnit }}</span>
+      <div class="mt-1.5 text-[1.05rem] font-semibold font-mono tabular-nums text-gray-900 dark:text-gray-100">
+        {{ primaryValue }}<span class="text-[11px] font-normal text-gray-400 ml-0.5">{{ primaryUnit }}</span>
       </div>
     </div>
     <div
-      class="rounded-xl p-3 bg-gray-50/80 dark:bg-dark-900/40 border border-gray-100 dark:border-dark-700/50"
+      class="monitor-metric rounded-lg border border-stone-200/70 bg-stone-100/35 p-2.5 dark:border-[#44473a]/80"
     >
       <div
-        class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400"
+        class="flex items-center gap-1.5 text-[10px] font-medium text-gray-500"
       >
         <Icon :name="secondaryIcon" size="xs" />
         <span>{{ secondaryLabel }}</span>
       </div>
-      <div class="mt-1.5 text-lg font-bold font-mono tabular-nums text-gray-900 dark:text-gray-100">
-        {{ secondaryValue }}<span class="text-xs font-normal text-gray-400 ml-0.5">{{ secondaryUnit }}</span>
+      <div class="mt-1.5 text-[1.05rem] font-semibold font-mono tabular-nums text-gray-900 dark:text-gray-100">
+        {{ secondaryValue }}<span class="text-[11px] font-normal text-gray-400 ml-0.5">{{ secondaryUnit }}</span>
       </div>
     </div>
   </div>
@@ -43,3 +43,10 @@ defineProps<{
   secondaryIcon: 'bolt' | 'globe' | 'clock' | 'link'
 }>()
 </script>
+
+<style scoped>
+.dark .monitor-metric {
+  background: rgba(24, 26, 21, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 247, 235, 0.025);
+}
+</style>

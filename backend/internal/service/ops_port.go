@@ -10,6 +10,7 @@ type OpsRepository interface {
 	BatchInsertErrorLogs(ctx context.Context, inputs []*OpsInsertErrorLogInput) (int64, error)
 	ListErrorLogs(ctx context.Context, filter *OpsErrorLogFilter) (*OpsErrorLogList, error)
 	GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLogDetail, error)
+	GetUserAPIKeyErrorSummaries(ctx context.Context, userID int64, apiKeyIDs []int64, startTime time.Time) (map[int64]*APIKeyErrorSummary, error)
 	// LookupDeletedKeyAudit 按明文 key 反查最近一条已删除 key 审计;未命中返回 (nil, nil)。
 	LookupDeletedKeyAudit(ctx context.Context, key string) (*DeletedKeyAuditResult, error)
 	ListRequestDetails(ctx context.Context, filter *OpsRequestDetailFilter) ([]*OpsRequestDetail, int64, error)
@@ -200,7 +201,6 @@ type OpsInsertSystemLogInput struct {
 	RequestID       string
 	ClientRequestID string
 	UserID          *int64
-	APIKeyID        *int64
 	AccountID       *int64
 	Platform        string
 	Model           string
@@ -217,8 +217,8 @@ type OpsSystemLogFilter struct {
 	RequestID       string
 	ClientRequestID string
 	UserID          *int64
-	APIKeyID        *int64
 	AccountID       *int64
+	PoolID          *int64
 	Platform        string
 	Model           string
 	Query           string
@@ -237,8 +237,8 @@ type OpsSystemLogCleanupFilter struct {
 	RequestID       string
 	ClientRequestID string
 	UserID          *int64
-	APIKeyID        *int64
 	AccountID       *int64
+	PoolID          *int64
 	Platform        string
 	Model           string
 	Query           string

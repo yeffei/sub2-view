@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
         <MonitorFiltersBar
           v-model:search="searchQuery"
           v-model:provider="providerFilter"
@@ -12,9 +13,9 @@
           @manage-templates="showTemplateManager = true"
           @search-input="handleSearch"
         />
-      </template>
+        </template>
 
-      <template #table>
+        <template #table>
         <DataTable :columns="columns" :data="monitors" :loading="loading">
           <template #cell-name="{ row, value }">
             <div class="flex items-center gap-1.5">
@@ -66,9 +67,9 @@
             />
           </template>
         </DataTable>
-      </template>
+        </template>
 
-      <template #pagination>
+        <template #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -77,8 +78,9 @@
           @update:page="onPageChange"
           @update:pageSize="onPageSizeChange"
         />
-      </template>
-    </TablePageLayout>
+        </template>
+      </TablePageLayout>
+    </div>
 
     <MonitorFormDialog
       :show="showDialog"
@@ -302,3 +304,4 @@ onUnmounted(() => {
   abortController?.abort()
 })
 </script>
+

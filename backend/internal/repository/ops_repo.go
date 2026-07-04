@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -177,37 +178,6 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 	}
 }
 
-// opsErrorLogsOrderBy builds the ORDER BY clause from a whitelist, mirroring
-// usageLogOrderBy semantics. Unknown SortBy falls back to created_at; e.id is
-// always appended as tiebreaker for stable pagination.
-func opsErrorLogsOrderBy(filter *service.OpsErrorLogFilter) string {
-	sortBy := ""
-	sortOrder := ""
-	if filter != nil {
-		sortBy = strings.ToLower(strings.TrimSpace(filter.SortBy))
-		sortOrder = strings.ToLower(strings.TrimSpace(filter.SortOrder))
-	}
-
-	var column string
-	switch sortBy {
-	case "model":
-		column = "COALESCE(NULLIF(TRIM(e.requested_model), ''), e.model)"
-	case "status_code":
-		// 与展示列/过滤保持同义:列表展示 COALESCE(upstream_status_code, status_code, 0),
-		// status_code 过滤也用同一表达式,故排序必须一致——否则 recovered upstream 行
-		//（status_code<400 但展示上游 5xx）排序键与显示值/分页切分不符。
-		column = "COALESCE(e.upstream_status_code, e.status_code, 0)"
-	default:
-		column = "e.created_at"
-	}
-
-	dir := "DESC"
-	if sortOrder == "asc" {
-		dir = "ASC"
-	}
-	return fmt.Sprintf("%s %s, e.id %s", column, dir, dir)
-}
-
 func (r *opsRepository) ListErrorLogs(ctx context.Context, filter *service.OpsErrorLogFilter) (*service.OpsErrorLogList, error) {
 	if r == nil || r.db == nil {
 		return nil, fmt.Errorf("nil ops repository")
@@ -264,29 +234,25 @@ SELECT
   COALESCE(a.name, ''),
   e.group_id,
   COALESCE(g.name, ''),
-  CASE WHEN e.client_ip IS NULL THEN NULL ELSE host(e.client_ip) END,
+  CASE WHEN e.client_ip IS NULL THEN NULL ELSE e.client_ip::text END,
   COALESCE(e.request_path, ''),
   e.stream,
   COALESCE(e.inbound_endpoint, ''),
   COALESCE(e.upstream_endpoint, ''),
   COALESCE(e.requested_model, ''),
   COALESCE(e.upstream_model, ''),
-  COALESCE(e.user_agent, ''),
   e.request_type,
   COALESCE(ak.name, ''),
   ak.deleted_at,
-  COALESCE(e.deleted_key_name, ''),
-  e.deleted_key_owner_user_id,
-  COALESCE(du.email, '')
+  COALESCE(e.deleted_key_name, '')
 FROM ops_error_logs e
 LEFT JOIN accounts a ON e.account_id = a.id
 LEFT JOIN groups g ON e.group_id = g.id
 LEFT JOIN users u ON e.user_id = u.id
 LEFT JOIN users u2 ON e.resolved_by_user_id = u2.id
-LEFT JOIN users du ON e.deleted_key_owner_user_id = du.id
 LEFT JOIN api_keys ak ON ak.id = e.api_key_id
 ` + where + `
-ORDER BY ` + opsErrorLogsOrderBy(filter) + `
+ORDER BY e.created_at DESC
 LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 
 	rows, err := r.db.QueryContext(ctx, selectSQL, argsWithLimit...)
@@ -314,8 +280,6 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		var apiKeyName string
 		var apiKeyDeletedAt sql.NullTime
 		var deletedKeyName string
-		var deletedKeyOwnerID sql.NullInt64
-		var deletedKeyOwnerEmail string
 		if err := rows.Scan(
 			&item.ID,
 			&item.CreatedAt,
@@ -348,13 +312,10 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&item.UpstreamEndpoint,
 			&item.RequestedModel,
 			&item.UpstreamModel,
-			&item.UserAgent,
 			&requestType,
 			&apiKeyName,
 			&apiKeyDeletedAt,
 			&deletedKeyName,
-			&deletedKeyOwnerID,
-			&deletedKeyOwnerEmail,
 		); err != nil {
 			return nil, err
 		}
@@ -404,12 +365,6 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		}
 		// 已删除：ak.deleted_at 非空（软删），或仅命中 deleted_key_name 兜底。
 		item.APIKeyDeleted = apiKeyDeletedAt.Valid || (apiKeyName == "" && deletedKeyName != "")
-		// 已删除 KEY 所有者快照:认证失败行 user_id 为空,列表用户列以此回退。
-		if deletedKeyOwnerID.Valid {
-			v := deletedKeyOwnerID.Int64
-			item.DeletedKeyOwnerUserID = &v
-			item.DeletedKeyOwnerEmail = deletedKeyOwnerEmail
-		}
 		out = append(out, &item)
 	}
 	if err := rows.Err(); err != nil {
@@ -463,7 +418,7 @@ SELECT
   COALESCE(a.name, ''),
   e.group_id,
   COALESCE(g.name, ''),
-  CASE WHEN e.client_ip IS NULL THEN NULL ELSE host(e.client_ip) END,
+  CASE WHEN e.client_ip IS NULL THEN NULL ELSE e.client_ip::text END,
   COALESCE(e.request_path, ''),
   e.stream,
   COALESCE(e.inbound_endpoint, ''),
@@ -648,6 +603,119 @@ LIMIT 1`
 	return &out, nil
 }
 
+func (r *opsRepository) GetUserAPIKeyErrorSummaries(ctx context.Context, userID int64, apiKeyIDs []int64, startTime time.Time) (map[int64]*service.APIKeyErrorSummary, error) {
+	result := make(map[int64]*service.APIKeyErrorSummary)
+	if r == nil || r.db == nil {
+		return nil, fmt.Errorf("nil ops repository")
+	}
+
+	normalizedAPIKeyIDs := normalizePositiveInt64IDs(apiKeyIDs)
+	if len(normalizedAPIKeyIDs) == 0 {
+		return result, nil
+	}
+	if startTime.IsZero() {
+		startTime = time.Now().Add(-24 * time.Hour)
+	}
+
+	for _, id := range normalizedAPIKeyIDs {
+		result[id] = &service.APIKeyErrorSummary{APIKeyID: id}
+	}
+
+	q := `
+WITH ranked AS (
+  SELECT
+    e.api_key_id,
+    e.id,
+    e.created_at,
+    e.error_phase,
+    e.error_type,
+    COALESCE(e.error_message, '') AS error_message,
+    COALESCE(e.model, '') AS model,
+    COALESCE(e.requested_model, '') AS requested_model,
+    COALESCE(e.upstream_model, '') AS upstream_model,
+    e.upstream_status_code,
+    COALESCE(e.upstream_error_message, '') AS upstream_error_message,
+    COALESCE(e.upstream_error_detail, '') AS upstream_error_detail,
+    COALESCE(e.error_body, '') AS error_body,
+    ROW_NUMBER() OVER (PARTITION BY e.api_key_id ORDER BY e.created_at DESC, e.id DESC) AS rn,
+    COUNT(*) OVER (PARTITION BY e.api_key_id) AS error_count_24h
+  FROM ops_error_logs e
+  WHERE e.user_id = $1
+    AND e.api_key_id = ANY($2)
+    AND e.created_at >= $3
+    AND COALESCE(e.is_count_tokens, false) = false
+    AND (COALESCE(e.status_code, 0) >= 400 OR COALESCE(e.upstream_status_code, 0) >= 400)
+)
+SELECT
+  api_key_id,
+  id,
+  created_at,
+  error_phase,
+  error_type,
+  COALESCE(error_message, ''),
+  COALESCE(model, ''),
+  COALESCE(requested_model, ''),
+  COALESCE(upstream_model, ''),
+  upstream_status_code,
+  COALESCE(upstream_error_message, ''),
+  COALESCE(upstream_error_detail, ''),
+  COALESCE(error_body, ''),
+  error_count_24h
+FROM ranked
+WHERE rn = 1
+`
+
+	rows, err := r.db.QueryContext(ctx, q, userID, pq.Array(normalizedAPIKeyIDs), startTime)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var (
+			apiKeyID       int64
+			detail         service.OpsErrorLogDetail
+			upstreamStatus sql.NullInt64
+			errorCount24h  int64
+		)
+		if err := rows.Scan(
+			&apiKeyID,
+			&detail.ID,
+			&detail.CreatedAt,
+			&detail.Phase,
+			&detail.Type,
+			&detail.Message,
+			&detail.Model,
+			&detail.RequestedModel,
+			&detail.UpstreamModel,
+			&upstreamStatus,
+			&detail.UpstreamErrorMessage,
+			&detail.UpstreamErrorDetail,
+			&detail.ErrorBody,
+			&errorCount24h,
+		); err != nil {
+			return nil, err
+		}
+		if upstreamStatus.Valid {
+			v := int(upstreamStatus.Int64)
+			detail.UpstreamStatusCode = &v
+		}
+
+		summary, ok := result[apiKeyID]
+		if !ok {
+			summary = &service.APIKeyErrorSummary{APIKeyID: apiKeyID}
+			result[apiKeyID] = summary
+		}
+		summary.ErrorCount24h = errorCount24h
+		summary.LatestError = service.NewAPIKeyLatestErrorSummaryForRepo(&detail)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
 // LookupDeletedKeyAudit 按明文 key 反查最近一条已删除 key 审计。
 // 同一 key 可能有多条历史(反复创建/删除),取 deleted_at 最近一条(id 作同毫秒 tiebreaker)。
 // 未命中返回 (nil, nil)。
@@ -724,7 +792,6 @@ func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*ser
 		"request_id",
 		"client_request_id",
 		"user_id",
-		"api_key_id",
 		"account_id",
 		"platform",
 		"model",
@@ -766,7 +833,6 @@ func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*ser
 			opsNullString(input.RequestID),
 			opsNullString(input.ClientRequestID),
 			opsNullInt64(input.UserID),
-			opsNullInt64(input.APIKeyID),
 			opsNullInt64(input.AccountID),
 			opsNullString(input.Platform),
 			opsNullString(input.Model),
@@ -833,7 +899,6 @@ SELECT
   COALESCE(l.request_id, ''),
   COALESCE(l.client_request_id, ''),
   l.user_id,
-  l.api_key_id,
   l.account_id,
   COALESCE(l.platform, ''),
   COALESCE(l.model, ''),
@@ -853,7 +918,6 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 	for rows.Next() {
 		item := &service.OpsSystemLog{}
 		var userID sql.NullInt64
-		var apiKeyID sql.NullInt64
 		var accountID sql.NullInt64
 		var extraRaw string
 		if err := rows.Scan(
@@ -865,7 +929,6 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&item.RequestID,
 			&item.ClientRequestID,
 			&userID,
-			&apiKeyID,
 			&accountID,
 			&item.Platform,
 			&item.Model,
@@ -876,10 +939,6 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		if userID.Valid {
 			v := userID.Int64
 			item.UserID = &v
-		}
-		if apiKeyID.Valid {
-			v := apiKeyID.Int64
-			item.APIKeyID = &v
 		}
 		if accountID.Valid {
 			v := accountID.Int64
@@ -973,14 +1032,12 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	if filter != nil {
 		resolvedFilter = filter.Resolved
 	}
-	// Keep list endpoints scoped to client errors unless the caller explicitly opts
-	// into recovered upstream rows (Phase=="upstream" + IncludeRecoveredUpstream,
-	// ops 专用上游列表)。请求错误语义的端点即便过滤 phase=upstream 也保留该守卫。
+	// Keep list endpoints scoped to client errors unless explicitly filtering upstream phase.
 	// cyber_policy is exempt from the status >= 400 guard: streaming cyber hits arrive with
 	// status 200 (the SSE stream opened successfully before upstream returned response.failed),
 	// but they are always client-visible blocked requests that belong in admin + user error
 	// lists.  Without the exemption the entire streaming-path cyber sink would be invisible.
-	if phaseFilter != "upstream" || filter == nil || !filter.IncludeRecoveredUpstream {
+	if phaseFilter != "upstream" {
 		clauses = append(clauses, "(COALESCE(e.status_code, 0) >= 400 OR e.error_type = 'cyber_policy')")
 	}
 
@@ -1155,14 +1212,14 @@ func buildOpsSystemLogsWhere(filter *service.OpsSystemLogFilter) (string, []any,
 			clauses = append(clauses, "l.user_id = $"+itoa(len(args)))
 			hasConstraint = true
 		}
-		if filter.APIKeyID != nil && *filter.APIKeyID > 0 {
-			args = append(args, *filter.APIKeyID)
-			clauses = append(clauses, "l.api_key_id = $"+itoa(len(args)))
-			hasConstraint = true
-		}
 		if filter.AccountID != nil && *filter.AccountID > 0 {
 			args = append(args, *filter.AccountID)
 			clauses = append(clauses, "l.account_id = $"+itoa(len(args)))
+			hasConstraint = true
+		}
+		if filter.PoolID != nil && *filter.PoolID > 0 {
+			args = append(args, strconv.FormatInt(*filter.PoolID, 10))
+			clauses = append(clauses, "COALESCE(l.extra->>'pool_id','') = $"+itoa(len(args)))
 			hasConstraint = true
 		}
 		if v := strings.TrimSpace(filter.Platform); v != "" {
@@ -1199,8 +1256,8 @@ func buildOpsSystemLogsCleanupWhere(filter *service.OpsSystemLogCleanupFilter) (
 		RequestID:       filter.RequestID,
 		ClientRequestID: filter.ClientRequestID,
 		UserID:          filter.UserID,
-		APIKeyID:        filter.APIKeyID,
 		AccountID:       filter.AccountID,
+		PoolID:          filter.PoolID,
 		Platform:        filter.Platform,
 		Model:           filter.Model,
 		Query:           filter.Query,

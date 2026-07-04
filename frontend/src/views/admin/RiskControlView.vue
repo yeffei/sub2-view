@@ -1,67 +1,69 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <div v-if="loading" class="flex items-center justify-center py-16">
-        <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
-      </div>
-
-      <template v-else>
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.title') }}</h1>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.description') }}</p>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" class="btn btn-secondary inline-flex items-center gap-2" :disabled="statusLoading" @click="loadStatus(false)">
-              <Icon name="refresh" size="sm" :class="statusLoading ? 'animate-spin' : ''" />
-              {{ t('admin.riskControl.refreshStatus') }}
-            </button>
-            <button type="button" class="btn btn-primary inline-flex items-center gap-2" @click="openSettings">
-              <Icon name="cog" size="sm" />
-              {{ t('admin.riskControl.openSettings') }}
-            </button>
-          </div>
+    <div class="sst-admin-page">
+      <div class="space-y-6">
+        <div v-if="loading" class="flex items-center justify-center py-16">
+          <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div
-            v-for="item in overviewItems"
-            :key="item.key"
-            class="rounded-lg border border-gray-100 bg-white px-4 py-3 shadow-sm dark:border-dark-700 dark:bg-dark-800"
-          >
-            <div class="flex min-w-0 items-center gap-3">
-              <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg" :class="item.iconClass">
-                <Icon :name="item.icon" size="sm" />
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex min-w-0 items-center justify-between gap-2">
-                  <p class="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{{ item.label }}</p>
-                  <span
-                    v-if="item.badge"
-                    class="inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                    :class="item.badgeClass"
-                  >
-                    {{ item.badge }}
-                  </span>
+        <template v-else>
+          <section class="sst-risk-console-hero">
+            <div class="sst-risk-console-copy">
+              <span class="sst-risk-console-label">巡检总览</span>
+              <h3>{{ t('admin.riskControl.title') }}</h3>
+              <p>{{ t('admin.riskControl.description') }}</p>
+            </div>
+            <div class="sst-risk-console-actions">
+              <button type="button" class="btn btn-secondary inline-flex items-center gap-2" :disabled="statusLoading" @click="loadStatus(false)">
+                <Icon name="refresh" size="sm" :class="statusLoading ? 'animate-spin' : ''" />
+                {{ t('admin.riskControl.refreshStatus') }}
+              </button>
+              <button type="button" class="btn btn-primary inline-flex items-center gap-2" @click="openSettings">
+                <Icon name="cog" size="sm" />
+                {{ t('admin.riskControl.openSettings') }}
+              </button>
+            </div>
+          </section>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div
+              v-for="item in overviewItems"
+              :key="item.key"
+              class="sst-risk-overview-card"
+            >
+              <div class="flex min-w-0 items-center gap-3">
+                <div class="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg" :class="item.iconClass">
+                  <Icon :name="item.icon" size="sm" />
                 </div>
-                <div class="mt-1 flex min-w-0 items-baseline gap-2">
-                  <p class="truncate text-xl font-semibold leading-7 text-gray-900 dark:text-white">{{ item.value }}</p>
-                  <p v-if="item.meta" class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.meta }}</p>
+                <div class="min-w-0 flex-1">
+                  <div class="flex min-w-0 items-center justify-between gap-2">
+                    <p class="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{{ item.label }}</p>
+                    <span
+                      v-if="item.badge"
+                      class="inline-flex flex-shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                      :class="item.badgeClass"
+                    >
+                      {{ item.badge }}
+                    </span>
+                  </div>
+                  <div class="mt-1 flex min-w-0 items-baseline gap-2">
+                    <p class="truncate text-lg font-semibold leading-6 text-gray-900 dark:text-white">{{ item.value }}</p>
+                    <p v-if="item.meta" class="truncate text-xs text-gray-500 dark:text-gray-400">{{ item.meta }}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
         <div
           v-if="showPreBlockRuntimeCard"
           data-test="pre-block-runtime-cards"
           class="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)]"
         >
-          <div data-test="pre-block-sync-card" class="card">
+          <div data-test="pre-block-sync-card" class="card sst-risk-panel">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockSyncStatus') }}</h2>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockSyncStatus') }}</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.preBlockSyncHint') }}</p>
               </div>
               <span class="inline-flex w-fit items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
@@ -78,17 +80,17 @@
                   :class="item.class"
                 >
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ item.label }}</p>
-                  <p class="mt-2 truncate text-2xl font-semibold leading-8" :class="item.valueClass">{{ item.value }}</p>
+                  <p class="mt-2 truncate text-xl font-semibold leading-7" :class="item.valueClass">{{ item.value }}</p>
                   <p v-if="item.meta" class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{{ item.meta }}</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div data-test="pre-block-api-key-load-card" class="card">
+          <div data-test="pre-block-api-key-load-card" class="card sst-risk-panel">
             <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockAPIKeyLoad') }}</h2>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.preBlockAPIKeyLoad') }}</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {{ t('admin.riskControl.preBlockAPIKeyLoadHint') }}
                 </p>
@@ -107,7 +109,7 @@
                 <div
                   v-for="item in preBlockAPIKeyLoads"
                   :key="item.key_hash || item.index"
-                  class="rounded-lg bg-gray-50 p-3 dark:bg-dark-700/50"
+                  class="sst-risk-inline-card"
                 >
                   <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div class="min-w-0">
@@ -144,17 +146,17 @@
                   </div>
                 </div>
               </div>
-              <p v-else class="rounded-lg bg-gray-50 p-4 text-sm text-gray-500 dark:bg-dark-700/50 dark:text-gray-400">
+              <p v-else class="sst-risk-inline-card text-sm text-gray-500 dark:text-gray-400">
                 {{ t('admin.riskControl.preBlockAPIKeyLoadEmpty') }}
               </p>
             </div>
           </div>
         </div>
 
-        <div v-if="showWorkerRuntimeCard" class="card">
+        <div v-if="showWorkerRuntimeCard" class="card sst-risk-panel">
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.workerStatus') }}</h2>
+              <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.workerStatus') }}</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.workerStatusHint') }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -167,7 +169,7 @@
 
           <div class="grid grid-cols-1 gap-6 p-6 xl:grid-cols-[minmax(0,360px)_1fr]">
             <div class="space-y-4">
-              <div class="rounded-lg border border-gray-100 p-4 dark:border-dark-700">
+              <div class="sst-risk-meter-card">
                 <div class="flex items-center justify-between gap-3">
                   <div>
                     <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('admin.riskControl.queueUsage') }}</p>
@@ -183,21 +185,21 @@
               </div>
 
               <div class="grid grid-cols-2 gap-3">
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700/50">
+                <div class="sst-risk-stat-chip">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.activeWorkers') }}</p>
-                  <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ status?.active_workers ?? 0 }}</p>
+                  <p class="mt-2 text-xl font-semibold text-gray-900 dark:text-white">{{ status?.active_workers ?? 0 }}</p>
                 </div>
-                <div class="rounded-lg bg-emerald-50 p-4 dark:bg-emerald-900/10">
+                <div class="sst-risk-stat-chip sst-risk-stat-chip-accent">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.idleWorkers') }}</p>
-                  <p class="mt-2 text-2xl font-semibold text-emerald-700 dark:text-emerald-300">{{ status?.idle_workers ?? configForm.worker_count }}</p>
+                  <p class="mt-2 text-xl font-semibold text-emerald-700 dark:text-emerald-300">{{ status?.idle_workers ?? configForm.worker_count }}</p>
                 </div>
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700/50">
+                <div class="sst-risk-stat-chip">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.processed') }}</p>
-                  <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatNumber(status?.processed ?? 0) }}</p>
+                  <p class="mt-2 text-xl font-semibold text-gray-900 dark:text-white">{{ formatNumber(status?.processed ?? 0) }}</p>
                 </div>
-                <div class="rounded-lg bg-gray-50 p-4 dark:bg-dark-700/50">
+                <div class="sst-risk-stat-chip">
                   <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.droppedErrors') }}</p>
-                  <p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ formatNumber((status?.dropped ?? 0) + (status?.errors ?? 0)) }}</p>
+                  <p class="mt-2 text-xl font-semibold text-gray-900 dark:text-white">{{ formatNumber((status?.dropped ?? 0) + (status?.errors ?? 0)) }}</p>
                 </div>
               </div>
             </div>
@@ -230,11 +232,11 @@
           </div>
         </div>
 
-        <div class="card">
+        <div class="card sst-risk-panel sst-risk-records-panel">
           <div class="flex flex-col gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.records') }}</h2>
+                <h2 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.records') }}</h2>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.recordsHint') }}</p>
               </div>
               <button type="button" class="btn btn-secondary inline-flex items-center gap-2" :disabled="logsLoading" @click="loadLogs">
@@ -243,7 +245,7 @@
               </button>
             </div>
 
-            <div class="flex flex-col gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/30 sm:flex-row sm:items-center sm:justify-between">
+            <div class="sst-risk-filter-summary sm:flex-row sm:items-center sm:justify-between">
               <div class="flex min-w-0 items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                 <Icon name="filter" size="sm" class="flex-shrink-0 text-gray-400" />
                 <span class="font-medium">{{ t('admin.riskControl.modelFilter') }}</span>
@@ -273,7 +275,7 @@
             </div>
           </div>
 
-          <div class="overflow-x-auto">
+          <div class="sst-risk-table-shell overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
               <thead class="bg-gray-50 dark:bg-dark-800">
                 <tr>
@@ -294,7 +296,12 @@
                   <td colspan="10" class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</td>
                 </tr>
                 <tr v-else-if="logs.length === 0">
-                  <td colspan="10" class="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.emptyLogs') }}</td>
+                  <td colspan="10" class="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <EmptyState
+                      :title="t('admin.riskControl.emptyLogs')"
+                      description="当前筛选条件下暂无风控记录，可调整时间范围、结果或分组后再查看。"
+                    />
+                  </td>
                 </tr>
                 <template v-else>
                   <tr v-for="row in logs" :key="row.id" class="hover:bg-gray-50 dark:hover:bg-dark-700/60">
@@ -317,9 +324,6 @@
                     <td class="whitespace-nowrap px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
                       <div>{{ row.highest_category || '-' }}</div>
                       <div class="text-xs text-gray-400">{{ percent(row.highest_score) }}</div>
-                      <div v-if="row.matched_keyword" class="mt-0.5 text-xs font-medium text-red-600 dark:text-red-300" :title="t('admin.riskControl.matchedKeyword') + ': ' + row.matched_keyword">
-                        {{ t('admin.riskControl.matchedKeyword') }}: {{ row.matched_keyword }}
-                      </div>
                     </td>
                     <td class="whitespace-nowrap px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
                       <div>{{ violationCountText(row) }}</div>
@@ -370,7 +374,7 @@
             @update:pageSize="onPageSizeChange"
           />
         </div>
-      </template>
+        </template>
 
       <BaseDialog :show="settingsOpen" :title="t('admin.riskControl.settingsTitle')" width="extra-wide" @close="settingsOpen = false">
         <div class="space-y-6">
@@ -698,7 +702,7 @@
           <div v-else-if="activeSettingsTab === 'scope'" class="space-y-5">
             <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.groupScope') }}</h3>
+                <h3 class="text-[15px] font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.groupScope') }}</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.groupScopeHint') }}</p>
               </div>
               <div class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
@@ -753,7 +757,7 @@
             <div class="space-y-4 rounded-lg border border-gray-100 p-4 dark:border-dark-700">
               <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.modelFilter') }}</h3>
+                  <h3 class="text-[15px] font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.modelFilter') }}</h3>
                   <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.modelFilterHint') }}</p>
                 </div>
                 <span class="inline-flex w-fit rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300">
@@ -905,7 +909,7 @@
           <div v-else-if="activeSettingsTab === 'riskThresholds'" class="space-y-5">
             <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.riskThresholds') }}</h3>
+                <h3 class="text-[15px] font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.riskThresholds') }}</h3>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('admin.riskControl.riskThresholdsHint') }}</p>
               </div>
               <button
@@ -1081,10 +1085,6 @@
                 {{ inputDetailRow.highest_category || '-' }} / {{ percent(inputDetailRow.highest_score) }}
               </p>
             </div>
-            <div v-if="inputDetailRow.matched_keyword" class="rounded-lg border border-red-100 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-900/20">
-              <p class="text-xs font-medium text-red-500 dark:text-red-300">{{ t('admin.riskControl.matchedKeyword') }}</p>
-              <p class="mt-1 truncate text-sm font-semibold text-red-700 dark:text-red-200" :title="inputDetailRow.matched_keyword">{{ inputDetailRow.matched_keyword }}</p>
-            </div>
           </div>
 
           <div class="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
@@ -1109,6 +1109,7 @@
           </div>
         </template>
       </BaseDialog>
+      </div>
     </div>
   </AppLayout>
 </template>
@@ -1118,6 +1119,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import Toggle from '@/components/common/Toggle.vue'
@@ -1191,7 +1193,6 @@ const riskThresholdCategories = Object.keys(riskThresholdDefaults)
 
 const { t } = useI18n()
 const appStore = useAppStore()
-const defaultBlockMessage = () => t('admin.riskControl.defaultBlockMessage')
 
 const loading = ref(true)
 const saving = ref(false)
@@ -1238,7 +1239,7 @@ const configForm = reactive({
   worker_count: 4,
   queue_size: 32768,
   block_status: 403,
-  block_message: defaultBlockMessage(),
+  block_message: '内容审计命中风险规则，请调整输入后重试',
   email_on_hit: true,
   auto_ban_enabled: true,
   cyber_policy_exclude_from_ban_count: false,
@@ -1715,7 +1716,7 @@ function applyConfig(config: ContentModerationConfig) {
   configForm.worker_count = config.worker_count || 4
   configForm.queue_size = config.queue_size || 32768
   configForm.block_status = config.block_status || 403
-  configForm.block_message = config.block_message || defaultBlockMessage()
+  configForm.block_message = config.block_message || '内容审计命中风险规则，请调整输入后重试'
   configForm.email_on_hit = config.email_on_hit ?? true
   configForm.auto_ban_enabled = config.auto_ban_enabled ?? true
   configForm.cyber_policy_exclude_from_ban_count = config.cyber_policy_exclude_from_ban_count ?? false
@@ -1796,7 +1797,7 @@ async function saveConfig() {
       worker_count: Number(configForm.worker_count) || 4,
       queue_size: Number(configForm.queue_size) || 32768,
       block_status: Number(configForm.block_status) || 403,
-      block_message: configForm.block_message || defaultBlockMessage(),
+      block_message: configForm.block_message || '内容审计命中风险规则，请调整输入后重试',
       email_on_hit: configForm.email_on_hit,
       auto_ban_enabled: configForm.auto_ban_enabled,
       cyber_policy_exclude_from_ban_count: configForm.cyber_policy_exclude_from_ban_count,
@@ -2355,3 +2356,118 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.sst-risk-console-hero {
+  @apply flex flex-col gap-4 rounded-2xl border px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between;
+  border-color: rgba(198, 184, 157, 0.5);
+  background:
+    linear-gradient(135deg, rgba(167, 58, 42, 0.05), rgba(255, 255, 255, 0) 38%),
+    rgba(250, 247, 239, 0.58);
+  box-shadow: 0 18px 38px -34px rgba(58, 48, 34, 0.34);
+}
+
+.sst-risk-console-copy {
+  @apply space-y-2;
+}
+
+.sst-risk-console-label {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium tracking-[0.18em] uppercase;
+  color: #8b5e3c;
+  background: rgba(167, 58, 42, 0.08);
+}
+
+.sst-risk-console-copy h3 {
+  @apply text-xl font-semibold text-gray-900 dark:text-white;
+}
+
+.sst-risk-console-copy p {
+  @apply text-[13px] leading-6;
+  color: #5f6257;
+}
+
+.sst-risk-console-actions {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.sst-risk-overview-card {
+  @apply rounded-xl border px-4 py-3 shadow-sm;
+  border-color: rgba(198, 184, 157, 0.42);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(248, 243, 231, 0.92));
+  box-shadow: 0 18px 36px -34px rgba(58, 48, 34, 0.34);
+}
+
+.sst-risk-panel {
+  border-color: rgba(198, 184, 157, 0.44);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(248, 243, 231, 0.92));
+  box-shadow: 0 24px 44px -40px rgba(58, 48, 34, 0.38);
+}
+
+.sst-risk-inline-card {
+  @apply rounded-lg p-3;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.sst-risk-meter-card,
+.sst-risk-stat-chip,
+.sst-risk-filter-summary {
+  @apply rounded-lg border p-4;
+  border-color: rgba(198, 184, 157, 0.4);
+  background: rgba(255, 252, 246, 0.7);
+}
+
+.sst-risk-stat-chip-accent {
+  background: rgba(232, 245, 236, 0.88);
+}
+
+.sst-risk-filter-summary {
+  @apply flex flex-col gap-2 px-3 py-2;
+}
+
+.sst-risk-table-shell {
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.sst-risk-table-shell tbody tr:hover {
+  background: rgba(167, 58, 42, 0.05);
+}
+
+</style>
+<style>
+.dark .sst-risk-console-hero,
+.dark .sst-risk-overview-card,
+.dark .sst-risk-panel {
+  border-color: rgba(58, 61, 54, 0.96);
+  background:
+    linear-gradient(180deg, rgba(24, 26, 21, 0.9), rgba(18, 20, 16, 0.94));
+}
+
+.dark .sst-risk-console-label {
+  color: #e7b58e;
+  background: rgba(167, 58, 42, 0.22);
+}
+
+.dark .sst-risk-console-copy p {
+  color: #9ea49a;
+}
+
+.dark .sst-risk-inline-card,
+.dark .sst-risk-meter-card,
+.dark .sst-risk-stat-chip,
+.dark .sst-risk-filter-summary,
+.dark .sst-risk-table-shell {
+  border-color: rgba(58, 61, 54, 0.9);
+  background: rgba(29, 32, 27, 0.75);
+}
+
+.dark .sst-risk-stat-chip-accent {
+  background: rgba(29, 48, 36, 0.82);
+}
+
+.dark .sst-risk-table-shell tbody tr:hover {
+  background: rgba(167, 58, 42, 0.14);
+}
+</style>
+

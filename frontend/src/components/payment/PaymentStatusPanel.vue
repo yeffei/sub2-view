@@ -6,11 +6,11 @@
     <template v-if="outcome === 'success'">
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <Icon name="check" size="lg" class="text-green-500" />
+          <div class="flex h-16 w-16 items-center justify-center rounded-full border border-[#51624f]/25 bg-[#51624f]/10 dark:bg-[#51624f]/20">
+            <Icon name="check" size="lg" class="text-[#51624f] dark:text-emerald-300" />
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-white">{{ props.orderType === 'subscription' ? t('payment.result.subscriptionSuccess') : t('payment.result.success') }}</p>
-          <div v-if="paidOrder" class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+          <div v-if="paidOrder" class="w-full rounded-lg border border-stone-200/70 bg-stone-100/35 p-4 dark:border-dark-700 dark:bg-dark-900/40">
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
@@ -22,11 +22,11 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ paidOrder.amount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.order_type === 'balance' ? '$' + paidOrder.amount.toFixed(2) : formatGatewayAmount(paidOrder.amount) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount) }}</span>
               </div>
             </div>
           </div>
@@ -39,7 +39,7 @@
     <template v-else-if="outcome === 'cancelled'">
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700">
+          <div class="flex h-16 w-16 items-center justify-center rounded-full border border-stone-300 bg-stone-100 dark:border-dark-600 dark:bg-dark-700">
             <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -55,8 +55,8 @@
     <template v-else-if="outcome === 'expired'">
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-            <svg class="h-8 w-8 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <div class="flex h-16 w-16 items-center justify-center rounded-full border border-[#9b8155]/25 bg-[#9b8155]/12 dark:bg-[#9b8155]/20">
+            <svg class="h-8 w-8 text-[#9b8155] dark:text-amber-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
@@ -74,11 +74,11 @@
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4">
           <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ scanTitle }}</p>
-          <div :class="['relative rounded-lg border-2 p-4', qrBorderClass]">
+          <div :class="['relative rounded-lg border p-4', qrBorderClass]">
             <canvas ref="qrCanvas" class="mx-auto"></canvas>
             <!-- Brand logo overlay -->
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <span :class="['rounded-full p-2 shadow ring-2 ring-white', qrLogoBgClass]">
+              <span :class="['rounded-full p-2 ring-2 ring-white/80', qrLogoBgClass]">
                 <img :src="isAlipay ? alipayIcon : wxpayIcon" alt="" class="h-5 w-5 brightness-0 invert" />
               </span>
             </div>
@@ -103,7 +103,7 @@
     <template v-else>
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+          <div class="h-10 w-10 animate-spin rounded-full border-4 border-[#a73a2a] border-t-transparent"></div>
           <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.payInNewWindowHint') }}</p>
           <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
             {{ t('payment.qr.openPayWindow') }}
@@ -129,7 +129,7 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
-import { currencySymbol, formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
+import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
 import QRCode from 'qrcode'
@@ -161,7 +161,6 @@ const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
 const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
-const creditedAmountSymbol = currencySymbol('USD')
 const localeCode = computed(() => {
   const raw = i18n.locale as unknown
   if (typeof raw === 'string') return raw
@@ -186,15 +185,15 @@ const isAlipay = computed(() => props.paymentType.includes('alipay'))
 const isWxpay = computed(() => props.paymentType.includes('wxpay'))
 
 const qrBorderClass = computed(() => {
-  if (isAlipay.value) return 'border-[#00AEEF] bg-blue-50 dark:border-[#00AEEF]/70 dark:bg-blue-950/20'
-  if (isWxpay.value) return 'border-[#2BB741] bg-green-50 dark:border-[#2BB741]/70 dark:bg-green-950/20'
-  return 'border-gray-200 bg-white dark:border-dark-600 dark:bg-dark-800'
+  if (isWxpay.value) return 'border-[#51624f]/35 bg-[#51624f]/10 dark:bg-[#51624f]/20'
+  if (isAlipay.value) return 'border-[#a73a2a]/35 bg-[#a73a2a]/8 dark:bg-[#a73a2a]/18'
+  return 'border-stone-300 bg-stone-50/70 dark:border-dark-600 dark:bg-dark-800'
 })
 
 const qrLogoBgClass = computed(() => {
-  if (isAlipay.value) return 'bg-[#00AEEF]'
-  if (isWxpay.value) return 'bg-[#2BB741]'
-  return 'bg-gray-400'
+  if (isWxpay.value) return 'bg-[#51624f]'
+  if (isAlipay.value) return 'bg-[#a73a2a]'
+  return 'bg-[#9b8155]'
 })
 
 const scanTitle = computed(() => {
@@ -215,8 +214,8 @@ const countdownDisplay = computed(() => {
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
 
-function formatGatewayAmount(value: number, currency?: string | null): string {
-  return formatPaymentAmount(value, currency || paymentCurrency.value, localeCode.value)
+function formatGatewayAmount(value: number): string {
+  return formatPaymentAmount(value, paymentCurrency.value, localeCode.value)
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {

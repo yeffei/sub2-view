@@ -477,7 +477,7 @@ describe('WechatCallbackView', () => {
   it('renders adoption choices for invitation flow and submits the selected values', async () => {
     exchangePendingOAuthCompletionMock.mockResolvedValue({
       error: 'invitation_required',
-      redirect: '/subscriptions',
+      redirect: '/purchase',
       adoption_required: true,
       suggested_display_name: 'WeChat Nick',
       suggested_avatar_url: 'https://cdn.example/wechat.png',
@@ -515,7 +515,7 @@ describe('WechatCallbackView', () => {
       adoptAvatar: true,
     })
     expect(setTokenMock).toHaveBeenCalledWith('wechat-invite-token')
-    expect(replaceMock).toHaveBeenCalledWith('/subscriptions')
+    expect(replaceMock).toHaveBeenCalledWith('/purchase')
   })
 
   it('keeps the oauth flow active when complete-registration returns another pending step', async () => {

@@ -154,7 +154,7 @@ function onNextPage() {
 </script>
 
 <template>
-  <section class="card p-4 md:p-5">
+  <section class="ops-openai-token-shell card p-4 md:p-5">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h3 class="text-sm font-bold text-gray-900 dark:text-white">
         {{ t('admin.ops.openaiTokenStats.title') }}
@@ -247,3 +247,27 @@ function onNextPage() {
     </div>
   </section>
 </template>
+
+<style>
+.dark .ops-openai-token-shell {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.9) !important;
+}
+
+.dark .ops-openai-token-shell :is(.bg-white, .bg-gray-50, .bg-gray-100) {
+  background-color: rgba(24, 26, 21, 0.76) !important;
+}
+
+.dark .ops-openai-token-shell :is(.text-gray-900, .text-gray-800, .text-gray-700) {
+  color: #f4efe4 !important;
+}
+
+.dark .ops-openai-token-shell :is(.text-gray-600, .text-gray-500, .text-gray-400) {
+  color: #bdb5a8 !important;
+}
+
+.dark .ops-openai-token-shell th,
+.dark .ops-openai-token-shell td {
+  border-color: rgba(48, 52, 43, 0.78) !important;
+}
+</style>

@@ -99,17 +99,21 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
   }'
 ```
 
-### 4) 购买页 / 自定义页面 URL Query 透传（iframe / 新窗口一致）
-当 Sub2API 打开 `purchase_subscription_url` 或用户侧自定义页面 iframe URL 时，会统一追加：
+### 4) 外部购买链接 / 自定义页面参数约定
+- `purchase_subscription_url` 当前用于 `/purchase` 页面中的“前往小店购买”按钮，前端会以新标签页直接打开，不自动追加用户参数。
+- 如需基于当前登录用户做自动识别、回站兑换或发码，建议在外部系统中结合管理员 API 完成，而不是依赖前台链接参数。
+- 用户侧自定义页面若通过 iframe 嵌入，仍会统一追加以下参数：
 - `user_id`
 - `token`
 - `theme`（`light` / `dark`）
 - `lang`（例如 `zh` / `en`，用于向嵌入页传递当前界面语言）
 - `ui_mode`（固定 `embedded`）
+- `src_host`
+- `src_url`
 
 示例：
 ```text
-https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
+https://portal.example.com/page?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded&src_host=https%3A%2F%2Fsst.example.com&src_url=https%3A%2F%2Fsst.example.com%2Fcustom
 ```
 
 ### 5) 失败处理建议
@@ -219,17 +223,21 @@ curl -X POST "${BASE}/api/v1/admin/users/123/balance" \
   }'
 ```
 
-### 4) Purchase / Custom Page URL query forwarding (iframe and new tab)
-When Sub2API opens `purchase_subscription_url` or a user-facing custom page iframe URL, it appends:
+### 4) External purchase link / custom page parameter behavior
+- `purchase_subscription_url` is currently used by the `/purchase` page as the "Go to shop" destination. The frontend opens it in a new tab and does not automatically append user parameters.
+- If you need user-aware purchase completion, redeem, or crediting, prefer using the admin APIs from the external system rather than relying on frontend link parameters.
+- User-facing custom pages that are embedded via iframe still receive the following query parameters:
 - `user_id`
 - `token`
 - `theme` (`light` / `dark`)
 - `lang` (for example `zh` / `en`, used to pass the current UI language to the embedded page)
 - `ui_mode` (fixed: `embedded`)
+- `src_host`
+- `src_url`
 
 Example:
 ```text
-https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded
+https://portal.example.com/page?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=embedded&src_host=https%3A%2F%2Fsst.example.com&src_url=https%3A%2F%2Fsst.example.com%2Fcustom
 ```
 
 ### 5) Failure handling recommendations

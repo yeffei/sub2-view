@@ -1,12 +1,18 @@
-<template>
+﻿<template>
   <div class="card">
     <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
+      <div>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
+        <p class="usage-caption">近时段调用摘录</p>
+      </div>
       <span class="badge badge-gray">{{ t('dashboard.last7Days') }}</span>
     </div>
     <div class="p-6">
       <div v-if="loading" class="flex items-center justify-center py-12">
-        <LoadingSpinner size="lg" />
+        <div class="usage-state">
+          <LoadingSpinner size="lg" />
+          <p>正在归拢最近调用记录...</p>
+        </div>
       </div>
       <div v-else-if="data.length === 0" class="py-8">
         <EmptyState :title="t('dashboard.noUsageRecords')" :description="t('dashboard.startUsingApi')" />
@@ -55,3 +61,26 @@ defineProps<{
 const { t } = useI18n()
 const formatCost = (c: number) => c.toFixed(4)
 </script>
+
+<style scoped>
+.usage-caption {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: #59645a;
+}
+
+.usage-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: #59645a;
+  font-size: 0.875rem;
+}
+
+.dark .usage-caption,
+.dark .usage-state {
+  color: #879186;
+}
+</style>
+

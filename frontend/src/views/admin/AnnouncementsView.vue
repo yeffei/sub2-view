@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
@@ -36,9 +37,9 @@
             </button>
           </div>
         </div>
-      </template>
+        </template>
 
-      <template #table>
+        <template #table>
         <DataTable
           :columns="columns"
           :data="announcements"
@@ -147,9 +148,9 @@
             />
           </template>
         </DataTable>
-      </template>
+        </template>
 
-      <template #pagination>
+        <template #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -160,6 +161,7 @@
         />
       </template>
     </TablePageLayout>
+    </div>
 
     <!-- Create/Edit Dialog -->
     <BaseDialog
@@ -604,3 +606,4 @@ onUnmounted(() => {
   currentController?.abort()
 })
 </script>
+

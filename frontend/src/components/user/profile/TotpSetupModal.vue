@@ -401,3 +401,44 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.fixed.inset-0.bg-black\/50 {
+  background: rgba(31, 35, 32, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.relative.w-full.max-w-md {
+  border: 1px solid rgba(198, 184, 157, 0.62);
+  background:
+    radial-gradient(circle at 12% 12%, rgba(167, 58, 42, 0.055), transparent 16rem),
+    linear-gradient(135deg, rgba(250, 247, 239, 0.97), rgba(244, 239, 228, 0.9));
+  box-shadow: 0 28px 80px -52px rgba(31, 35, 32, 0.5);
+}
+
+.animate-spin {
+  border-color: #a73a2a;
+  border-top-color: transparent;
+}
+
+input:focus {
+  border-color: rgba(167, 58, 42, 0.44);
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.1);
+  outline: none;
+}
+
+code {
+  border: 1px solid rgba(198, 184, 157, 0.5);
+  background: rgba(250, 247, 239, 0.72);
+}
+
+.dark .relative.w-full.max-w-md {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: linear-gradient(180deg, rgba(17, 19, 15, 0.97), rgba(24, 26, 21, 0.92));
+}
+
+.dark code {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(17, 19, 15, 0.72);
+}
+</style>

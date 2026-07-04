@@ -12,10 +12,10 @@
         :class="[
           'relative flex h-[60px] flex-col items-center justify-center rounded-lg border px-3 transition-all sm:flex-1',
           !method.available
-            ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-800/50'
+            ? 'cursor-not-allowed border-stone-200 bg-stone-100/50 opacity-50 dark:border-dark-700 dark:bg-dark-800/50'
             : selected === method.type
               ? methodSelectedClass(method.type)
-              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              : 'border-stone-300 bg-stone-50/70 text-gray-700 hover:border-[#a73a2a]/30 hover:bg-[#a73a2a]/5 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-[#a73a2a]/40',
         ]"
         @click="method.available && emit('select', method.type)"
       >
@@ -86,10 +86,8 @@ function methodIcon(type: string): string {
 }
 
 function methodSelectedClass(type: string): string {
-  if (type.includes('alipay')) return 'border-[#02A9F1] bg-blue-50 text-gray-900 shadow-sm dark:bg-blue-950 dark:text-gray-100'
-  if (type.includes('wxpay')) return 'border-[#09BB07] bg-green-50 text-gray-900 shadow-sm dark:bg-green-950 dark:text-gray-100'
-  if (type === 'stripe') return 'border-[#676BE5] bg-indigo-50 text-gray-900 shadow-sm dark:bg-indigo-950 dark:text-gray-100'
-  if (type === 'airwallex') return 'border-[#FF6B3D] bg-orange-50 text-gray-900 shadow-sm dark:border-[#FF8E3C] dark:bg-orange-950 dark:text-gray-100'
-  return 'border-primary-500 bg-primary-50 text-gray-900 shadow-sm dark:bg-primary-950 dark:text-gray-100'
+  if (type.includes('wxpay')) return 'border-[#51624f]/45 bg-[#51624f]/10 text-gray-900 shadow-none dark:bg-[#51624f]/20 dark:text-gray-100'
+  if (type === 'airwallex') return 'border-[#9b8155]/45 bg-[#9b8155]/12 text-gray-900 shadow-none dark:border-[#9b8155]/50 dark:bg-[#9b8155]/20 dark:text-gray-100'
+  return 'border-[#a73a2a]/42 bg-[#a73a2a]/8 text-gray-900 shadow-none dark:bg-[#a73a2a]/18 dark:text-gray-100'
 }
 </script>

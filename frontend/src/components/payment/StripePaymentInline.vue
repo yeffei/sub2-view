@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-4">
     <div v-if="loading" class="flex items-center justify-center py-12">
-      <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
+      <div class="h-8 w-8 animate-spin rounded-full border-4 border-[#a73a2a] border-t-transparent"></div>
     </div>
     <div v-else-if="initError" class="card p-6 text-center">
       <p class="text-sm text-red-600 dark:text-red-400">{{ initError }}</p>
@@ -11,11 +11,11 @@
     <template v-else-if="success">
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <Icon name="check" size="lg" class="text-green-500" />
+          <div class="flex h-16 w-16 items-center justify-center rounded-full border border-[#51624f]/25 bg-[#51624f]/10 dark:bg-[#51624f]/20">
+            <Icon name="check" size="lg" class="text-[#51624f] dark:text-emerald-300" />
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.success') }}</p>
-          <div class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+          <div class="w-full rounded-lg border border-stone-200/70 bg-stone-100/35 p-4 dark:border-dark-700 dark:bg-dark-900/40">
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
@@ -23,11 +23,11 @@
               </div>
               <div v-if="amount > 0" class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ amount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ orderType === 'balance' ? '$' : '¥' }}{{ amount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">¥{{ payAmount.toFixed(2) }}</span>
               </div>
             </div>
           </div>
@@ -38,9 +38,9 @@
     <template v-else>
       <!-- Amount -->
       <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-[#635bff] to-[#4f46e5] px-6 py-5 text-center">
-          <p class="text-sm font-medium text-indigo-200">{{ t('payment.actualPay') }}</p>
-          <p class="mt-1 text-3xl font-bold text-white">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</p>
+        <div class="border-b border-stone-200/70 bg-[#a73a2a]/8 px-6 py-5 text-center dark:border-dark-700 dark:bg-[#a73a2a]/18">
+          <p class="text-sm font-medium text-[#7b6a53] dark:text-[#d9d0be]">{{ t('payment.actualPay') }}</p>
+          <p class="mt-1 text-3xl font-bold text-[#a73a2a] dark:text-[#f0b4a8]">¥{{ payAmount.toFixed(2) }}</p>
         </div>
       </div>
       <!-- Stripe Payment Element -->
@@ -64,14 +64,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { paymentAPI } from '@/api/payment'
 import { useAppStore } from '@/stores'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
-import { currencySymbol } from '@/components/payment/currency'
 import type { Stripe, StripeElements } from '@stripe/stripe-js'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -85,7 +84,6 @@ const props = defineProps<{
   orderType?: 'balance' | 'subscription'
   publishableKey: string
   payAmount: number
-  currency?: string
 }>()
 
 const emit = defineEmits<{ success: []; done: []; back: []; redirect: [orderId: number, payUrl: string] }>()
@@ -103,8 +101,6 @@ const cancelling = ref(false)
 const success = ref(false)
 const ready = ref(false)
 const selectedType = ref('')
-const creditedAmountSymbol = currencySymbol('USD')
-const paymentAmountSymbol = computed(() => currencySymbol(props.currency))
 
 let stripeInstance: Stripe | null = null
 let elementsInstance: StripeElements | null = null

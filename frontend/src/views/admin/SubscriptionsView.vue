@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
         <!-- Top Toolbar: Left (search + filters) / Right (actions) -->
         <div class="flex flex-wrap items-start justify-between gap-4">
           <!-- Left: Fuzzy user search + filters (wrap to multiple lines) -->
@@ -404,14 +405,6 @@
                 <Icon name="ban" size="sm" />
                 <span class="text-xs">{{ t('admin.subscriptions.revoke') }}</span>
               </button>
-              <button
-                v-if="row.status === 'revoked'"
-                @click="handleRestore(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
-              >
-                <Icon name="refresh" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.restore') }}</span>
-              </button>
             </div>
           </template>
 
@@ -438,6 +431,7 @@
       />
       </template>
     </TablePageLayout>
+    </div>
 
     <!-- Assign Subscription Modal -->
     <BaseDialog
@@ -651,17 +645,6 @@
       :danger="true"
       @confirm="confirmRevoke"
       @cancel="showRevokeDialog = false"
-    />
-
-    <!-- Restore Confirmation Dialog -->
-    <ConfirmDialog
-      :show="showRestoreDialog"
-      :title="t('admin.subscriptions.restoreSubscription')"
-      :message="t('admin.subscriptions.restoreConfirm', { user: restoringSubscription?.user?.email })"
-      :confirm-text="t('admin.subscriptions.restore')"
-      :cancel-text="t('common.cancel')"
-      @confirm="confirmRestore"
-      @cancel="showRestoreDialog = false"
     />
 
     <!-- Reset Quota Confirmation Dialog -->
@@ -959,14 +942,12 @@ const pagination = reactive({
 const showAssignModal = ref(false)
 const showExtendModal = ref(false)
 const showRevokeDialog = ref(false)
-const showRestoreDialog = ref(false)
 const showResetQuotaConfirm = ref(false)
 const submitting = ref(false)
 const resettingSubscription = ref<UserSubscription | null>(null)
 const resettingQuota = ref(false)
 const extendingSubscription = ref<UserSubscription | null>(null)
 const revokingSubscription = ref<UserSubscription | null>(null)
-const restoringSubscription = ref<UserSubscription | null>(null)
 
 const assignForm = reactive({
   user_id: null as number | null,
@@ -1282,26 +1263,6 @@ const confirmRevoke = async () => {
   }
 }
 
-const handleRestore = (subscription: UserSubscription) => {
-  restoringSubscription.value = subscription
-  showRestoreDialog.value = true
-}
-
-const confirmRestore = async () => {
-  if (!restoringSubscription.value) return
-
-  try {
-    await adminAPI.subscriptions.restore(restoringSubscription.value.id)
-    appStore.showSuccess(t('admin.subscriptions.subscriptionRestored'))
-    showRestoreDialog.value = false
-    restoringSubscription.value = null
-    loadSubscriptions()
-  } catch (error: any) {
-    appStore.showError(error.response?.data?.detail || t('admin.subscriptions.failedToRestore'))
-    console.error('Error restoring subscription:', error)
-  }
-}
-
 const handleResetQuota = (subscription: UserSubscription) => {
   resettingSubscription.value = subscription
   showResetQuotaConfirm.value = true
@@ -1460,3 +1421,4 @@ onUnmounted(() => {
   @apply flex items-center gap-1 pl-12 text-[10px] text-blue-600 dark:text-blue-400;
 }
 </style>
+

@@ -259,15 +259,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		ClaudeOAuthSystemPromptBlocks:          settings.ClaudeOAuthSystemPromptBlocks,
 		EnableAnthropicCacheTTL1hInjection:     settings.EnableAnthropicCacheTTL1hInjection,
 		RewriteMessageCacheControl:             settings.RewriteMessageCacheControl,
-		EnableClientDatelineNormalization:      settings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:            settings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                   settings.OpenAICodexUserAgent,
-		MinCodexVersion:                        settings.MinCodexVersion,
-		MaxCodexVersion:                        settings.MaxCodexVersion,
-		CodexCLIOnlyBlacklist:                  settings.CodexCLIOnlyBlacklist,
-		CodexCLIOnlyWhitelist:                  settings.CodexCLIOnlyWhitelist,
-		CodexCLIOnlyAllowAppServerClients:      settings.CodexCLIOnlyAllowAppServerClients,
-		CodexCLIOnlyEngineFingerprintSignals:   settings.CodexCLIOnlyEngineFingerprintSignals,
+		OpenAIAllowClaudeCodeCodexPlugin:       settings.OpenAIAllowClaudeCodeCodexPlugin,
 		WebSearchEmulationEnabled:              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:       settings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        settings.PaymentVisibleMethodWxpaySource,
@@ -599,17 +593,9 @@ type UpdateSettingsRequest struct {
 	ClaudeOAuthSystemPromptBlocks          *string `json:"claude_oauth_system_prompt_blocks"`
 	EnableAnthropicCacheTTL1hInjection     *bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
 	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
-	EnableClientDatelineNormalization      *bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   *string `json:"openai_codex_user_agent"`
-
-	// codex_cli_only 加固（global-only）
-	MinCodexVersion                      string `json:"min_codex_version"`
-	MaxCodexVersion                      string `json:"max_codex_version"`
-	CodexCLIOnlyBlacklist                string `json:"codex_cli_only_blacklist"`
-	CodexCLIOnlyWhitelist                string `json:"codex_cli_only_whitelist"`
-	CodexCLIOnlyAllowAppServerClients    *bool  `json:"codex_cli_only_allow_app_server_clients"`
-	CodexCLIOnlyEngineFingerprintSignals string `json:"codex_cli_only_engine_fingerprint_signals"`
+	OpenAIAllowClaudeCodeCodexPlugin       *bool   `json:"openai_allow_claude_code_codex_plugin"`
 
 	// Payment visible method routing
 	PaymentVisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
@@ -639,6 +625,9 @@ type UpdateSettingsRequest struct {
 	PaymentBalanceDisabled           *bool    `json:"payment_balance_disabled"`
 	PaymentBalanceRechargeMultiplier *float64 `json:"payment_balance_recharge_multiplier"`
 	PaymentRechargeFeeRate           *float64 `json:"payment_recharge_fee_rate"`
+	PaymentRechargeCampaignEnabled   *bool    `json:"payment_recharge_campaign_enabled"`
+	PaymentRechargeCampaignAmount    *float64 `json:"payment_recharge_campaign_amount"`
+	PaymentRechargeCampaignBonusRate *float64 `json:"payment_recharge_campaign_bonus_rate"`
 	PaymentLoadBalanceStrat          *string  `json:"payment_load_balance_strategy"`
 	PaymentProductNamePrefix         *string  `json:"payment_product_name_prefix"`
 	PaymentProductNameSuffix         *string  `json:"payment_product_name_suffix"`
@@ -1480,34 +1469,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		}
 	}
 
-	// codex_cli_only 加固：最低/最高 Codex 版本（空=禁用，或合法 semver；max>=min）
-	if req.MinCodexVersion != "" && !semverPattern.MatchString(req.MinCodexVersion) {
-		response.Error(c, http.StatusBadRequest, "min_codex_version must be empty or a valid semver (e.g. 0.141.0)")
-		return
-	}
-	if req.MaxCodexVersion != "" && !semverPattern.MatchString(req.MaxCodexVersion) {
-		response.Error(c, http.StatusBadRequest, "max_codex_version must be empty or a valid semver (e.g. 0.200.0)")
-		return
-	}
-	if req.MinCodexVersion != "" && req.MaxCodexVersion != "" && service.CompareVersions(req.MaxCodexVersion, req.MinCodexVersion) < 0 {
-		response.Error(c, http.StatusBadRequest, "max_codex_version must be greater than or equal to min_codex_version")
-		return
-	}
-	// codex_cli_only 黑/白名单：非空须为合法 []AllowedClientEntry JSON。
-	// 黑名单 OR 宽 deny（允许 originator-only）；白名单双因子 AND，额外要求每条可命中（非空 originator + ua_contains）。
-	if err := service.ValidateCodexClientEntriesJSON(req.CodexCLIOnlyBlacklist); err != nil {
-		response.Error(c, http.StatusBadRequest, "codex_cli_only_blacklist "+err.Error())
-		return
-	}
-	if err := service.ValidateCodexWhitelistEntriesJSON(req.CodexCLIOnlyWhitelist); err != nil {
-		response.Error(c, http.StatusBadRequest, "codex_cli_only_whitelist "+err.Error())
-		return
-	}
-	if err := service.ValidateEngineFingerprintSignalsJSON(req.CodexCLIOnlyEngineFingerprintSignals); err != nil {
-		response.Error(c, http.StatusBadRequest, "codex_cli_only_engine_fingerprint_signals "+err.Error())
-		return
-	}
-
 	// 交叉验证：如果同时设置了最低和最高版本号，最高版本号必须 >= 最低版本号
 	if req.MinClaudeCodeVersion != "" && req.MaxClaudeCodeVersion != "" {
 		if service.CompareVersions(req.MaxClaudeCodeVersion, req.MinClaudeCodeVersion) < 0 {
@@ -1733,12 +1694,6 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.RewriteMessageCacheControl
 		}(),
-		EnableClientDatelineNormalization: func() bool {
-			if req.EnableClientDatelineNormalization != nil {
-				return *req.EnableClientDatelineNormalization
-			}
-			return previousSettings.EnableClientDatelineNormalization
-		}(),
 		AntigravityUserAgentVersion: func() string {
 			if req.AntigravityUserAgentVersion != nil {
 				return *req.AntigravityUserAgentVersion
@@ -1751,17 +1706,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAICodexUserAgent
 		}(),
-		MinCodexVersion:       strings.TrimSpace(req.MinCodexVersion),
-		MaxCodexVersion:       strings.TrimSpace(req.MaxCodexVersion),
-		CodexCLIOnlyBlacklist: strings.TrimSpace(req.CodexCLIOnlyBlacklist),
-		CodexCLIOnlyWhitelist: strings.TrimSpace(req.CodexCLIOnlyWhitelist),
-		CodexCLIOnlyAllowAppServerClients: func() bool {
-			if req.CodexCLIOnlyAllowAppServerClients != nil {
-				return *req.CodexCLIOnlyAllowAppServerClients
+		OpenAIAllowClaudeCodeCodexPlugin: func() bool {
+			if req.OpenAIAllowClaudeCodeCodexPlugin != nil {
+				return *req.OpenAIAllowClaudeCodeCodexPlugin
 			}
-			return previousSettings.CodexCLIOnlyAllowAppServerClients
+			return previousSettings.OpenAIAllowClaudeCodeCodexPlugin
 		}(),
-		CodexCLIOnlyEngineFingerprintSignals: strings.TrimSpace(req.CodexCLIOnlyEngineFingerprintSignals),
 		PaymentVisibleMethodAlipaySource: func() string {
 			if req.PaymentVisibleMethodAlipaySource != nil {
 				return strings.TrimSpace(*req.PaymentVisibleMethodAlipaySource)
@@ -1960,6 +1910,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			BalanceDisabled:           req.PaymentBalanceDisabled,
 			BalanceRechargeMultiplier: req.PaymentBalanceRechargeMultiplier,
 			RechargeFeeRate:           req.PaymentRechargeFeeRate,
+			RechargeCampaignEnabled:   req.PaymentRechargeCampaignEnabled,
+			RechargeCampaignAmount:    req.PaymentRechargeCampaignAmount,
+			RechargeCampaignBonusRate: req.PaymentRechargeCampaignBonusRate,
 			LoadBalanceStrategy:       req.PaymentLoadBalanceStrat,
 			ProductNamePrefix:         req.PaymentProductNamePrefix,
 			ProductNameSuffix:         req.PaymentProductNameSuffix,
@@ -2151,15 +2104,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		ClaudeOAuthSystemPromptBlocks:          updatedSettings.ClaudeOAuthSystemPromptBlocks,
 		EnableAnthropicCacheTTL1hInjection:     updatedSettings.EnableAnthropicCacheTTL1hInjection,
 		RewriteMessageCacheControl:             updatedSettings.RewriteMessageCacheControl,
-		EnableClientDatelineNormalization:      updatedSettings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:            updatedSettings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                   updatedSettings.OpenAICodexUserAgent,
-		MinCodexVersion:                        updatedSettings.MinCodexVersion,
-		MaxCodexVersion:                        updatedSettings.MaxCodexVersion,
-		CodexCLIOnlyBlacklist:                  updatedSettings.CodexCLIOnlyBlacklist,
-		CodexCLIOnlyWhitelist:                  updatedSettings.CodexCLIOnlyWhitelist,
-		CodexCLIOnlyAllowAppServerClients:      updatedSettings.CodexCLIOnlyAllowAppServerClients,
-		CodexCLIOnlyEngineFingerprintSignals:   updatedSettings.CodexCLIOnlyEngineFingerprintSignals,
+		OpenAIAllowClaudeCodeCodexPlugin:       updatedSettings.OpenAIAllowClaudeCodeCodexPlugin,
 		PaymentVisibleMethodAlipaySource:       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        updatedSettings.PaymentVisibleMethodWxpaySource,
 		PaymentVisibleMethodAlipayEnabled:      updatedSettings.PaymentVisibleMethodAlipayEnabled,
@@ -2181,6 +2128,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PaymentBalanceDisabled:                 updatedPaymentCfg.BalanceDisabled,
 		PaymentBalanceRechargeMultiplier:       updatedPaymentCfg.BalanceRechargeMultiplier,
 		PaymentRechargeFeeRate:                 updatedPaymentCfg.RechargeFeeRate,
+		PaymentRechargeCampaignEnabled:         updatedPaymentCfg.RechargeCampaignEnabled,
+		PaymentRechargeCampaignAmount:          updatedPaymentCfg.RechargeCampaignAmount,
+		PaymentRechargeCampaignBonusRate:       updatedPaymentCfg.RechargeCampaignBonusRate,
 		PaymentLoadBalanceStrat:                updatedPaymentCfg.LoadBalanceStrategy,
 		PaymentProductNamePrefix:               updatedPaymentCfg.ProductNamePrefix,
 		PaymentProductNameSuffix:               updatedPaymentCfg.ProductNameSuffix,
@@ -2239,6 +2189,8 @@ func hasPaymentFields(req UpdateSettingsRequest) bool {
 		req.PaymentOrderTimeoutMin != nil || req.PaymentMaxPendingOrders != nil ||
 		req.PaymentEnabledTypes != nil || req.PaymentBalanceDisabled != nil ||
 		req.PaymentBalanceRechargeMultiplier != nil || req.PaymentRechargeFeeRate != nil ||
+		req.PaymentRechargeCampaignEnabled != nil || req.PaymentRechargeCampaignAmount != nil ||
+		req.PaymentRechargeCampaignBonusRate != nil ||
 		req.PaymentLoadBalanceStrat != nil || req.PaymentProductNamePrefix != nil ||
 		req.PaymentProductNameSuffix != nil || req.PaymentHelpImageURL != nil ||
 		req.PaymentHelpText != nil || req.PaymentCancelRateLimitEnabled != nil ||
@@ -2587,24 +2539,6 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.MaxClaudeCodeVersion != after.MaxClaudeCodeVersion {
 		changed = append(changed, "max_claude_code_version")
 	}
-	if before.MinCodexVersion != after.MinCodexVersion {
-		changed = append(changed, "min_codex_version")
-	}
-	if before.MaxCodexVersion != after.MaxCodexVersion {
-		changed = append(changed, "max_codex_version")
-	}
-	if before.CodexCLIOnlyAllowAppServerClients != after.CodexCLIOnlyAllowAppServerClients {
-		changed = append(changed, "codex_cli_only_allow_app_server_clients")
-	}
-	if before.CodexCLIOnlyEngineFingerprintSignals != after.CodexCLIOnlyEngineFingerprintSignals {
-		changed = append(changed, "codex_cli_only_engine_fingerprint_signals")
-	}
-	if before.CodexCLIOnlyBlacklist != after.CodexCLIOnlyBlacklist {
-		changed = append(changed, "codex_cli_only_blacklist")
-	}
-	if before.CodexCLIOnlyWhitelist != after.CodexCLIOnlyWhitelist {
-		changed = append(changed, "codex_cli_only_whitelist")
-	}
 	if before.AllowUngroupedKeyScheduling != after.AllowUngroupedKeyScheduling {
 		changed = append(changed, "allow_ungrouped_key_scheduling")
 	}
@@ -2653,14 +2587,14 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.RewriteMessageCacheControl != after.RewriteMessageCacheControl {
 		changed = append(changed, "rewrite_message_cache_control")
 	}
-	if before.EnableClientDatelineNormalization != after.EnableClientDatelineNormalization {
-		changed = append(changed, "enable_client_dateline_normalization")
-	}
 	if before.AntigravityUserAgentVersion != after.AntigravityUserAgentVersion {
 		changed = append(changed, "antigravity_user_agent_version")
 	}
 	if before.OpenAICodexUserAgent != after.OpenAICodexUserAgent {
 		changed = append(changed, "openai_codex_user_agent")
+	}
+	if before.OpenAIAllowClaudeCodeCodexPlugin != after.OpenAIAllowClaudeCodeCodexPlugin {
+		changed = append(changed, "openai_allow_claude_code_codex_plugin")
 	}
 	if before.PaymentVisibleMethodAlipaySource != after.PaymentVisibleMethodAlipaySource {
 		changed = append(changed, "payment_visible_method_alipay_source")
@@ -3812,7 +3746,7 @@ func slotOf(s *service.DefaultPlatformQuotaSetting, win string) *float64 {
 	return nil
 }
 
-// equalPlatformQuotaSettings reports whether two platform-quota maps are identical across all allowed slots.
+// equalPlatformQuotaSettings reports whether two platform-quota maps are identical across all 12 slots.
 func equalPlatformQuotaSettings(before, after map[string]*service.DefaultPlatformQuotaSetting) bool {
 	for _, platform := range service.AllowedQuotaPlatforms {
 		b := before[platform]

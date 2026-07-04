@@ -1,9 +1,57 @@
 <template>
   <AppLayout>
-    <div class="space-y-6">
-      <UsageStatsCards :stats="usageStats" />
+    <div class="admin-usage-shell space-y-6">
+
+      <section class="card admin-usage-briefing-card p-4">
+        <div class="admin-usage-briefing-head">
+          <div>
+            <span class="admin-page-kicker">{{ t('usage.adminLedger.briefing.kicker') }}</span>
+            <h3>{{ t('usage.adminLedger.briefing.title') }}</h3>
+            <p>{{ usageBriefingLead }}</p>
+          </div>
+          <div class="admin-usage-briefing-actions">
+            <button class="btn btn-secondary" @click="switchToErrorsTab">{{ t('usage.adminLedger.briefing.primaryAction') }}</button>
+            <button class="btn btn-secondary" @click="scrollToCharts">{{ t('usage.adminLedger.briefing.secondaryAction') }}</button>
+          </div>
+        </div>
+
+        <div class="admin-usage-briefing-grid mt-3">
+          <article class="admin-usage-briefing-panel">
+            <span>{{ t('usage.adminLedger.briefing.requestsTitle') }}</span>
+            <strong>{{ usageBriefingRequestsValue }}</strong>
+            <p>{{ usageBriefingRequestsNote }}</p>
+          </article>
+          <article class="admin-usage-briefing-panel">
+            <span>{{ t('usage.adminLedger.briefing.costTitle') }}</span>
+            <strong>{{ usageBriefingCostValue }}</strong>
+            <p>{{ usageBriefingCostNote }}</p>
+          </article>
+          <article class="admin-usage-briefing-panel">
+            <span>{{ t('usage.adminLedger.briefing.anomalyTitle') }}</span>
+            <strong>{{ usageBriefingAnomalyValue }}</strong>
+            <p>{{ usageBriefingAnomalyNote }}</p>
+          </article>
+          <article class="admin-usage-briefing-panel">
+            <span>{{ t('usage.adminLedger.briefing.actionTitle') }}</span>
+            <strong>{{ usageBriefingActionValue }}</strong>
+            <p>{{ usageBriefingActionNote }}</p>
+          </article>
+        </div>
+
+        <div class="admin-usage-briefing-foot mt-3">
+          <div class="admin-usage-briefing-tags">
+            <span v-for="tag in usageBriefingTags" :key="tag" class="admin-usage-briefing-tag">{{ tag }}</span>
+            <span v-if="!usageBriefingTags.length" class="admin-usage-briefing-tag admin-usage-briefing-tag-muted">{{ t('usage.adminLedger.briefing.tagObserve') }}</span>
+          </div>
+          <p class="admin-usage-briefing-summary">{{ usageBriefingSummary }}</p>
+        </div>
+      </section>
+
+      <section class="admin-usage-summary-stack">
+        <UsageStatsCards :stats="usageStats" />
+      </section>
       <!-- Charts Section -->
-      <div class="space-y-4">
+      <div ref="modelChartSectionRef" class="space-y-4">
         <div class="card p-4">
           <div class="flex flex-wrap items-center gap-4">
             <div class="flex items-center gap-2">
@@ -64,7 +112,7 @@
           <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
         </div>
       </div>
-      <UsageFilters v-model="filters" :mode="activeTab === 'errors' ? 'errors' : 'usage'" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
+      <UsageFilters v-model="filters" :start-date="startDate" :end-date="endDate" :exporting="exporting" :model-options="modelNameOptions" @change="applyFilters" @refresh="refreshData" @reset="resetFilters" @cleanup="openCleanupDialog" @export="exportToExcel">
         <template #after-reset>
           <div class="relative" ref="columnDropdownRef">
             <button
@@ -82,14 +130,14 @@
               class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
             >
               <button
-                v-for="col in currentToggleableColumns"
+                v-for="col in toggleableColumns"
                 :key="col.key"
-                @click="toggleCurrentColumn(col.key)"
+                @click="toggleColumn(col.key)"
                 class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
               >
                 <span>{{ col.label }}</span>
                 <Icon
-                  v-if="isCurrentColumnVisible(col.key)"
+                  v-if="isColumnVisible(col.key)"
                   name="check"
                   size="sm"
                   class="text-primary-500"
@@ -108,7 +156,7 @@
           {{ t('usage.tabs.errors') }}
         </button>
       </div>
-      <div v-show="activeTab === 'usage'">
+      <div v-show="activeTab === 'usage'" class="usage-ledger-panel">
         <UsageTable
           :data="usageLogs"
           :loading="loading"
@@ -118,7 +166,6 @@
           :default-sort-order="'desc'"
           @sort="handleSort"
           @userClick="handleUserClick"
-          @ipGeoBatchFailed="handleIpGeoBatchFailed"
         />
         <Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" />
       </div>
@@ -126,14 +173,9 @@
         <OpsErrorLogTable
           :rows="errRows" :total="errTotal" :loading="errLoading"
           :page="errPage" :page-size="errPageSize"
-          :visible-column-keys="errVisibleColumnKeys"
-          user-clickable
-          @userClick="handleUserClick"
           @openErrorDetail="openError"
-          @sort="onErrSort"
           @update:page="onErrPage"
-          @update:pageSize="onErrPageSize"
-          @ipGeoBatchFailed="handleIpGeoBatchFailed" />
+          @update:pageSize="onErrPageSize" />
         <OpsErrorDetailModal v-model:show="showErrorModal" :error-id="selectedErrorId" :error-type="'request'" />
       </div>
     </div>
@@ -186,6 +228,8 @@ type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 const route = useRoute()
 const usageStats = ref<AdminUsageStatsResponse | null>(null); const usageLogs = ref<AdminUsageLog[]>([]); const loading = ref(false); const exporting = ref(false)
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')
+const modelChartSectionRef = ref<HTMLElement | null>(null)
+
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
 const modelDistributionSource = ref<ModelDistributionSource>('requested')
 const loadedModelSources = reactive<Record<ModelDistributionSource, boolean>>({
@@ -236,6 +280,10 @@ const handleUserClick = async (userId: number) => {
 }
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
+const formatUsageCost = (value: number) => value.toFixed(4)
+const formatUsageDuration = (ms: number) => ms < 1000 ? ms.toFixed(0) + 'ms' : (ms / 1000).toFixed(2) + 's'
+const formatUsageTokens = (value: number) => value.toLocaleString()
+
 // Use local timezone to avoid UTC timezone issues
 const formatLD = (d: Date) => {
   const year = d.getFullYear()
@@ -277,6 +325,100 @@ const getNumericQueryValue = (value: string | null | Array<string | null> | unde
   const parsed = Number(raw)
   return Number.isFinite(parsed) ? parsed : undefined
 }
+
+const scrollToCharts = () => {
+  modelChartSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+const usageBriefingLead = computed(() => {
+  if (!usageStats.value) return t('usage.adminLedger.briefing.leadLoading')
+  return t('usage.adminLedger.briefing.leadPrefix')
+})
+
+const usageBriefingRequestsValue = computed(() => {
+  if (!usageStats.value) return t('usage.adminLedger.briefing.requestsPending')
+  return t('usage.adminLedger.briefing.requestsValue', { value: formatUsageTokens(usageStats.value.total_requests || 0) })
+})
+
+const usageBriefingRequestsNote = computed(() => {
+  if (!usageStats.value) return t('usage.adminLedger.briefing.requestsNotePending')
+  return t('usage.adminLedger.briefing.requestsNote', {
+    value: formatUsageTokens(usageStats.value.total_tokens || 0),
+    duration: formatUsageDuration(usageStats.value.average_duration_ms || 0)
+  })
+})
+
+const usageBriefingCostValue = computed(() => {
+  if (!usageStats.value) return t('usage.adminLedger.briefing.costPending')
+  return t('usage.adminLedger.briefing.costValue', { value: formatUsageCost(usageStats.value.total_actual_cost || 0) })
+})
+
+const usageBriefingCostNote = computed(() => {
+  if (!usageStats.value) return t('usage.adminLedger.briefing.costNotePending')
+  return t('usage.adminLedger.briefing.costNote', {
+    accountCost: formatUsageCost(usageStats.value.total_account_cost || 0),
+    standardCost: formatUsageCost(usageStats.value.total_cost || 0)
+  })
+})
+
+const usageErrorCount = computed(() => errTotal.value || errRows.value.length)
+
+const usageBriefingAnomalyValue = computed(() => {
+  if (errLoading.value) return t('usage.adminLedger.briefing.anomalyPending')
+  if (usageErrorCount.value > 0) return t('usage.adminLedger.briefing.anomalyValue', { value: formatUsageTokens(usageErrorCount.value) })
+  return t('usage.adminLedger.briefing.anomalyEmpty')
+})
+
+const usageBriefingAnomalyNote = computed(() => {
+  if (errLoading.value) return t('usage.adminLedger.briefing.anomalyNotePending')
+  if (usageErrorCount.value > 0) {
+    return t('usage.adminLedger.briefing.anomalyNote', { value: formatUsageTokens(usageErrorCount.value) })
+  }
+  return t('usage.adminLedger.briefing.anomalyNoteEmpty')
+})
+
+const usageBriefingActionValue = computed(() => {
+  if (errLoading.value || loading.value) return t('usage.adminLedger.briefing.actionPending')
+  if (usageErrorCount.value > 0) return t('usage.adminLedger.briefing.actionErrors')
+  if ((groupStats.value?.length || 0) > 0 || (inboundEndpointStats.value?.length || 0) > 0) return t('usage.adminLedger.briefing.actionGroups')
+  return t('usage.adminLedger.briefing.actionDefault')
+})
+
+const usageBriefingActionNote = computed(() => {
+  if (errLoading.value || loading.value) return t('usage.adminLedger.briefing.actionNotePending')
+  if (usageErrorCount.value > 0) return t('usage.adminLedger.briefing.actionNoteErrors')
+  if ((groupStats.value?.length || 0) > 0 || (inboundEndpointStats.value?.length || 0) > 0) return t('usage.adminLedger.briefing.actionNoteGroups')
+  return t('usage.adminLedger.briefing.actionNoteDefault')
+})
+
+const usageBriefingTags = computed(() => {
+  const tags: string[] = []
+  if (usageStats.value?.total_tokens) tags.push(t('usage.adminLedger.briefing.tagTokens', { value: formatUsageTokens(usageStats.value.total_tokens) }))
+  if (usageErrorCount.value > 0) tags.push(t('usage.adminLedger.briefing.tagErrors', { value: formatUsageTokens(usageErrorCount.value) }))
+  if ((groupStats.value?.length || 0) > 0) tags.push(t('usage.adminLedger.briefing.tagGroups', { value: formatUsageTokens(groupStats.value.length) }))
+  if ((inboundEndpointStats.value?.length || 0) > 0) tags.push(t('usage.adminLedger.briefing.tagEndpoints', { value: formatUsageTokens(inboundEndpointStats.value.length) }))
+  return tags.slice(0, 5)
+})
+
+const usageBriefingSummary = computed(() => {
+  if (!usageStats.value) return t('usage.adminLedger.briefing.summaryPending')
+  const parts = [
+    t('usage.adminLedger.briefing.summaryRequests', {
+      start: startDate.value,
+      end: endDate.value,
+      requests: formatUsageTokens(usageStats.value.total_requests || 0)
+    }),
+    t('usage.adminLedger.briefing.summaryCost', { cost: formatUsageCost(usageStats.value.total_actual_cost || 0) })
+  ]
+  if (usageErrorCount.value > 0) {
+    parts.push(t('usage.adminLedger.briefing.summaryErrors', { errors: formatUsageTokens(usageErrorCount.value) }))
+    parts.push(t('usage.adminLedger.briefing.summaryActionErrors'))
+  } else {
+    parts.push(t('usage.adminLedger.briefing.summaryNoErrors'))
+    parts.push(t('usage.adminLedger.briefing.summaryActionGroups'))
+  }
+  return parts.join('，') + '。'
+})
 
 const applyRouteQueryFilters = () => {
   const queryStartDate = getSingleQueryValue(route.query.start_date)
@@ -492,10 +634,6 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
   pagination.page = 1
   loadLogs()
 }
-
-const handleIpGeoBatchFailed = () => {
-  appStore.showError(t('usage.ipGeo.batchFailed'))
-}
 const cancelExport = () => exportAbortController?.abort()
 const openCleanupDialog = () => { cleanupDialogVisible.value = true }
 const getRequestTypeLabel = (log: AdminUsageLog): string => {
@@ -614,74 +752,6 @@ const toggleColumn = (key: string) => {
   }
 }
 
-// ---- 错误请求 tab 列设置(与用量明细同机制,独立存储) ----
-const ERR_ALWAYS_VISIBLE = ['user', 'status', 'created_at', 'actions']
-const ERR_DEFAULT_HIDDEN_COLUMNS = ['user_agent']
-const ERR_HIDDEN_COLUMNS_KEY = 'usage-error-hidden-columns'
-
-// key 集合须与 OpsErrorLogTable 内部 allColumns 一致
-const errAllColumns = computed(() => [
-  { key: 'user', label: t('admin.ops.errorLog.user') },
-  { key: 'api_key', label: t('admin.ops.errorLog.apiKey') },
-  { key: 'account', label: t('admin.ops.errorLog.account') },
-  { key: 'platform', label: t('admin.ops.errorLog.platform') },
-  { key: 'model', label: t('admin.ops.errorLog.model') },
-  { key: 'endpoint', label: t('admin.ops.errorLog.endpoint') },
-  { key: 'group', label: t('admin.ops.errorLog.group') },
-  { key: 'type', label: t('admin.ops.errorLog.type') },
-  { key: 'category', label: t('usage.errors.category') },
-  { key: 'status', label: t('admin.ops.errorLog.status') },
-  { key: 'message', label: t('admin.ops.errorLog.message') },
-  { key: 'created_at', label: t('admin.ops.errorLog.time') },
-  { key: 'user_agent', label: t('usage.userAgent') },
-  { key: 'client_ip', label: t('admin.ops.errorLog.ip') },
-  { key: 'actions', label: t('admin.ops.errorLog.action') },
-])
-
-const errHiddenColumns = reactive<Set<string>>(new Set())
-
-const errToggleableColumns = computed(() =>
-  errAllColumns.value.filter(col => !ERR_ALWAYS_VISIBLE.includes(col.key))
-)
-
-const errVisibleColumnKeys = computed(() =>
-  errAllColumns.value
-    .filter(col => ERR_ALWAYS_VISIBLE.includes(col.key) || !errHiddenColumns.has(col.key))
-    .map(col => col.key)
-)
-
-const toggleErrColumn = (key: string) => {
-  if (errHiddenColumns.has(key)) {
-    errHiddenColumns.delete(key)
-  } else {
-    errHiddenColumns.add(key)
-  }
-  try {
-    localStorage.setItem(ERR_HIDDEN_COLUMNS_KEY, JSON.stringify([...errHiddenColumns]))
-  } catch (e) {
-    console.error('Failed to save error columns:', e)
-  }
-}
-
-const loadSavedErrColumns = () => {
-  try {
-    const saved = localStorage.getItem(ERR_HIDDEN_COLUMNS_KEY)
-    const keys = saved ? (JSON.parse(saved) as string[]) : ERR_DEFAULT_HIDDEN_COLUMNS
-    keys.forEach((key) => errHiddenColumns.add(key))
-  } catch {
-    ERR_DEFAULT_HIDDEN_COLUMNS.forEach((key) => errHiddenColumns.add(key))
-  }
-}
-
-// 列设置下拉按当前 tab 分发
-const currentToggleableColumns = computed(() =>
-  activeTab.value === 'errors' ? errToggleableColumns.value : toggleableColumns.value
-)
-const isCurrentColumnVisible = (key: string) =>
-  activeTab.value === 'errors' ? !errHiddenColumns.has(key) : isColumnVisible(key)
-const toggleCurrentColumn = (key: string) =>
-  activeTab.value === 'errors' ? toggleErrColumn(key) : toggleColumn(key)
-
 const loadSavedColumns = () => {
   try {
     const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
@@ -708,8 +778,6 @@ const errLoading = ref(false)
 const errPage = ref(1)
 const errPageSize = ref(20)
 const errTotal = ref(0)
-const errSortBy = ref('created_at')
-const errSortOrder = ref<'asc' | 'desc'>('desc')
 const showErrorModal = ref(false)
 const selectedErrorId = ref<number | null>(null)
 
@@ -731,11 +799,6 @@ const loadAdminErrors = async () => {
       account_id: filters.value.account_id ?? undefined,
       group_id: filters.value.group_id ?? undefined,
       model: filters.value.model || undefined,
-      phase: filters.value.error_phase || undefined,
-      category: filters.value.error_category || undefined,
-      status_codes: filters.value.status_code != null ? String(filters.value.status_code) : undefined,
-      sort_by: errSortBy.value,
-      sort_order: errSortOrder.value,
     })
     errRows.value = resp.items
     errTotal.value = resp.total
@@ -747,12 +810,6 @@ const loadAdminErrors = async () => {
   }
 }
 
-const onErrSort = (sortBy: string, sortOrder: 'asc' | 'desc') => {
-  errSortBy.value = sortBy
-  errSortOrder.value = sortOrder
-  errPage.value = 1
-  loadAdminErrors()
-}
 const onErrPage = (p: number) => { errPage.value = p; loadAdminErrors() }
 const onErrPageSize = (s: number) => { errPageSize.value = s; errPage.value = 1; loadAdminErrors() }
 const openError = (id: number) => { selectedErrorId.value = id; showErrorModal.value = true }
@@ -776,7 +833,6 @@ onMounted(() => {
     void loadChartData()
   }, 120)
   loadSavedColumns()
-  loadSavedErrColumns()
   document.addEventListener('click', handleColumnClickOutside)
 })
 onUnmounted(() => { abortController?.abort(); exportAbortController?.abort(); document.removeEventListener('click', handleColumnClickOutside) })
@@ -787,3 +843,341 @@ watch(modelDistributionSource, (source) => {
 
 defineExpose({ requestedModelStats, refreshData })
 </script>
+
+<style scoped>
+.admin-usage-shell {
+  max-width: 88rem;
+}
+
+.admin-usage-briefing-card {
+  display: none;
+}
+
+.admin-usage-topline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 1024px) {
+  .admin-usage-topline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-usage-topline {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<style scoped>
+.admin-usage-shell {
+  padding: clamp(0.2rem, 0.6vw, 0.4rem);
+}
+
+.admin-usage-summary-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-page-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem 1.05rem;
+  border: 1px solid rgba(198, 184, 157, 0.52);
+  border-radius: 12px;
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.055), transparent 30%),
+    linear-gradient(180deg, rgba(255, 252, 245, 0.9), rgba(246, 241, 231, 0.78));
+}
+
+.admin-page-kicker {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-page-hero h2 {
+  margin-top: 0.45rem;
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: clamp(1.4rem, 1.8vw, 1.82rem);
+  font-weight: 600;
+}
+
+.admin-page-hero p {
+  max-width: 38rem;
+  margin-top: 0.5rem;
+  color: #5f675d;
+  font-size: 0.94rem;
+  line-height: 1.7;
+}
+
+.admin-usage-briefing-card {
+  background:
+    radial-gradient(circle at top right, rgba(167, 58, 42, 0.1), transparent 30%),
+    linear-gradient(135deg, rgba(255, 252, 246, 0.94), rgba(244, 238, 227, 0.88));
+}
+
+.admin-usage-briefing-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-usage-briefing-head h3 {
+  margin-top: 0.45rem;
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1.18rem;
+  font-weight: 600;
+}
+
+.admin-usage-briefing-head p,
+.admin-usage-briefing-panel p,
+.admin-usage-briefing-summary {
+  color: #5f675d;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.admin-usage-briefing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.admin-usage-briefing-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+.admin-usage-briefing-panel {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid rgba(198, 184, 157, 0.38);
+  border-radius: 12px;
+  background: rgba(255, 252, 245, 0.82);
+  padding: 1rem;
+}
+
+.admin-usage-briefing-panel span {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.admin-usage-briefing-panel strong {
+  color: #1f2320;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.admin-usage-briefing-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.admin-usage-briefing-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.admin-usage-briefing-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.34rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 58, 42, 0.16);
+  color: #7d4d3d;
+  background: rgba(167, 58, 42, 0.06);
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.admin-usage-briefing-tag-muted {
+  border-color: rgba(198, 184, 157, 0.24);
+  color: #8b7e6a;
+  background: rgba(246, 240, 229, 0.9);
+}
+
+.usage-ledger-panel {
+  border: 1px solid rgba(198, 184, 157, 0.44);
+  border-radius: 22px;
+  background: rgba(250, 247, 239, 0.52);
+  box-shadow: 0 18px 46px -38px rgba(31, 35, 32, 0.24);
+  overflow: hidden;
+}
+
+.usage-ledger-panel :deep(.table-wrapper) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  max-height: none;
+}
+
+.usage-ledger-panel :deep(table) {
+  background: transparent;
+}
+
+.usage-ledger-panel :deep(thead) {
+  background: rgba(237, 229, 212, 0.72);
+  backdrop-filter: blur(8px);
+}
+
+.usage-ledger-panel :deep(th) {
+  border-bottom: 1px solid rgba(198, 184, 157, 0.54);
+  color: #59645a;
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  padding-top: 1.1rem;
+  padding-bottom: 1.1rem;
+}
+
+.usage-ledger-panel :deep(td) {
+  border-bottom: 1px solid rgba(198, 184, 157, 0.32);
+  color: #38413a;
+  padding-top: 1.15rem;
+  padding-bottom: 1.15rem;
+}
+
+.usage-ledger-panel :deep(tbody tr:hover) {
+  background: rgba(167, 58, 42, 0.055);
+}
+
+.usage-ledger-panel :deep(tbody .sticky-col) {
+  background: rgba(250, 247, 239, 0.52) !important;
+}
+
+.usage-ledger-panel :deep(tbody tr:hover .sticky-col) {
+  background: rgba(167, 58, 42, 0.055) !important;
+}
+
+.usage-ledger-panel :deep(.console-workbench-footer) {
+  border: 0;
+  border-top: 1px solid rgba(198, 184, 157, 0.32);
+  background: rgba(250, 247, 239, 0.52);
+  padding: 0.7rem 1rem 0.9rem;
+}
+
+@media (max-width: 980px) {
+  .admin-usage-briefing-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .admin-usage-briefing-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-usage-briefing-actions,
+  .admin-usage-briefing-foot {
+    width: 100%;
+  }
+}
+</style>
+<style>
+.dark .admin-page-hero {
+  border-color: rgba(48, 52, 43, 0.92);
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 32%),
+    linear-gradient(180deg, rgba(24, 26, 21, 0.92), rgba(17, 19, 15, 0.84));
+}
+
+.dark .admin-page-hero h2 {
+  color: #f4efe4;
+}
+
+.dark .admin-page-hero p {
+  color: #bdb5a8;
+}
+
+.dark .admin-usage-briefing-card {
+  background:
+    radial-gradient(circle at top right, rgba(167, 58, 42, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(24, 26, 21, 0.9), rgba(18, 20, 16, 0.86));
+}
+
+.dark .admin-usage-briefing-head h3,
+.dark .admin-usage-briefing-panel strong {
+  color: #f4efe4;
+}
+
+.dark .admin-usage-briefing-head p,
+.dark .admin-usage-briefing-panel p,
+.dark .admin-usage-briefing-summary {
+  color: #bdb5a8;
+}
+
+.dark .admin-usage-briefing-panel {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(24, 26, 21, 0.72);
+}
+
+.dark .admin-usage-briefing-tag {
+  border-color: rgba(167, 58, 42, 0.28);
+  color: #f0c1b4;
+  background: rgba(167, 58, 42, 0.14);
+}
+
+.dark .admin-usage-briefing-tag-muted {
+  border-color: rgba(80, 74, 58, 0.5);
+  color: #d8ccb8;
+  background: rgba(40, 33, 25, 0.72);
+}
+
+.dark .usage-ledger-panel {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+}
+
+.dark .usage-ledger-panel thead {
+  background: rgba(17, 19, 15, 0.62);
+}
+
+.dark .usage-ledger-panel th,
+.dark .usage-ledger-panel td {
+  border-color: rgba(48, 52, 43, 0.82);
+}
+
+.dark .usage-ledger-panel th {
+  color: #879186;
+}
+
+.dark .usage-ledger-panel td {
+  color: #d9d0be;
+}
+
+.dark .usage-ledger-panel tbody .sticky-col {
+  background: rgba(24, 26, 21, 0.72) !important;
+}
+
+.dark .usage-ledger-panel tbody tr:hover .sticky-col {
+  background: rgba(216, 205, 185, 0.045) !important;
+}
+
+.dark .usage-ledger-panel .console-workbench-footer {
+  background: rgba(24, 26, 21, 0.72);
+}
+</style>
+

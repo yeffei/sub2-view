@@ -1,0 +1,168 @@
+package dto
+
+import (
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/service"
+)
+
+const upstreamPoolTimeLayout = "2006-01-02T15:04:05Z07:00"
+
+type UpstreamPool struct {
+	ID                                  int64                  `json:"id"`
+	Name                                string                 `json:"name"`
+	Code                                string                 `json:"code"`
+	Platform                            string                 `json:"platform"`
+	Description                         string                 `json:"description"`
+	Enabled                             bool                   `json:"enabled"`
+	SchedulerMode                       string                 `json:"scheduler_mode"`
+	DefaultRequiredCapability           string                 `json:"default_required_capability"`
+	DefaultRequiredTransport            string                 `json:"default_required_transport"`
+	StickyEnabled                       bool                   `json:"sticky_enabled"`
+	StickyTTLSeconds                    int                    `json:"sticky_ttl_seconds"`
+	StickyEscapeEnabled                 bool                   `json:"sticky_escape_enabled"`
+	StickyEscapeErrorRateThreshold      float64                `json:"sticky_escape_error_rate_threshold"`
+	StickyEscapeTTFTMSThreshold         int                    `json:"sticky_escape_ttft_ms_threshold"`
+	LoadBalanceEnabled                  bool                   `json:"load_balance_enabled"`
+	FailoverEnabled                     bool                   `json:"failover_enabled"`
+	TopK                                int                    `json:"top_k"`
+	MaxFailoverHops                     int                    `json:"max_failover_hops"`
+	WaitTimeoutMS                       int                    `json:"wait_timeout_ms"`
+	MaxWaiting                          int                    `json:"max_waiting"`
+	PolicyJSON                          map[string]any         `json:"policy_json"`
+	CreatedAt                           string                 `json:"created_at"`
+	UpdatedAt                           string                 `json:"updated_at"`
+}
+
+type UpstreamPoolMember struct {
+	ID                     int64    `json:"id"`
+	PoolID                 int64    `json:"pool_id"`
+	AccountID              int64    `json:"account_id"`
+	AccountName            string   `json:"account_name"`
+	AccountPlatform        string   `json:"account_platform"`
+	AccountStatus          string   `json:"account_status"`
+	AccountSchedulable     bool     `json:"account_schedulable"`
+	RuntimeStatus          string   `json:"runtime_status"`
+	RuntimeReason          string   `json:"runtime_reason"`
+	RuntimeErrorRate       *float64 `json:"runtime_error_rate"`
+	RuntimeTTFTMs          *int     `json:"runtime_ttft_ms"`
+	RuntimeLastUsedAt      *string  `json:"runtime_last_used_at"`
+	RuntimeRateLimitResetAt *string `json:"runtime_rate_limit_reset_at"`
+	RuntimeOverloadUntil   *string  `json:"runtime_overload_until"`
+	RuntimeTempUnschedulableUntil *string `json:"runtime_temp_unschedulable_until"`
+	Enabled                bool     `json:"enabled"`
+	SchedulableOverride    *bool    `json:"schedulable_override"`
+	ManualDrained          bool     `json:"manual_drained"`
+	Weight                 int      `json:"weight"`
+	PriorityOverride       *int     `json:"priority_override"`
+	MaxConcurrencyOverride *int     `json:"max_concurrency_override"`
+	Notes                  string   `json:"notes"`
+	JoinedAt               string   `json:"joined_at"`
+	UpdatedAt              string   `json:"updated_at"`
+}
+
+type UpstreamPoolBinding struct {
+	ID               int64      `json:"id"`
+	GroupID          int64      `json:"group_id"`
+	GroupName        string     `json:"group_name"`
+	GroupPlatform    string     `json:"group_platform"`
+	PoolID           int64      `json:"pool_id"`
+	Platform         string     `json:"platform"`
+	Models           []string   `json:"models"`
+	RequestPathScope []string   `json:"request_path_scope"`
+	Priority         int        `json:"priority"`
+	Enabled          bool       `json:"enabled"`
+	CreatedAt        string     `json:"created_at"`
+	UpdatedAt        string     `json:"updated_at"`
+}
+
+func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
+	if pool == nil {
+		return nil
+	}
+	return &UpstreamPool{
+		ID:                             pool.ID,
+		Name:                           pool.Name,
+		Code:                           pool.Code,
+		Platform:                       pool.Platform,
+		Description:                    pool.Description,
+		Enabled:                        pool.Enabled,
+		SchedulerMode:                  pool.SchedulerMode,
+		DefaultRequiredCapability:      pool.DefaultRequiredCapability,
+		DefaultRequiredTransport:       pool.DefaultRequiredTransport,
+		StickyEnabled:                  pool.StickyEnabled,
+		StickyTTLSeconds:               pool.StickyTTLSeconds,
+		StickyEscapeEnabled:            pool.StickyEscapeEnabled,
+		StickyEscapeErrorRateThreshold:  pool.StickyEscapeErrorRateThreshold,
+		StickyEscapeTTFTMSThreshold:    pool.StickyEscapeTTFTMSThreshold,
+		LoadBalanceEnabled:             pool.LoadBalanceEnabled,
+		FailoverEnabled:                pool.FailoverEnabled,
+		TopK:                           pool.TopK,
+		MaxFailoverHops:                pool.MaxFailoverHops,
+		WaitTimeoutMS:                  pool.WaitTimeoutMS,
+		MaxWaiting:                     pool.MaxWaiting,
+		PolicyJSON:                     pool.PolicyJSON,
+		CreatedAt:                      pool.CreatedAt.Format(upstreamPoolTimeLayout),
+		UpdatedAt:                      pool.UpdatedAt.Format(upstreamPoolTimeLayout),
+	}
+}
+
+func UpstreamPoolMemberFromService(member *service.UpstreamPoolMember) *UpstreamPoolMember {
+	if member == nil {
+		return nil
+	}
+	return &UpstreamPoolMember{
+		ID:                     member.ID,
+		PoolID:                 member.PoolID,
+		AccountID:              member.AccountID,
+		AccountName:            member.AccountName,
+		AccountPlatform:        member.AccountPlatform,
+		AccountStatus:          member.AccountStatus,
+		AccountSchedulable:     member.AccountSchedulable,
+		RuntimeStatus:          member.RuntimeStatus,
+		RuntimeReason:          member.RuntimeReason,
+		RuntimeErrorRate:       member.RuntimeErrorRate,
+		RuntimeTTFTMs:          member.RuntimeTTFTMs,
+		RuntimeLastUsedAt:      formatOptionalTime(member.RuntimeLastUsedAt),
+		RuntimeRateLimitResetAt: formatOptionalTime(member.RuntimeRateLimitResetAt),
+		RuntimeOverloadUntil:   formatOptionalTime(member.RuntimeOverloadUntil),
+		RuntimeTempUnschedulableUntil: formatOptionalTime(member.RuntimeTempUnschedulableUntil),
+		Enabled:                member.Enabled,
+		SchedulableOverride:    member.SchedulableOverride,
+		ManualDrained:          member.ManualDrained,
+		Weight:                 member.Weight,
+		PriorityOverride:       member.PriorityOverride,
+		MaxConcurrencyOverride: member.MaxConcurrencyOverride,
+		Notes:                  member.Notes,
+		JoinedAt:               member.JoinedAt.Format(upstreamPoolTimeLayout),
+		UpdatedAt:              member.UpdatedAt.Format(upstreamPoolTimeLayout),
+	}
+}
+
+func formatOptionalTime(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.Format(upstreamPoolTimeLayout)
+	return &formatted
+}
+
+func UpstreamPoolBindingFromService(binding *service.UpstreamPoolBinding) *UpstreamPoolBinding {
+	if binding == nil {
+		return nil
+	}
+	return &UpstreamPoolBinding{
+		ID:               binding.ID,
+		GroupID:          binding.GroupID,
+		GroupName:        binding.GroupName,
+		GroupPlatform:    binding.GroupPlatform,
+		PoolID:           binding.PoolID,
+		Platform:         binding.Platform,
+		Models:           binding.Models,
+		RequestPathScope: binding.RequestPathScope,
+		Priority:         binding.Priority,
+		Enabled:          binding.Enabled,
+		CreatedAt:        binding.CreatedAt.Format(upstreamPoolTimeLayout),
+		UpdatedAt:        binding.UpdatedAt.Format(upstreamPoolTimeLayout),
+	}
+}

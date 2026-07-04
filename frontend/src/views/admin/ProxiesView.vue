@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
           <div class="relative w-full sm:w-64">
@@ -85,9 +86,9 @@
             </button>
           </div>
         </div>
-      </template>
+        </template>
 
-      <template #table>
+        <template #table>
         <div ref="proxyTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <DataTable
           :columns="columns"
@@ -352,9 +353,9 @@
           </template>
         </DataTable>
         </div>
-      </template>
+        </template>
 
-      <template #pagination>
+        <template #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -365,6 +366,7 @@
         />
       </template>
     </TablePageLayout>
+    </div>
 
     <!-- Create Proxy Modal -->
     <BaseDialog
@@ -2065,3 +2067,4 @@ onUnmounted(() => {
   document.removeEventListener('click', closeCopyMenu)
 })
 </script>
+

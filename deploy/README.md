@@ -16,6 +16,13 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `docker-compose.yml` | Docker Compose configuration (named volumes) |
 | `docker-compose.local.yml` | Docker Compose configuration (local directories, easy migration) |
 | `docker-deploy.sh` | **One-click Docker deployment script (recommended)** |
+| `hotfix-redeploy.ps1` | Windows hotfix flow: typecheck, frontend build, Linux binary build, container swap, smoke check |
+| `site-smoke-check.ps1` | Windows smoke check for key routes, login, API keys, and workbench API |
+| `check-entry.ps1` | Inspect current host binding and reachable URLs for local-only vs external access |
+| `local-ops.ps1` | Unified Windows entry point for `check-entry`, `entry`, `open-entry`, `smoke`, and `redeploy` |
+| `local-entry.ps1` | Fixed-8080 local mode switcher for `dev`, `prod`, `status`, `stop`, and `open` |
+| `build-local-release.ps1` | Build a persistent local Docker image from the current source and recreate the service |
+| `Dockerfile.local-release` | Minimal local release image recipe that layers the rebuilt binary onto the current runtime image |
 | `.env.example` | Docker environment variables template |
 | `DOCKER.md` | Docker Hub documentation |
 | `install.sh` | One-click binary installation script |
@@ -182,6 +189,67 @@ docker compose -f docker-compose.local.yml down
 rm -rf data/ postgres_data/ redis_data/
 ```
 
+### Windows hotfix flow
+
+### Canonical local entry
+
+For this repository's local Windows workflow, treat `http://127.0.0.1:8080` as the single browser entry.
+
+- Open or bookmark `http://127.0.0.1:8080`
+- Treat Vite ports such as `3000` as internal development ports, not as the site address
+- After frontend changes, prefer rebuilding/redeploying to the Docker entry instead of switching your browser to a different port
+
+Resolve or open the current canonical entry:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 entry
+pwsh -File deploy/local-ops.ps1 open-entry
+```
+
+Switch `http://127.0.0.1:8080` between hot-reload dev mode and Docker prod mode:
+
+```powershell
+pwsh -File deploy/local-entry.ps1 dev
+pwsh -File deploy/local-entry.ps1 prod
+pwsh -File deploy/local-entry.ps1 status
+pwsh -File deploy/local-entry.ps1 stop
+pwsh -File deploy/local-entry.ps1 open
+```
+
+During `dev` mode:
+
+- Browser entry stays `http://127.0.0.1:8080`
+- Vite serves the frontend with HMR on `8080`
+- API traffic is proxied by Vite to `http://127.0.0.1:18080`
+- The Docker app container remains available internally on `18080`
+
+For the local Docker deployment used in this repository, the repeatable hotfix path is:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 redeploy
+```
+
+This script will:
+
+- run `pnpm --dir frontend typecheck`
+- run `pnpm --dir frontend build`
+- build a Linux hotfix binary with the Go Docker builder image
+- replace `/app/sub2api` in the running `sub2api` container
+- restart the container and wait for `healthy`
+- run the smoke check against the current site
+
+If you want the fix to survive a plain `docker compose up -d --force-recreate` without re-injecting the binary into the container, build a persistent local image instead:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 release-image
+```
+
+If you only want the verification step:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 smoke -BaseUrl http://127.0.0.1:8080 -Email admin@example.com -Password admin123
+```
+
 For **named volumes version** (docker-compose.yml):
 
 ```bash
@@ -212,12 +280,35 @@ docker compose down -v
 | `POSTGRES_PASSWORD` | **Yes** | - | PostgreSQL password |
 | `JWT_SECRET` | **Recommended** | *(auto-generated)* | JWT secret (fixed for persistent sessions) |
 | `TOTP_ENCRYPTION_KEY` | **Recommended** | *(auto-generated)* | TOTP encryption key (fixed for persistent 2FA) |
+| `BIND_HOST` | No | `0.0.0.0` | Host bind address for the exposed port. Use `127.0.0.1` for local-only access. |
 | `SERVER_PORT` | No | `8080` | Server port |
 | `ADMIN_EMAIL` | No | `admin@sub2api.local` | Admin email |
 | `ADMIN_PASSWORD` | No | *(auto-generated)* | Admin password |
 | `TZ` | No | `Asia/Shanghai` | Timezone |
 | `GEMINI_OAUTH_CLIENT_ID` | No | *(builtin)* | Google OAuth client ID (Gemini OAuth). Leave empty to use the built-in Gemini CLI client. |
 | `GEMINI_OAUTH_CLIENT_SECRET` | No | *(builtin)* | Google OAuth client secret (Gemini OAuth). Leave empty to use the built-in Gemini CLI client. |
+
+### Access entry and exposure
+
+The current host exposure is controlled by `BIND_HOST` in `.env`:
+
+- `BIND_HOST=127.0.0.1`: local-only access from the same machine
+- `BIND_HOST=0.0.0.0`: bind on all interfaces; LAN or public entry depends on host firewall and reverse proxy
+
+Inspect the live binding and effective URLs:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 check-entry
+pwsh -File deploy/local-ops.ps1 entry
+```
+
+Apply a bind host change after editing `deploy/.env`:
+
+```powershell
+docker compose --env-file deploy/.env -f deploy/docker-compose.local.yml up -d
+```
+
+Do not expose the service beyond localhost unless firewall rules, reverse proxy, TLS, and admin credentials are already in place.
 | `GEMINI_OAUTH_SCOPES` | No | *(default)* | OAuth scopes (Gemini OAuth) |
 | `GEMINI_QUOTA_POLICY` | No | *(empty)* | JSON overrides for Gemini local quota simulation (Code Assist only). |
 

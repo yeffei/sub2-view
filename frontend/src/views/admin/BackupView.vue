@@ -1,5 +1,6 @@
 <template>
-    <div class="space-y-6">
+    <div class="sst-admin-page">
+      <div class="space-y-6">
       <!-- S3 Storage Config -->
       <div class="card p-6">
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -190,6 +191,7 @@
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
 
@@ -637,3 +639,4 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 </style>
+

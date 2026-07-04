@@ -1,9 +1,7 @@
 <template>
-  <div class="card p-6">
-    <!-- Toolbar: left filters (multi-line) + right actions -->
-    <div class="flex flex-wrap items-end justify-between gap-4">
-      <!-- Left: filters (allowed to wrap to multiple rows) -->
-      <div class="flex flex-1 flex-wrap items-end gap-4">
+  <div class="card usage-filters-shell p-5">
+    <div class="usage-filters-head">
+      <div class="usage-filters-basic">
         <!-- User Search -->
         <div ref="userSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[240px]">
           <label class="input-label">{{ t('admin.usage.userFilter') }}</label>
@@ -83,8 +81,37 @@
           <label class="input-label">{{ t('usage.model') }}</label>
           <Select v-model="filters.model" :options="modelOptions" searchable @change="emitChange" />
         </div>
+      </div>
 
-        <!-- Account Filter -->
+      <div class="usage-filters-actions">
+        <button
+          type="button"
+          class="btn btn-secondary usage-filter-advanced-toggle"
+          @click="showAdvancedFilters = !showAdvancedFilters"
+        >
+          {{ showAdvancedFilters || hasAdvancedFiltersActive ? '收起高级筛选' : '高级筛选' }}
+          <span v-if="advancedActiveCount > 0" class="ml-1 text-xs opacity-80">({{ advancedActiveCount }})</span>
+        </button>
+        <template v-if="showActions">
+        <button type="button" @click="$emit('refresh')" class="btn btn-secondary">
+          {{ t('common.refresh') }}
+        </button>
+        <button type="button" @click="$emit('reset')" class="btn btn-secondary">
+          {{ t('common.reset') }}
+        </button>
+        <slot name="after-reset" />
+        <button type="button" @click="$emit('cleanup')" class="btn btn-danger">
+          {{ t('admin.usage.cleanup.button') }}
+        </button>
+        <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
+          {{ t('usage.exportExcel') }}
+        </button>
+        </template>
+      </div>
+    </div>
+
+    <div v-if="showAdvancedFilters || hasAdvancedFiltersActive" class="usage-filters-advanced">
+      <div class="usage-filters-advanced-grid">
         <div ref="accountSearchRef" class="usage-filter-dropdown relative w-full sm:w-auto sm:min-w-[220px]">
           <label class="input-label">{{ t('admin.usage.account') }}</label>
           <input
@@ -121,67 +148,25 @@
           </div>
         </div>
 
-        <!-- Request Type Filter (usage only) -->
-        <div v-if="mode !== 'errors'" class="w-full sm:w-auto sm:min-w-[180px]">
+        <div class="w-full sm:w-auto sm:min-w-[180px]">
           <label class="input-label">{{ t('usage.type') }}</label>
           <Select v-model="filters.request_type" :options="requestTypeOptions" @change="emitChange" />
         </div>
 
-        <!-- Billing Type Filter (usage only) -->
-        <div v-if="mode !== 'errors'" class="w-full sm:w-auto sm:min-w-[200px]">
+        <div class="w-full sm:w-auto sm:min-w-[200px]">
           <label class="input-label">{{ t('admin.usage.billingType') }}</label>
           <Select v-model="filters.billing_type" :options="billingTypeOptions" @change="emitChange" />
         </div>
 
-        <!-- Billing Mode Filter (usage only) -->
-        <div v-if="mode !== 'errors'" class="w-full sm:w-auto sm:min-w-[200px]">
+        <div class="w-full sm:w-auto sm:min-w-[200px]">
           <label class="input-label">{{ t('admin.usage.billingMode') }}</label>
           <Select v-model="filters.billing_mode" :options="billingModeOptions" @change="emitChange" />
         </div>
 
-        <!-- Error Phase Filter (errors only) -->
-        <div v-if="mode === 'errors'" class="w-full sm:w-auto sm:min-w-[180px]">
-          <label class="input-label">{{ t('admin.ops.errorLog.type') }}</label>
-          <Select v-model="filters.error_phase" :options="errorPhaseOptions" @change="emitChange" />
-        </div>
-
-        <!-- Error Category Filter (errors only) -->
-        <div v-if="mode === 'errors'" class="w-full sm:w-auto sm:min-w-[180px]">
-          <label class="input-label">{{ t('usage.errors.category') }}</label>
-          <Select v-model="filters.error_category" :options="errorCategoryOptions" @change="emitChange" />
-        </div>
-
-        <!-- Status Code Filter (errors only) -->
-        <div v-if="mode === 'errors'" class="w-full sm:w-auto sm:min-w-[180px]">
-          <label class="input-label">{{ t('admin.ops.errorLog.status') }}</label>
-          <Select v-model="filters.status_code" :options="statusCodeOptions" @change="emitChange" />
-        </div>
-
-        <!-- Group Filter -->
         <div class="w-full sm:w-auto sm:min-w-[200px]">
           <label class="input-label">{{ t('admin.usage.group') }}</label>
           <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
-
-      </div>
-
-      <!-- Right: actions -->
-      <div v-if="showActions" class="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
-        <button type="button" @click="$emit('refresh')" class="btn btn-secondary">
-          {{ t('common.refresh') }}
-        </button>
-        <button type="button" @click="$emit('reset')" class="btn btn-secondary">
-          {{ t('common.reset') }}
-        </button>
-        <slot name="after-reset" />
-        <template v-if="mode !== 'errors'">
-          <button type="button" @click="$emit('cleanup')" class="btn btn-danger">
-            {{ t('admin.usage.cleanup.button') }}
-          </button>
-          <button type="button" @click="$emit('export')" :disabled="exporting" class="btn btn-primary">
-            {{ t('usage.exportExcel') }}
-          </button>
-        </template>
       </div>
     </div>
   </div>
@@ -192,7 +177,6 @@ import { ref, onMounted, onUnmounted, toRef, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
-import { COMMON_ERROR_STATUS_CODES } from '@/utils/errorBadges'
 import type { SimpleApiKey, SimpleUser } from '@/api/admin/usage'
 
 type ModelValue = Record<string, any>
@@ -204,13 +188,10 @@ interface Props {
   endDate: string
   showActions?: boolean
   modelOptions?: string[]
-  /** errors 模式:隐藏用量专属字段/按钮,显示错误类型+状态码(错误请求 tab 用) */
-  mode?: 'usage' | 'errors'
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  showActions: true,
-  mode: 'usage'
+  showActions: true
 })
 const emit = defineEmits([
   'update:modelValue',
@@ -267,35 +248,24 @@ const billingTypeOptions = ref<SelectOption[]>([
   { value: 1, label: t('admin.usage.billingTypeSubscription') }
 ])
 
-// 错误类型对应后端 phase 参数(与错误表"类型"徽章同语义)
-const errorPhaseOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('admin.usage.allTypes') },
-  { value: 'upstream', label: t('admin.ops.errorLog.typeUpstream') },
-  { value: 'request', label: t('admin.ops.errorLog.typeRequest') },
-  { value: 'auth', label: t('admin.ops.errorLog.typeAuth') },
-  { value: 'routing', label: t('admin.ops.errorLog.typeRouting') },
-  { value: 'internal', label: t('admin.ops.errorLog.typeInternal') },
-])
-
-// 分类码同用户端 /usage 错误筛选;"other" 无法反查为过滤条件,刻意不列
-const errorCategoryCodes = ['auth', 'rate_limit', 'quota', 'invalid_request', 'service_unavailable', 'upstream', 'internal', 'cyber']
-
-const errorCategoryOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.errors.allCategories') },
-  ...errorCategoryCodes.map((c) => ({ value: c, label: t('usage.errors.categories.' + c) })),
-])
-
-const statusCodeOptions = computed<SelectOption[]>(() => [
-  { value: null, label: t('usage.errors.allStatuses') },
-  ...COMMON_ERROR_STATUS_CODES.map((c) => ({ value: c, label: String(c) })),
-])
-
 const billingModeOptions = ref<SelectOption[]>([
   { value: null, label: t('admin.usage.allBillingModes') },
   { value: 'token', label: t('admin.usage.billingModeToken') },
   { value: 'per_request', label: t('admin.usage.billingModePerRequest') },
   { value: 'image', label: t('admin.usage.billingModeImage') }
 ])
+
+const showAdvancedFilters = ref(false)
+const advancedActiveCount = computed(() => {
+  let count = 0
+  if (filters.value.account_id) count += 1
+  if (filters.value.request_type != null) count += 1
+  if (filters.value.billing_type != null) count += 1
+  if (filters.value.billing_mode) count += 1
+  if (filters.value.group_id) count += 1
+  return count
+})
+const hasAdvancedFiltersActive = computed(() => advancedActiveCount.value > 0)
 
 const emitChange = () => emit('change')
 
@@ -485,3 +455,75 @@ onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
 })
 </script>
+
+<style scoped>
+.usage-filters-shell {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.usage-filters-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.usage-filters-basic {
+  display: grid;
+  flex: 1 1 48rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.usage-filters-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.usage-filters-actions :deep(.btn) {
+  min-height: 2.4rem;
+  padding-inline: 0.85rem;
+}
+
+.usage-filter-advanced-toggle {
+  border-color: rgba(167, 58, 42, 0.18);
+}
+
+.usage-filters-advanced {
+  border-top: 1px solid rgba(198, 184, 157, 0.2);
+  padding-top: 0.9rem;
+}
+
+.usage-filters-advanced-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+@media (max-width: 1280px) {
+  .usage-filters-basic {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .usage-filters-advanced-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .usage-filters-basic,
+  .usage-filters-advanced-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .usage-filters-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+</style>

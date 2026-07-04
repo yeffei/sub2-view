@@ -8,12 +8,51 @@
   }
 
   html {
-    @apply scroll-smooth antialiased;
+    @apply scroll-smooth antialiased bg-zen-paper text-zen-ink dark:bg-zen-night dark:text-gray-100;
+    color-scheme: light;
+    background-color: #f4efe4;
+    /* Reserve scrollbar space so user-route switches do not nudge the layout. */
+    scrollbar-gutter: stable;
+  }
+
+  html.dark {
+    color-scheme: dark;
+    background-color: #1b1f1a;
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-gray-100;
+    @apply bg-zen-paper text-zen-ink dark:bg-zen-night dark:text-gray-100;
     @apply min-h-screen;
+    background-color: inherit;
+    color: inherit;
+    font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+    line-height: 1.6;
+  }
+
+  html.dark .legal-public {
+    background: #1b1f1a !important;
+    color: #f4efe4;
+  }
+
+  html.dark .legal-public-bg {
+    opacity: 1 !important;
+    filter: grayscale(0.34) brightness(0.68) contrast(0.96) saturate(0.84) !important;
+  }
+
+  html.dark .legal-public-bg {
+    background-image:
+      linear-gradient(180deg, rgba(27, 31, 26, 0.6) 0%, rgba(27, 31, 26, 0.46) 38%, rgba(27, 31, 26, 0.74) 100%),
+      linear-gradient(90deg, rgba(24, 28, 24, 0.52) 0%, rgba(24, 28, 24, 0.2) 54%, rgba(24, 28, 24, 0.58) 100%),
+      radial-gradient(circle at 18% 20%, rgba(224, 213, 194, 0.07), transparent 32%),
+      radial-gradient(circle at 82% 18%, rgba(165, 92, 47, 0.1), transparent 24%),
+      var(--legal-public-bg) !important;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
   }
 
   /* 自定义滚动条 - 仅针对 Firefox，避免 Chrome 取消 webkit 的全局定制 */
@@ -57,7 +96,7 @@
 
   /* 选中文本样式 */
   ::selection {
-    @apply bg-primary-500/20 text-primary-900 dark:text-primary-100;
+    @apply bg-zen-seal/20 text-zen-ink dark:text-zen-paper;
   }
 
 
@@ -67,31 +106,27 @@
   /* ============ 按钮样式 ============ */
   .btn {
     @apply inline-flex items-center justify-center gap-2;
-    @apply rounded-xl px-4 py-2.5 text-sm font-medium;
+    @apply rounded-zen px-4 py-2.5 text-sm font-medium;
     @apply transition-all duration-200 ease-out;
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
+    @apply focus:outline-none focus:ring-2 focus:ring-zen-seal/35 focus:ring-offset-2;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
     @apply active:scale-[0.98];
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    @apply bg-zen-ink text-zen-paper shadow-seal;
+    @apply hover:bg-zen-seal hover:text-white;
+    @apply dark:bg-zen-paper dark:text-zen-night dark:hover:bg-zen-seal dark:hover:text-white;
   }
 
   .btn-secondary {
-    @apply bg-white dark:bg-dark-800;
-    @apply text-gray-700 dark:text-gray-200;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply shadow-sm hover:bg-gray-50 dark:hover:bg-dark-700;
-    @apply hover:border-gray-300 dark:hover:border-dark-500;
+    @apply border border-zen-paperLine bg-white/55 text-zen-ink shadow-paper-sm dark:border-zen-nightLine dark:bg-zen-nightPanel dark:text-zen-paper;
+    @apply hover:border-zen-stone hover:bg-white/80 dark:hover:border-zen-stone dark:hover:bg-zen-nightPanel;
   }
 
   .btn-ghost {
-    @apply bg-transparent text-gray-600 dark:text-gray-300;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-800;
+    @apply bg-transparent text-zen-inkSoft dark:text-gray-300;
+    @apply hover:bg-zen-paperDeep/70 dark:hover:bg-zen-nightPanel;
   }
 
   .btn-danger {
@@ -143,30 +178,28 @@
   }
 
   .btn-sm {
-    @apply rounded-lg px-3 py-1.5 text-xs;
+    @apply rounded-zen px-3 py-1.5 text-xs;
   }
 
   .btn-md {
-    @apply rounded-xl px-4 py-2 text-sm;
+    @apply rounded-zen px-4 py-2 text-sm;
   }
 
   .btn-lg {
-    @apply rounded-2xl px-6 py-3 text-base;
+    @apply rounded-zen px-6 py-3 text-base;
   }
 
   .btn-icon {
-    @apply rounded-xl p-2.5;
+    @apply rounded-zen p-2.5;
   }
 
   /* ============ 输入框样式 ============ */
   .input {
-    @apply w-full rounded-xl px-4 py-2.5 text-sm;
-    @apply bg-white dark:bg-dark-800;
-    @apply border border-gray-200 dark:border-dark-600;
-    @apply text-gray-900 dark:text-gray-100;
+    @apply w-full rounded-zen px-4 py-2.5 text-sm;
+    @apply border border-zen-paperLine bg-white/70 text-zen-ink dark:border-zen-nightLine dark:bg-zen-nightPanel dark:text-gray-100;
     @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
     @apply transition-all duration-200;
-    @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
+    @apply focus:border-zen-seal focus:outline-none focus:ring-2 focus:ring-zen-seal/20;
     @apply disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-dark-900;
   }
 
@@ -199,25 +232,43 @@
 
   /* ============ 玻璃效果 ============ */
   .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-800/80;
+    background:
+      linear-gradient(180deg, rgba(250, 247, 239, 0.9), rgba(244, 239, 228, 0.82));
+    backdrop-filter: blur(24px);
+    box-shadow: inset 0 -1px 0 rgba(167, 58, 42, 0.025);
+  }
+
+  html.dark .glass {
+    background-color: rgba(17, 19, 15, 0.86);
+    box-shadow: inset 0 -1px 0 rgba(244, 239, 228, 0.025);
   }
 
   .glass-card {
-    @apply bg-white/70 dark:bg-dark-800/70;
-    @apply backdrop-blur-xl;
-    @apply rounded-2xl;
-    @apply border border-white/20 dark:border-dark-700/50;
-    @apply shadow-glass;
-    @apply transition-all duration-300;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(24px);
+    border-radius: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: var(--shadow-glass);
+    transition: all 300ms ease;
+  }
+
+  html.dark .glass-card {
+    background-color: rgba(31, 34, 28, 0.7);
+    border-color: rgba(60, 67, 58, 0.5);
   }
 
   /* ============ 卡片样式 ============ */
   .card {
-    @apply bg-white dark:bg-dark-800/50;
-    @apply rounded-2xl;
-    @apply border border-gray-100 dark:border-dark-700/50;
-    @apply shadow-card;
-    @apply transition-all duration-300;
+    border: 1px solid rgba(216, 205, 185, 0.8);
+    background: rgba(255, 255, 255, 0.55);
+    box-shadow: var(--shadow-paper);
+    border-radius: var(--radius-zen);
+    transition: all 300ms ease;
+  }
+
+  html.dark .card {
+    border-color: rgba(86, 92, 80, 0.82);
+    background: rgba(24, 27, 22, 0.82);
   }
 
   .card-hover {
@@ -226,10 +277,15 @@
   }
 
   .card-glass {
-    @apply bg-white/70 dark:bg-dark-800/70;
-    @apply backdrop-blur-xl;
-    @apply border border-white/20 dark:border-dark-700/50;
-    @apply shadow-glass;
+    background: rgba(255, 255, 255, 0.58);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(216, 205, 185, 0.7);
+    box-shadow: var(--shadow-paper);
+  }
+
+  html.dark .card-glass {
+    background: rgba(24, 27, 22, 0.74);
+    border-color: rgba(86, 92, 80, 0.7);
   }
 
   .card-header {
@@ -296,7 +352,7 @@
 
   /* ============ 表格样式 ============ */
   .table-container {
-    @apply overflow-x-auto rounded-xl border border-gray-200 dark:border-dark-700;
+    @apply overflow-x-auto rounded-zen border border-zen-paperLine dark:border-zen-nightLine;
   }
 
   .table {
@@ -305,15 +361,19 @@
 
   .table th {
     @apply px-4 py-3 text-left font-medium;
-    @apply text-gray-600 dark:text-dark-300;
-    @apply bg-gray-50 dark:bg-dark-800/50;
-    @apply border-b border-gray-200 dark:border-dark-700;
+    @apply text-gray-600 dark:text-zen-paper;
+    background: rgba(235, 226, 212, 0.55);
+    @apply border-b border-zen-paperLine dark:border-zen-nightLine;
+  }
+
+  html.dark .table th {
+    background: rgba(24, 27, 22, 0.92);
   }
 
   .table td {
     @apply px-4 py-3;
-    @apply text-gray-700 dark:text-gray-300;
-    @apply border-b border-gray-100 dark:border-dark-800;
+    @apply text-gray-700 dark:text-zen-paper;
+    @apply border-b border-gray-100 dark:border-zen-nightLine;
   }
 
   .table tr:last-child td {
@@ -322,7 +382,7 @@
 
   .table tbody tr {
     @apply transition-colors duration-150;
-    @apply hover:bg-gray-50 dark:hover:bg-dark-800/30;
+    @apply hover:bg-gray-50 dark:hover:bg-zen-nightPanel;
   }
 
   /* ============ 徽章样式 ============ */
@@ -358,17 +418,15 @@
   /* ============ 下拉菜单 ============ */
   .dropdown {
     @apply absolute z-50;
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-xl;
-    @apply border border-gray-200 dark:border-dark-700;
-    @apply shadow-lg;
+    @apply border border-zen-paperLine bg-zen-paper dark:border-zen-nightLine dark:bg-zen-nightPanel;
+    @apply rounded-zen shadow-paper;
     @apply py-1;
     @apply origin-top-right animate-scale-in;
   }
 
   .dropdown-item {
     @apply px-4 py-2 text-sm;
-    @apply text-gray-700 dark:text-gray-300;
+    @apply text-gray-700 dark:text-zen-paper;
     @apply hover:bg-gray-100 dark:hover:bg-dark-700;
     @apply cursor-pointer transition-colors;
     @apply flex items-center gap-2;
@@ -526,20 +584,49 @@
   /* ============ 侧边栏 ============ */
   .sidebar {
     @apply fixed inset-y-0 left-0 z-40;
-    @apply w-64 bg-white dark:bg-dark-900;
-    @apply border-r border-gray-200 dark:border-dark-800;
+    width: 16rem;
+    border-right: 1px solid rgba(216, 205, 185, 0.86);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(255, 252, 245, 0.72), transparent 14rem),
+      linear-gradient(180deg, rgba(250, 247, 239, 0.96), rgba(237, 229, 212, 0.92));
     @apply flex flex-col;
     @apply transition-transform duration-300;
     transition-property: width, transform;
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.5),
+      18px 0 48px -42px rgba(31, 35, 32, 0.28);
+  }
+
+  html.dark .sidebar {
+    border-right-color: rgba(48, 52, 43, 0.95);
+    background:
+      radial-gradient(circle at 18% 0%, rgba(236, 223, 197, 0.06), transparent 13rem),
+      radial-gradient(circle at 92% 8%, rgba(167, 58, 42, 0.12), transparent 14rem),
+      linear-gradient(180deg, rgba(17, 19, 15, 0.98), rgba(20, 23, 18, 0.96)),
+      rgba(17, 19, 16, 0.96);
+    box-shadow:
+      inset -1px 0 0 rgba(244, 239, 228, 0.018),
+      18px 0 42px -36px rgba(0, 0, 0, 0.66);
   }
 
   .sidebar-header {
     @apply h-16 px-6;
     @apply flex items-center gap-3;
-    @apply border-b border-gray-100 dark:border-dark-800;
+    border-bottom: 1px solid rgba(216, 205, 185, 0.78);
+    background: rgba(255, 252, 245, 0.32);
     transition:
       padding 0.2s ease,
       gap 0.2s ease;
+  }
+
+  html.dark .sidebar-header {
+    border-bottom-color: rgba(48, 52, 43, 0.95);
+    background:
+      linear-gradient(90deg, rgba(255, 242, 214, 0.04), transparent 28%),
+      linear-gradient(180deg, rgba(27, 30, 24, 0.94), rgba(22, 24, 20, 0.88));
+    box-shadow:
+      inset 0 -1px 0 rgba(244, 239, 228, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.025);
   }
 
   .sidebar-nav {
@@ -547,21 +634,49 @@
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-xl py-2.5;
+    @apply flex items-center gap-3 rounded-zen py-2.5;
     @apply overflow-hidden;
     @apply text-sm font-medium;
-    @apply text-gray-600 dark:text-dark-300;
+    @apply text-zen-inkSoft dark:text-dark-300;
     @apply transition-all duration-200;
-    @apply hover:bg-gray-100 dark:hover:bg-dark-800;
-    @apply hover:text-gray-900 dark:hover:text-white;
+    background: transparent;
+    @apply hover:bg-zen-paperDeep dark:hover:bg-zen-nightPanel;
+    @apply hover:text-zen-ink dark:hover:text-white;
     padding-left: 1.0625rem;
     padding-right: 0.875rem;
+    line-height: 1.35;
+  }
+
+  .sidebar-link:hover {
+    background: rgba(237, 229, 212, 0.68);
+  }
+
+  html.dark .sidebar-link:hover {
+    background: rgba(28, 31, 25, 0.92);
   }
 
   .sidebar-link-active {
-    @apply bg-primary-50 dark:bg-primary-900/20;
-    @apply text-primary-600 dark:text-primary-400;
-    @apply hover:bg-primary-100 dark:hover:bg-primary-900/30;
+    background:
+      linear-gradient(90deg, rgba(167, 58, 42, 0.12), rgba(167, 58, 42, 0.055)),
+      rgba(255, 252, 245, 0.7);
+    color: #a73a2a;
+    box-shadow: inset 2px 0 0 rgba(167, 58, 42, 0.6);
+  }
+
+  html.dark .sidebar-link-active {
+    background:
+      linear-gradient(90deg, rgba(167, 58, 42, 0.18), rgba(167, 58, 42, 0.08)),
+      rgba(24, 26, 21, 0.86);
+    color: #e9a092;
+    box-shadow: inset 2px 0 0 rgba(233, 160, 146, 0.68);
+  }
+
+  .sidebar-link-active:hover {
+    background: rgba(167, 58, 42, 0.14);
+  }
+
+  html.dark .sidebar-link-active:hover {
+    background: rgba(167, 58, 42, 0.22);
   }
 
   .sidebar-section {
@@ -580,7 +695,7 @@
   }
 
   .page-title {
-    @apply text-2xl font-bold text-gray-900 dark:text-white;
+    @apply font-serif text-2xl font-semibold text-zen-ink dark:text-zen-paper;
   }
 
   .page-description {
@@ -618,7 +733,7 @@
 
   /* ============ 分隔线 ============ */
   .divider {
-    @apply my-4 h-px bg-gray-200 dark:bg-dark-700;
+    @apply my-4 h-px bg-zen-paperLine dark:bg-zen-nightLine;
   }
 
   /* ============ 标签页 ============ */
@@ -737,7 +852,7 @@
 @layer utilities {
   /* 文字渐变 */
   .text-gradient {
-    @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-zen-ink via-zen-mist to-zen-seal bg-clip-text text-transparent;
   }
 
   /* 玻璃效果 */
@@ -761,5 +876,28 @@
 
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@layer components {
+  html.dark .sst-public {
+    color: #f3eadb;
+  }
+
+  html.dark .legal-public {
+    color: #f3eadb;
+  }
+
+  html.dark .legal-public-bg {
+    filter: grayscale(0.24) brightness(0.82) contrast(0.94) saturate(0.88) !important;
+  }
+
+  html.dark .legal-public-bg {
+    background-image:
+      linear-gradient(180deg, rgba(23, 25, 21, 0.44) 0%, rgba(23, 25, 21, 0.26) 38%, rgba(23, 25, 21, 0.56) 100%),
+      linear-gradient(90deg, rgba(21, 24, 20, 0.4) 0%, rgba(21, 24, 20, 0.14) 54%, rgba(21, 24, 20, 0.46) 100%),
+      radial-gradient(circle at 18% 20%, rgba(229, 219, 202, 0.11), transparent 32%),
+      radial-gradient(circle at 82% 18%, rgba(171, 99, 53, 0.12), transparent 24%),
+      var(--legal-public-bg) !important;
   }
 }

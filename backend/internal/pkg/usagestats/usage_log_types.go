@@ -261,19 +261,17 @@ type PlatformDashboardStats struct {
 
 // UsageLogFilters represents filters for usage log queries
 type UsageLogFilters struct {
-	UserID    int64
-	APIKeyID  int64
-	AccountID int64
-	GroupID   int64
-	Model     string
-	// ModelFilterSource controls how Model is matched. Empty preserves raw usage_logs.model semantics.
-	ModelFilterSource string
-	RequestType       *int16
-	Stream            *bool
-	BillingType       *int8
-	BillingMode       string
-	StartTime         *time.Time
-	EndTime           *time.Time
+	UserID      int64
+	APIKeyID    int64
+	AccountID   int64
+	GroupID     int64
+	Model       string
+	RequestType *int16
+	Stream      *bool
+	BillingType *int8
+	BillingMode string
+	StartTime   *time.Time
+	EndTime     *time.Time
 	// ExactTotal requests exact COUNT(*) for pagination. Default false for fast large-table paging.
 	ExactTotal bool
 }
@@ -314,9 +312,10 @@ type BatchUserUsageStats struct {
 
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats struct {
-	APIKeyID        int64   `json:"api_key_id"`
-	TodayActualCost float64 `json:"today_actual_cost"`
-	TotalActualCost float64 `json:"total_actual_cost"`
+	APIKeyID          int64   `json:"api_key_id"`
+	TodayActualCost   float64 `json:"today_actual_cost"`
+	TotalActualCost   float64 `json:"total_actual_cost"`
+	SuccessRequests24h int64  `json:"success_requests_24h"`
 }
 
 // AccountUsageHistory represents daily usage history for an account

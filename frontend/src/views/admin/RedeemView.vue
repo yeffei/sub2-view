@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
         <div class="flex flex-wrap items-center gap-3">
           <!-- Left: Search + Filters -->
           <div class="flex-1 sm:max-w-64">
@@ -53,9 +54,9 @@
             </button>
           </div>
         </div>
-      </template>
+        </template>
 
-      <template #table>
+        <template #table>
         <DataTable
           :columns="columns"
           :data="codes"
@@ -202,9 +203,9 @@
             </div>
           </template>
         </DataTable>
-      </template>
+        </template>
 
-      <template #pagination>
+        <template #pagination>
         <div
           v-if="selectedCount > 0"
           class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary-50 p-3 dark:bg-primary-900/20"
@@ -247,6 +248,7 @@
         </div>
       </template>
     </TablePageLayout>
+    </div>
 
     <!-- Delete Confirmation Dialog -->
     <ConfirmDialog
@@ -1187,3 +1189,4 @@ onUnmounted(() => {
   abortController?.abort()
 })
 </script>
+

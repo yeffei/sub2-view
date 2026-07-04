@@ -1,19 +1,17 @@
 <template>
-  <div class="flex min-h-screen items-center justify-center bg-gray-50 px-4 dark:bg-dark-900">
-    <div class="w-full max-w-md space-y-6">
+  <AppLayout>
+    <div class="payment-result-shell mx-auto w-full max-w-2xl space-y-6 py-8">
       <!-- Loading -->
       <div v-if="loading" class="flex items-center justify-center py-20">
         <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
       </div>
       <template v-else>
         <!-- Status Icon -->
-        <div class="text-center">
+        <section class="payment-result-hero text-center">
+          <div class="payment-result-kicker">支付回执</div>
           <div v-if="isSuccess"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <svg class="h-10 w-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-              stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
+            <Icon name="check" size="xl" class="text-green-500" :stroke-width="2" />
           </div>
           <div v-else-if="isPending"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
@@ -21,85 +19,85 @@
           </div>
           <div v-else
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-            <svg class="h-10 w-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <Icon name="x" size="xl" class="text-red-500" :stroke-width="2" />
           </div>
-          <h2 class="mt-4 text-2xl font-bold text-gray-900 dark:text-white">
+          <h2 class="mt-4 font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper">
             {{ statusTitle }}
           </h2>
-          <p v-if="isPending" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('payment.result.processingHint') }}
+          <p class="payment-result-note mt-3 text-sm text-zen-mist dark:text-zen-stone">
+            {{ statusNote }}
           </p>
-        </div>
+        </section>
         <!-- Order Info -->
-        <div v-if="order" class="rounded-xl bg-white p-5 shadow-sm dark:bg-dark-800">
+        <div v-if="order" class="payment-result-card">
           <div class="space-y-3 text-sm">
-            <div v-if="hasOrderId(order)" class="flex justify-between">
+            <div class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">#{{ order.id }}</span>
             </div>
-            <div v-if="order.out_trade_no" class="flex justify-between">
+            <div v-if="order.out_trade_no" class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.out_trade_no }}</span>
             </div>
-            <div v-if="hasAmountFields(order)" class="flex justify-between">
+            <div class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(baseAmount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && order.fee_rate > 0" class="flex justify-between">
+            <div v-if="order.fee_rate > 0" class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order)" class="flex justify-between">
+            <div class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
               <span class="font-bold text-primary-600 dark:text-primary-400">{{ formatGatewayAmount(order.pay_amount) }}</span>
             </div>
-            <div v-if="hasAmountFields(order) && order.amount !== order.pay_amount" class="flex justify-between">
+            <div v-if="order.amount !== order.pay_amount" class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' + order.amount.toFixed(2) : formatGatewayAmount(order.amount) }}</span>
             </div>
-            <div v-if="hasPaymentType(order)" class="flex justify-between">
+            <div class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ t(paymentMethodI18nKey(order.payment_type), normalizedOrderPaymentType(order.payment_type)) }}</span>
             </div>
-            <div class="flex justify-between">
+            <div class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.status') }}</span>
-              <OrderStatusBadge :status="displayOrderStatus(order.status)" />
+              <OrderStatusBadge :status="order.status" />
             </div>
           </div>
         </div>
         <!-- EasyPay return info (when no order loaded) -->
-        <div v-else-if="returnInfo" class="rounded-xl bg-white p-5 shadow-sm dark:bg-dark-800">
+        <div v-else-if="returnInfo" class="payment-result-card">
           <div class="space-y-3 text-sm">
-            <div v-if="returnInfo.outTradeNo" class="flex justify-between">
+            <div v-if="returnInfo.outTradeNo" class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ returnInfo.outTradeNo }}</span>
             </div>
-            <div v-if="returnInfo.money" class="flex justify-between">
+            <div v-if="returnInfo.money" class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(Number(returnInfo.money) || 0) }}</span>
             </div>
-            <div v-if="returnInfo.type" class="flex justify-between">
+            <div v-if="returnInfo.type" class="payment-result-row flex justify-between gap-4">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">{{ t(paymentMethodI18nKey(returnInfo.type), normalizedOrderPaymentType(returnInfo.type)) }}</span>
             </div>
           </div>
         </div>
         <!-- Actions -->
-        <div class="flex gap-3">
+        <div class="payment-result-actions flex gap-3">
           <button class="btn btn-secondary flex-1" @click="router.push('/purchase')">{{ t('payment.result.backToRecharge') }}</button>
           <button class="btn btn-primary flex-1" @click="router.push('/orders')">{{ t('payment.result.viewOrders') }}</button>
         </div>
       </template>
     </div>
-  </div>
+  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onBeforeUnmount, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import AppLayout from '@/components/layout/AppLayout.vue'
+import Icon from '@/components/icons/Icon.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
@@ -108,8 +106,7 @@ import {
 } from '@/components/payment/paymentFlow'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
-import type { PublicOrderVerifyResult } from '@/api/payment'
-import type { OrderStatus, PaymentOrder } from '@/types/payment'
+import type { PaymentOrder } from '@/types/payment'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import { normalizePaymentMethodForDisplay, paymentMethodI18nKey } from './paymentUx'
 
@@ -119,9 +116,7 @@ const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
 
-type ResolvedOrder = PaymentOrder | PublicOrderVerifyResult
-
-const order = ref<ResolvedOrder | null>(null)
+const order = ref<PaymentOrder | null>(null)
 const loading = ref(true)
 const currency = ref('CNY')
 
@@ -143,7 +138,7 @@ const refreshAttempts = ref(0)
 
 /** 充值金额 = pay_amount / (1 + fee_rate/100)，fee_rate=0 时等于 pay_amount */
 const baseAmount = computed(() => {
-  if (!hasAmountFields(order.value)) return 0
+  if (!order.value) return 0
   const feeRate = Number(order.value.fee_rate) || 0
   if (feeRate <= 0) return order.value.pay_amount ?? 0
   return Math.round((order.value.pay_amount / (1 + feeRate / 100)) * 100) / 100
@@ -151,7 +146,7 @@ const baseAmount = computed(() => {
 
 /** 手续费 = pay_amount - baseAmount */
 const feeAmount = computed(() => {
-  if (!hasAmountFields(order.value)) return 0
+  if (!order.value) return 0
   const feeRate = Number(order.value.fee_rate) || 0
   if (feeRate <= 0) return 0
   return Math.round((order.value.pay_amount - baseAmount.value) * 100) / 100
@@ -184,39 +179,33 @@ const statusTitle = computed(() => {
   return t('payment.result.failed')
 })
 
+const statusNote = computed(() => {
+  if (isSuccess.value) {
+    return '款项结果已回写到当前页面，后续也可随时去往来订单中核对到账与支付信息。'
+  }
+  if (isPending.value) {
+    return t('payment.result.processingHint')
+  }
+  return '这次支付尚未完成，你可以回到充值与兑换重新发起，或去往来订单里查看当前状态。'
+})
+
 function normalizedOrderPaymentType(paymentType: string): string {
-  return normalizePaymentMethodForDisplay(paymentType || '') || paymentType || ''
+  return normalizePaymentMethodForDisplay(paymentType) || paymentType
 }
 
 function formatGatewayAmount(value: number): string {
   return formatPaymentAmount(value, currency.value, localeCode.value)
 }
 
-function setResolvedOrder(nextOrder: ResolvedOrder | null): void {
+function setResolvedOrder(nextOrder: PaymentOrder | null): void {
   order.value = nextOrder
-  if (nextOrder && 'currency' in nextOrder && nextOrder.currency) {
+  if (nextOrder?.currency) {
     currency.value = normalizePaymentCurrency(nextOrder.currency)
   }
 }
 
-function hasOrderId(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
-  return !!nextOrder && 'id' in nextOrder && typeof nextOrder.id === 'number'
-}
-
-function hasAmountFields(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
-  return !!nextOrder && 'pay_amount' in nextOrder && typeof nextOrder.pay_amount === 'number' && 'amount' in nextOrder && typeof nextOrder.amount === 'number'
-}
-
-function hasPaymentType(nextOrder: ResolvedOrder | null): nextOrder is PaymentOrder {
-  return !!nextOrder && 'payment_type' in nextOrder && typeof nextOrder.payment_type === 'string' && nextOrder.payment_type.trim() !== ''
-}
-
 function normalizeOrderStatus(status: string | null | undefined): string {
   return String(status || '').trim().toUpperCase()
-}
-
-function displayOrderStatus(status: string): OrderStatus {
-  return normalizeOrderStatus(status) as OrderStatus
 }
 
 function isSuccessStatus(status: string | null | undefined): boolean {
@@ -275,7 +264,7 @@ function restoreRecoverySnapshot(context: {
   return restored
 }
 
-async function resolveOrderFromResumeToken(resumeToken: string): Promise<ResolvedOrder | null> {
+async function resolveOrderFromResumeToken(resumeToken: string): Promise<PaymentOrder | null> {
   try {
     const result = await paymentAPI.resolveOrderPublicByResumeToken(resumeToken)
     return result.data
@@ -284,7 +273,7 @@ async function resolveOrderFromResumeToken(resumeToken: string): Promise<Resolve
   }
 }
 
-async function resolveOrderFromOutTradeNo(outTradeNo: string): Promise<ResolvedOrder | null> {
+async function resolveOrderFromOutTradeNo(outTradeNo: string): Promise<PaymentOrder | null> {
   try {
     const result = await paymentAPI.verifyOrder(outTradeNo)
     return result.data
@@ -317,7 +306,7 @@ function clearRecoverySnapshotForTerminalStatus(status: string | null | undefine
   }
 }
 
-function scheduleStatusRefresh(refreshOrder: (() => Promise<ResolvedOrder | null>) | null): void {
+function scheduleStatusRefresh(refreshOrder: (() => Promise<PaymentOrder | null>) | null): void {
   clearStatusRefreshTimer()
   if (!refreshOrder || !isPending.value || refreshAttempts.value >= STATUS_REFRESH_MAX_ATTEMPTS) {
     return
@@ -364,7 +353,7 @@ onMounted(async () => {
     if (resolvedOrder) {
       setResolvedOrder(resolvedOrder)
       if (!orderId) {
-        orderId = hasOrderId(resolvedOrder) ? resolvedOrder.id : 0
+        orderId = resolvedOrder.id
       }
     } else if (routeOrderId > 0) {
       resumeTokenLookupFailed = true
@@ -392,7 +381,7 @@ onMounted(async () => {
     if (legacyOrder) {
       setResolvedOrder(legacyOrder)
       if (!orderId) {
-        orderId = hasOrderId(legacyOrder) ? legacyOrder.id : 0
+        orderId = legacyOrder.id
       }
     }
   }
@@ -406,7 +395,7 @@ onMounted(async () => {
     }
   }
 
-  const refreshOrder = async (): Promise<ResolvedOrder | null> => {
+  const refreshOrder = async (): Promise<PaymentOrder | null> => {
     if (resumeToken) {
       const resolvedOrder = await resolveOrderFromResumeToken(resumeToken)
       if (resolvedOrder) {
@@ -443,3 +432,76 @@ onBeforeUnmount(() => {
   clearStatusRefreshTimer()
 })
 </script>
+
+<style scoped>
+.payment-result-hero,
+.payment-result-card {
+  border: 1px solid rgba(216, 205, 185, 0.72);
+  border-radius: 0.9rem;
+  background: rgba(250, 247, 239, 0.58);
+  box-shadow: 0 20px 48px -38px rgba(31, 35, 32, 0.26);
+}
+
+.payment-result-hero {
+  padding: 1.75rem 1.5rem;
+}
+
+.payment-result-card {
+  padding: 1.25rem;
+}
+
+.payment-result-kicker {
+  margin-bottom: 1rem;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.payment-result-note {
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.72;
+}
+
+.payment-result-row {
+  padding-bottom: 0.72rem;
+  border-bottom: 1px solid rgba(216, 205, 185, 0.4);
+}
+
+.payment-result-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.payment-result-actions {
+  flex-wrap: wrap;
+}
+
+.dark .payment-result-hero,
+.dark .payment-result-card {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+}
+
+.dark .payment-result-kicker {
+  color: #879186;
+}
+
+.dark .payment-result-row {
+  border-bottom-color: rgba(48, 52, 43, 0.78);
+}
+
+@media (max-width: 640px) {
+  .payment-result-shell {
+    padding-top: 1rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .payment-result-actions > * {
+    width: 100%;
+  }
+}
+</style>

@@ -11,8 +11,8 @@ describe('resolveDocumentTitle', () => {
   })
 
   it('站点名为空时，回退默认站点名', () => {
-    expect(resolveDocumentTitle('Dashboard', '')).toBe('Dashboard - Sub2API')
-    expect(resolveDocumentTitle(undefined, '   ')).toBe('Sub2API')
+    expect(resolveDocumentTitle('Dashboard', '')).toBe('Dashboard - 山枢庭')
+    expect(resolveDocumentTitle(undefined, '   ')).toBe('山枢庭')
   })
 
   it('站点名变更时仅影响后续路由标题计算', () => {
@@ -34,8 +34,8 @@ describe('resolveRouteDocumentTitle', () => {
       }
     }
 
-    expect(resolveRouteDocumentTitle(route, 'EzouAPI')).toBe('Custom Page - EzouAPI')
-    expect(resolveRouteDocumentTitle(route, 'EzouAPI', [
+    expect(resolveRouteDocumentTitle(route, '山枢庭')).toBe('Custom Page - 山枢庭')
+    expect(resolveRouteDocumentTitle(route, '山枢庭', [
       {
         id: 'scheduler',
         label: '账号调度器',
@@ -44,6 +44,6 @@ describe('resolveRouteDocumentTitle', () => {
         visibility: 'admin',
         sort_order: 0
       }
-    ])).toBe('账号调度器 - EzouAPI')
+    ])).toBe('账号调度器 - 山枢庭')
   })
 })

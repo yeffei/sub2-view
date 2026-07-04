@@ -18,7 +18,6 @@ import type {
   AdminDataImportResult,
   CodexSessionImportRequest,
   CodexSessionImportResult,
-  OpenAICodexPATCreateRequest,
   CheckMixedChannelRequest,
   CheckMixedChannelResponse
 } from '@/types'
@@ -37,6 +36,7 @@ export async function list(
     platform?: string
     type?: string
     status?: string
+    anomaly_reason?: string
     group?: string
     search?: string
     privacy_mode?: string
@@ -72,6 +72,7 @@ export async function listWithEtag(
     platform?: string
     type?: string
     status?: string
+    anomaly_reason?: string
     group?: string
     search?: string
     privacy_mode?: string
@@ -568,6 +569,7 @@ export async function exportData(options?: {
     platform?: string
     type?: string
     status?: string
+    anomaly_reason?: string
     group?: string
     privacy_mode?: string
     search?: string
@@ -575,15 +577,16 @@ export async function exportData(options?: {
     sort_order?: 'asc' | 'desc'
   }
   includeProxies?: boolean
-}): Promise<AdminDataPayload> {
+  }): Promise<AdminDataPayload> {
   const params: Record<string, string> = {}
   if (options?.ids && options.ids.length > 0) {
     params.ids = options.ids.join(',')
   } else if (options?.filters) {
-    const { platform, type, status, group, privacy_mode, search, sort_by, sort_order } = options.filters
+    const { platform, type, status, anomaly_reason, group, privacy_mode, search, sort_by, sort_order } = options.filters
     if (platform) params.platform = platform
     if (type) params.type = type
     if (status) params.status = status
+    if (anomaly_reason) params.anomaly_reason = anomaly_reason
     if (group) params.group = group
     if (privacy_mode) params.privacy_mode = privacy_mode
     if (search) params.search = search
@@ -609,14 +612,7 @@ export async function importData(payload: {
 }
 
 export async function importCodexSession(payload: CodexSessionImportRequest): Promise<CodexSessionImportResult> {
-  const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload, {
-    timeout: 120000 // 120s timeout for large session imports
-  })
-  return data
-}
-
-export async function createOpenAICodexPAT(payload: OpenAICodexPATCreateRequest): Promise<Account> {
-  const { data } = await apiClient.post<Account>('/admin/openai/create-from-codex-pat', payload)
+  const { data } = await apiClient.post<CodexSessionImportResult>('/admin/accounts/import/codex-session', payload)
   return data
 }
 
@@ -736,13 +732,8 @@ export interface OpenAIAdditionalRateLimit {
   rate_limit?: OpenAIRateLimit | null
 }
 
-export interface OpenAIRateLimitResetCreditDetail {
-  expires_at?: string
-}
-
 export interface OpenAIRateLimitResetCredits {
   available_count: number
-  credits?: OpenAIRateLimitResetCreditDetail[]
 }
 
 export interface OpenAIQuotaUsage {
@@ -788,18 +779,6 @@ export async function resetOpenAIQuota(id: number): Promise<OpenAIQuotaResetResu
   return data
 }
 
-export interface SparkShadowCreatePayload {
-  name?: string
-  priority?: number
-  concurrency?: number
-  group_ids?: number[]
-}
-
-export async function createSparkShadow(parentId: number, payload: SparkShadowCreatePayload): Promise<Account> {
-  const { data } = await apiClient.post<Account>(`/admin/accounts/${parentId}/shadow`, payload)
-  return data
-}
-
 export const accountsAPI = {
   list,
   listWithEtag,
@@ -837,15 +816,13 @@ export const accountsAPI = {
   exportData,
   importData,
   importCodexSession,
-  createOpenAICodexPAT,
   getAntigravityDefaultModelMapping,
   batchClearError,
   batchRefresh,
   setPrivacy,
   revertProxyFallback,
   queryOpenAIQuota,
-  resetOpenAIQuota,
-  createSparkShadow
+  resetOpenAIQuota
 }
 
 export default accountsAPI

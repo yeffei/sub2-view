@@ -36,7 +36,52 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/HomeView.vue'),
     meta: {
       requiresAuth: false,
-      title: 'Home'
+      title: '统一入口，安静流转。'
+    }
+  },
+  {
+    path: '/pricing',
+    name: 'Pricing',
+    component: () => import('@/views/public/PricingView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '价格'
+    }
+  },
+  {
+    path: '/faq',
+    name: 'Faq',
+    component: () => import('@/views/public/FaqView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '常见问题'
+    }
+  },
+  {
+    path: '/docs',
+    name: 'Docs',
+    component: () => import('@/views/public/DocsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '接入文档'
+    }
+  },
+  {
+    path: '/privacy',
+    name: 'Privacy',
+    component: () => import('@/views/public/PrivacyView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '隐私政策'
+    }
+  },
+  {
+    path: '/terms',
+    name: 'Terms',
+    component: () => import('@/views/public/TermsView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: '服务条款'
     }
   },
   {
@@ -242,18 +287,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/available-channels',
-    name: 'UserAvailableChannels',
-    component: () => import('@/views/user/AvailableChannelsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'Available Channels',
-      titleKey: 'availableChannels.title',
-      descriptionKey: 'availableChannels.description'
-    }
-  },
-  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
@@ -266,18 +299,6 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
-    path: '/subscriptions',
-    name: 'Subscriptions',
-    component: () => import('@/views/user/SubscriptionsView.vue'),
-    meta: {
-      requiresAuth: true,
-      requiresAdmin: false,
-      title: 'My Subscriptions',
-      titleKey: 'userSubscriptions.title',
-      descriptionKey: 'userSubscriptions.description'
-    }
-  },
-  {
     path: '/purchase',
     name: 'PurchaseSubscription',
     component: () => import('@/views/user/PaymentView.vue'),
@@ -286,8 +307,7 @@ const routes: RouteRecordRaw[] = [
       requiresAdmin: false,
       title: 'Purchase Subscription',
       titleKey: 'nav.buySubscription',
-      descriptionKey: 'purchase.description',
-      requiresPayment: true
+      descriptionKey: 'purchase.description'
     }
   },
   {
@@ -298,8 +318,7 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       requiresAdmin: false,
       title: 'My Orders',
-      titleKey: 'nav.myOrders',
-      requiresPayment: true
+      titleKey: 'nav.myOrders'
     }
   },
   {
@@ -428,18 +447,30 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/channels',
-    redirect: '/admin/channels/pricing'
+    redirect: '/admin/accounts',
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true
+    }
   },
   {
     path: '/admin/channels/pricing',
-    name: 'AdminChannels',
-    component: () => import('@/views/admin/ChannelsView.vue'),
+    redirect: '/admin/accounts',
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true
+    }
+  },
+  {
+    path: '/admin/channels/upstream-pools',
+    name: 'AdminUpstreamPools',
+    component: () => import('@/views/admin/UpstreamPoolsView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Channel Management',
-      titleKey: 'admin.channels.title',
-      descriptionKey: 'admin.channels.description'
+      title: 'Upstream Pools',
+      titleKey: 'admin.upstreamPools.title',
+      descriptionKey: 'admin.upstreamPools.description'
     }
   },
   {
@@ -467,14 +498,10 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/subscriptions',
-    name: 'AdminSubscriptions',
-    component: () => import('@/views/admin/SubscriptionsView.vue'),
+    redirect: '/admin/dashboard',
     meta: {
       requiresAuth: true,
-      requiresAdmin: true,
-      title: 'Subscription Management',
-      titleKey: 'admin.subscriptions.title',
-      descriptionKey: 'admin.subscriptions.description'
+      requiresAdmin: true
     }
   },
   {
@@ -643,13 +670,10 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/orders/plans',
-    name: 'AdminPaymentPlans',
-    component: () => import('@/views/admin/orders/AdminPaymentPlansView.vue'),
+    redirect: '/admin/orders',
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Subscription Plans',
-      titleKey: 'nav.paymentPlans',
       requiresPayment: true
     }
   },
@@ -690,7 +714,7 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal']
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result', '/payment/airwallex', '/legal', '/pricing', '/faq', '/docs', '/privacy', '/terms']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',
@@ -836,7 +860,6 @@ router.beforeEach(async (to, _from, next) => {
       '/admin/groups',
       '/admin/subscriptions',
       '/admin/redeem',
-      '/subscriptions',
       '/redeem'
     ]
 

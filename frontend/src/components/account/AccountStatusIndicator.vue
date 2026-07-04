@@ -1,15 +1,15 @@
 <template>
   <div class="flex items-center gap-2">
     <!-- Rate Limit Display (429) - Two-line layout -->
-    <div v-if="isRateLimited" class="flex flex-col items-center gap-1">
+    <div v-if="isRateLimited" :class="compact ? 'flex items-center' : 'flex flex-col items-center gap-1'">
       <span class="badge text-xs badge-warning">{{ t('admin.accounts.status.rateLimited') }}</span>
-      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
+      <span v-if="!compact" class="text-[11px] text-gray-400 dark:text-gray-500">{{ rateLimitResumeText }}</span>
     </div>
 
     <!-- Overload Display (529) - Two-line layout -->
-    <div v-else-if="isOverloaded" class="flex flex-col items-center gap-1">
+    <div v-else-if="isOverloaded" :class="compact ? 'flex items-center' : 'flex flex-col items-center gap-1'">
       <span class="badge text-xs badge-danger">{{ t('admin.accounts.status.overloaded') }}</span>
-      <span class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
+      <span v-if="!compact" class="text-[11px] text-gray-400 dark:text-gray-500">{{ overloadCountdown }}</span>
     </div>
 
     <!-- Main Status Badge (shown when not rate limited/overloaded) -->
@@ -78,7 +78,7 @@
 
     <!-- Model Status Indicators (普通限流 / 超量请求中) -->
     <div
-      v-if="activeModelStatuses.length > 0"
+      v-if="!compact && activeModelStatuses.length > 0"
       :class="[
         activeModelStatuses.length <= 4
           ? 'flex flex-col gap-1'
@@ -163,9 +163,12 @@ import { formatCountdown, formatDateTime, formatCountdownWithSuffix, formatTime 
 
 const { t } = useI18n()
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   account: Account
-}>()
+  compact?: boolean
+}>(), {
+  compact: false
+})
 
 const emit = defineEmits<{
   (e: 'show-temp-unsched', account: Account): void

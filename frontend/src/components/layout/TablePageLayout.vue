@@ -46,21 +46,34 @@ onUnmounted(() => {
 <style scoped>
 /* 桌面端：Flexbox 布局 */
 .table-page-layout {
-  @apply flex flex-col gap-6;
+  @apply flex flex-col;
+  gap: 0.9rem;
+  max-width: 1520px;
+  margin: 0 auto;
   height: calc(100vh - 64px - 4rem); /* 减去 header + lg:p-8 的上下padding */
 }
 
 .layout-section-fixed {
   @apply flex-shrink-0;
+  border: 1px solid rgba(198, 184, 157, 0.42);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.028), transparent 30%),
+    rgba(250, 247, 239, 0.48);
+  padding: 0.9rem;
 }
 
 .layout-section-scrollable {
-  @apply flex-1 min-h-0 flex flex-col;
+  @apply flex-1 min-h-0 min-w-0 flex flex-col;
 }
 
 /* 表格滚动容器 - 增强版表体滚动方案 */
 .table-scroll-container {
-  @apply flex flex-col overflow-hidden h-full bg-white dark:bg-dark-800 rounded-2xl border border-gray-200 dark:border-dark-700 shadow-sm;
+  @apply flex h-full min-w-0 flex-col overflow-hidden;
+  border: 1px solid rgba(198, 184, 157, 0.44);
+  border-radius: 10px;
+  background: rgba(250, 247, 239, 0.52);
+  box-shadow: 0 18px 46px -38px rgba(31, 35, 32, 0.24);
 }
 
 .table-scroll-container :deep(.table-wrapper) {
@@ -76,7 +89,8 @@ onUnmounted(() => {
 }
 
 .table-scroll-container :deep(thead) {
-  @apply bg-gray-50/80 dark:bg-dark-800/80 backdrop-blur-sm;
+  background: rgba(237, 229, 212, 0.72);
+  backdrop-filter: blur(8px);
 }
 
 .table-scroll-container :deep(tbody) {
@@ -84,16 +98,20 @@ onUnmounted(() => {
 }
 
 .table-scroll-container :deep(th) {
-  @apply px-5 py-4 text-left text-sm font-medium text-gray-600 dark:text-dark-300 border-b border-gray-200 dark:border-dark-700;
+  @apply px-5 py-4 text-left text-sm font-medium;
+  border-bottom: 1px solid rgba(198, 184, 157, 0.54);
+  color: #59645a;
 }
 
 .table-scroll-container :deep(td) {
-  @apply px-5 py-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-dark-800;
+  @apply px-5 py-4 text-sm;
+  border-bottom: 1px solid rgba(198, 184, 157, 0.32);
+  color: #38413a;
 }
 
 /* 移动端：恢复正常滚动 */
 .table-page-layout.mobile-mode .table-scroll-container {
-  @apply h-auto overflow-visible border-none shadow-none bg-transparent;
+  @apply h-auto overflow-visible shadow-none;
 }
 
 .table-page-layout.mobile-mode .layout-section-scrollable {
@@ -108,5 +126,30 @@ onUnmounted(() => {
   @apply flex-none;
   display: table;
   min-width: 100%;
+}
+
+</style>
+<style>
+.dark .layout-section-fixed,
+.dark .table-scroll-container {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+}
+
+.dark .table-scroll-container thead {
+  background: rgba(17, 19, 15, 0.62);
+}
+
+.dark .table-scroll-container th,
+.dark .table-scroll-container td {
+  border-color: rgba(48, 52, 43, 0.82);
+}
+
+.dark .table-scroll-container th {
+  color: #879186;
+}
+
+.dark .table-scroll-container td {
+  color: #d9d0be;
 }
 </style>

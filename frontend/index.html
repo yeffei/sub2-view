@@ -2,9 +2,41 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sub2API - AI API Gateway</title>
+    <title>山枢庭 - 统一入口，安静流转。</title>
+    <script>
+      ;(() => {
+        const lightBackground = '#f4efe4'
+        const darkBackground = '#11130f'
+        const lightText = '#1f2320'
+        const darkText = '#f4efe4'
+
+        try {
+          const savedTheme = localStorage.getItem('theme')
+          const followsSystem = !savedTheme || savedTheme === 'system'
+          const isDark = savedTheme === 'dark'
+            || (followsSystem && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          const root = document.documentElement
+          const backgroundColor = isDark ? darkBackground : lightBackground
+
+          root.classList.toggle('dark', isDark)
+          root.style.backgroundColor = backgroundColor
+          root.style.colorScheme = isDark ? 'dark' : 'light'
+          root.style.color = isDark ? darkText : lightText
+
+          document.addEventListener('DOMContentLoaded', () => {
+            document.body.style.backgroundColor = backgroundColor
+            document.body.style.colorScheme = isDark ? 'dark' : 'light'
+            document.body.style.color = isDark ? darkText : lightText
+          }, { once: true })
+        } catch {
+          document.documentElement.style.backgroundColor = lightBackground
+          document.documentElement.style.colorScheme = 'light'
+          document.documentElement.style.color = lightText
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -1,14 +1,15 @@
 package service
 
-import "time"
+import (
+	"strconv"
+	"strings"
+	"time"
+)
 
 // UserErrorRequest 是面向终端用户的"错误请求"精简脱敏视图（白名单）。
-// 严禁包含 account / api_key_prefix / upstream_endpoint / user_email 等
-// 敏感或内部字段。注：message（网关标准化错误描述）与 key_name
+// 严禁包含 client_ip / user_agent / account / api_key_prefix / upstream_endpoint /
+// user_email 等敏感或内部字段。注：message（网关标准化错误描述）与 key_name
 // （用户自有 API Key 名称，KeysView 中本就可见）经产品决策对该用户开放；
-// client_ip / user_agent / group_name / request_type / stream 均为该用户
-// 自己请求的属性，经产品决策（2026-07-03）开放，
-// 与用量明细已向用户展示自身 ip_address/user_agent/分组/类型 的口径对齐；
 // error_body 仅在详情接口（GetUserErrorRequestDetail）按归属校验后返回。
 type UserErrorRequest struct {
 	ID              int64     `json:"id"`
@@ -21,11 +22,6 @@ type UserErrorRequest struct {
 	Message         string    `json:"message"`
 	KeyName         string    `json:"key_name"`
 	KeyDeleted      bool      `json:"key_deleted"`
-	ClientIP        string    `json:"client_ip,omitempty"`
-	GroupName       string    `json:"group_name,omitempty"`
-	RequestType     *int16    `json:"request_type,omitempty"`
-	Stream          bool      `json:"stream"`
-	UserAgent       string    `json:"user_agent,omitempty"`
 }
 
 // UserErrorRequestList 是用户错误请求分页结果。
@@ -98,10 +94,6 @@ func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 	if model == "" {
 		model = e.Model
 	}
-	clientIP := ""
-	if e.ClientIP != nil {
-		clientIP = *e.ClientIP
-	}
 	return &UserErrorRequest{
 		ID:              e.ID,
 		CreatedAt:       e.CreatedAt,
@@ -113,11 +105,6 @@ func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 		Message:         e.Message,
 		KeyName:         e.APIKeyName,
 		KeyDeleted:      e.APIKeyDeleted,
-		ClientIP:        clientIP,
-		GroupName:       e.GroupName,
-		RequestType:     e.RequestType,
-		Stream:          e.Stream,
-		UserAgent:       e.UserAgent,
 	}
 }
 
@@ -128,6 +115,19 @@ type UserErrorRequestDetail struct {
 	UserErrorRequest
 	ErrorBody          string `json:"error_body"`
 	UpstreamStatusCode *int   `json:"upstream_status_code,omitempty"`
+	Diagnosis          *UserErrorDiagnosis `json:"diagnosis,omitempty"`
+}
+
+// UserErrorDiagnosis is a user-safe, product-facing diagnosis derived from the
+// internal ops error detail. It exposes only stable machine codes and a small
+// amount of non-sensitive evidence for frontend explanation rendering.
+type UserErrorDiagnosis struct {
+	ReasonCode    string `json:"reason_code"`
+	ActionCode    string `json:"action_code,omitempty"`
+	Retryable     bool   `json:"retryable,omitempty"`
+	Temporary     bool   `json:"temporary,omitempty"`
+	RequestedModel string `json:"requested_model,omitempty"`
+	UpstreamModel string `json:"upstream_model,omitempty"`
 }
 
 // ToUserErrorRequestDetail 把内部 OpsErrorLogDetail 裁剪为用户安全详情视图。
@@ -140,5 +140,161 @@ func ToUserErrorRequestDetail(e *OpsErrorLogDetail) *UserErrorRequestDetail {
 		UserErrorRequest:   *base,
 		ErrorBody:          e.ErrorBody,
 		UpstreamStatusCode: e.UpstreamStatusCode,
+		Diagnosis:          buildUserErrorDiagnosis(e),
 	}
+}
+
+func buildUserErrorDiagnosis(e *OpsErrorLogDetail) *UserErrorDiagnosis {
+	if e == nil {
+		return nil
+	}
+
+	category := MapUserErrorCategory(e.Phase, e.Type)
+	combined := strings.ToLower(strings.Join([]string{
+		e.Message,
+		e.UpstreamErrorMessage,
+		e.UpstreamErrorDetail,
+		e.ErrorBody,
+	}, " "))
+
+	out := &UserErrorDiagnosis{
+		RequestedModel: strings.TrimSpace(e.RequestedModel),
+		UpstreamModel:  strings.TrimSpace(e.UpstreamModel),
+	}
+	if out.RequestedModel == "" {
+		out.RequestedModel = strings.TrimSpace(e.Model)
+	}
+
+	switch category {
+	case "auth":
+		out.ActionCode = "keys_connection_test"
+		if e.APIKeyDeleted {
+			out.ReasonCode = "auth_key_deleted"
+			return out
+		}
+		out.ReasonCode = "auth_invalid_credentials"
+		return out
+	case "quota":
+		out.ActionCode = "profile_balance_notify"
+		if e.Type == "subscription_error" || containsAny(combined, "subscription", "plan", "expired", "inactive") {
+			out.ReasonCode = "quota_subscription_exhausted"
+			return out
+		}
+		out.ReasonCode = "quota_balance_exhausted"
+		return out
+	case "rate_limit":
+		out.ReasonCode = "rate_limit_window_exhausted"
+		out.ActionCode = "dashboard_requests_focus"
+		out.Retryable = true
+		out.Temporary = true
+		return out
+	case "invalid_request":
+		out.ActionCode = "usage_review_payload"
+		if containsAny(combined,
+			"model not found",
+			"unsupported model",
+			"does not exist",
+			"unknown model",
+			"not support this model",
+		) {
+			out.ReasonCode = "request_model_not_supported"
+			return out
+		}
+		if containsAny(combined,
+			"context length",
+			"prompt too long",
+			"maximum context",
+			"too many tokens",
+			"max tokens",
+			"payload too large",
+			"request too large",
+		) {
+			out.ReasonCode = "request_payload_too_large"
+			return out
+		}
+		out.ReasonCode = "request_invalid"
+		return out
+	case "service_unavailable":
+		out.ActionCode = "usage_retry_later"
+		modelUnsupportedCount := extractSelectionFailureCount(combined, "model_unsupported")
+		modelRateLimitedCount := extractSelectionFailureCount(combined, "model_rate_limited")
+		if out.RequestedModel != "" && (modelUnsupportedCount > 0 || containsAny(combined,
+			"channel pricing restriction",
+		)) {
+			out.ReasonCode = "service_model_not_available"
+			return out
+		}
+		if modelRateLimitedCount > 0 {
+			out.ReasonCode = "service_model_rate_limited"
+			out.Retryable = true
+			out.Temporary = true
+			return out
+		}
+		if out.RequestedModel != "" && containsAny(combined,
+			"supporting model:",
+			"supporting model ",
+		) {
+			out.ReasonCode = "service_model_not_available"
+			return out
+		}
+		out.ReasonCode = "service_no_route_available"
+		out.Retryable = true
+		out.Temporary = true
+		return out
+	case "upstream":
+		out.ActionCode = "usage_retry_later"
+		out.Retryable = true
+		out.Temporary = true
+		if e.UpstreamStatusCode != nil && *e.UpstreamStatusCode >= 500 {
+			out.ReasonCode = "upstream_temporarily_unavailable"
+			return out
+		}
+		out.ReasonCode = "upstream_transport_error"
+		return out
+	case "internal":
+		out.ReasonCode = "internal_gateway_error"
+		out.ActionCode = "usage_retry_later"
+		return out
+	case "cyber":
+		out.ReasonCode = "cyber_policy_blocked"
+		out.ActionCode = "usage_review_cyber"
+		return out
+	default:
+		out.ReasonCode = "unknown"
+		out.ActionCode = "usage_retry_later"
+		return out
+	}
+}
+
+func containsAny(text string, needles ...string) bool {
+	for _, needle := range needles {
+		if needle != "" && strings.Contains(text, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func extractSelectionFailureCount(text string, key string) int {
+	if text == "" || key == "" {
+		return 0
+	}
+	marker := key + "="
+	idx := strings.Index(text, marker)
+	if idx < 0 {
+		return 0
+	}
+	start := idx + len(marker)
+	end := start
+	for end < len(text) && text[end] >= '0' && text[end] <= '9' {
+		end++
+	}
+	if end == start {
+		return 0
+	}
+	value, err := strconv.Atoi(text[start:end])
+	if err != nil {
+		return 0
+	}
+	return value
 }

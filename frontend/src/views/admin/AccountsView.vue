@@ -1,7 +1,8 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
         <div class="flex flex-wrap-reverse items-start justify-between gap-3">
           <AccountTableFilters
             v-model:searchQuery="params.search"
@@ -66,7 +67,7 @@
               <div class="relative" ref="accountToolsDropdownRef">
                 <button
                   @click="
-                    showAccountToolsDropdown = !showAccountToolsDropdown;
+                    toggleAccountToolsDropdown($event);
                     showAutoRefreshDropdown = false
                   "
                   class="btn btn-secondary px-2 md:px-3"
@@ -77,8 +78,12 @@
                   <Icon name="chevronDown" size="xs" class="ml-1 hidden md:inline" />
                 </button>
                 <div
-                  v-if="showAccountToolsDropdown"
-                  class="absolute right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                  v-if="showAccountToolsDropdown && accountToolsDropdownPosition"
+                  class="account-tools-dropdown fixed z-[9999] w-[min(20rem,calc(100vw-2rem))] origin-top-right overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                  :style="{
+                    top: `${accountToolsDropdownPosition.top}px`,
+                    left: `${accountToolsDropdownPosition.left}px`
+                  }"
                 >
                   <div class="max-h-[70vh] overflow-y-auto p-2">
                     <div class="px-2 py-2">
@@ -183,21 +188,56 @@
           @select-page="selectPage"
           @toggle-schedulable="handleBulkToggleSchedulable"
         />
-        <div ref="accountTableRef" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <DataTable
-          ref="dataTableRef"
-          :columns="cols"
-          :data="accounts"
-          :loading="loading"
-          row-key="id"
-          :server-side-sort="true"
-          @sort="handleSort"
-          default-sort-key="name"
-          default-sort-order="asc"
-          :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
-          :estimate-row-height="72"
-          :overscan="5"
+        <div
+          data-test="account-anomaly-summary"
+          class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-[#d9d1c3] bg-[#faf7ef] px-3 py-2 text-sm text-[#5e5447] dark:border-[#4a4336] dark:bg-[#1f1d19] dark:text-[#d6cdbf]"
         >
+          <span class="text-xs font-semibold uppercase tracking-[0.18em] text-[#8d7d66] dark:text-[#a99a82]">
+            {{ t('admin.accounts.anomalySummaryTitle') }}
+          </span>
+          <button
+            v-for="item in accountAnomalySummaryItems"
+            :key="item.code"
+            type="button"
+            data-test="account-anomaly-chip"
+            class="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs transition-colors"
+            :class="item.code === params.anomaly_reason
+              ? 'border-[#a73a2a] bg-[#a73a2a] text-white dark:border-[#cf7966] dark:bg-[#cf7966] dark:text-[#1a120f]'
+              : 'border-[#d3c7b5] bg-white/80 text-[#6a5f51] hover:border-[#b8a389] hover:text-[#3f352b] dark:border-[#5a5244] dark:bg-[#26231e] dark:text-[#d9cfbe] dark:hover:border-[#8d7d66]'"
+            @click="applyAnomalyReasonFilter(item.code)"
+          >
+            <span>{{ anomalyReasonLabel(item.code) }}</span>
+            <strong class="font-mono text-[11px]">{{ item.count }}</strong>
+          </button>
+          <span v-if="!accountAnomalySummaryItems.length" class="text-xs text-[#8d7d66] dark:text-[#a99a82]">
+            {{ t('admin.accounts.anomalySummaryEmpty') }}
+          </span>
+          <button
+            v-if="params.anomaly_reason"
+            type="button"
+            class="ml-auto text-xs text-[#8f3e30] transition-colors hover:text-[#742f24] dark:text-[#d08a79] dark:hover:text-[#efb2a5]"
+            @click="applyAnomalyReasonFilter('')"
+          >
+            {{ t('admin.accounts.clearAnomalyFilter') }}
+          </button>
+        </div>
+        <div ref="accountTableRef" class="account-table-shell flex min-h-0 min-w-0 flex-1 flex-col">
+          <div class="account-table-scroll-x" :style="accountTableViewportStyle">
+            <DataTable
+              ref="dataTableRef"
+              :columns="cols"
+              :data="accounts"
+              :loading="loading"
+              :sticky-actions-column="false"
+              row-key="id"
+              :server-side-sort="true"
+              @sort="handleSort"
+              default-sort-key="name"
+              default-sort-order="asc"
+              :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
+              :estimate-row-height="72"
+              :overscan="5"
+            >
           <template #header-select>
             <input
               type="checkbox"
@@ -217,11 +257,11 @@
             <div class="flex flex-col">
               <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
               <span
-                v-if="accountDisplayEmail(row)"
+                v-if="row.extra?.email_address || row.extra?.email || row.credentials?.email"
                 class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
-                :title="accountDisplayEmail(row) + (row.parent_chatgpt_account_id ? ' · ' + row.parent_chatgpt_account_id : '')"
+                :title="String(row.extra?.email_address || row.extra?.email || row.credentials?.email)"
               >
-                {{ accountDisplayEmail(row) }}
+                {{ row.extra?.email_address || row.extra?.email || row.credentials?.email }}
               </span>
             </div>
           </template>
@@ -230,12 +270,9 @@
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
           <template #cell-platform_type="{ row }">
-            <div class="flex min-w-0 flex-col gap-1">
-              <div class="flex flex-wrap items-center gap-1">
-                <PlatformTypeBadge :platform="row.platform" :type="row.type"
-                  :plan-type="row.credentials?.plan_type || row.parent_plan_type"
-                  :privacy-mode="row.extra?.privacy_mode || row.parent_privacy_mode"
-                  :subscription-expires-at="row.credentials?.subscription_expires_at || row.parent_subscription_expires_at" />
+            <div class="flex min-w-0 items-center">
+              <div class="flex items-center gap-1 overflow-hidden">
+                <PlatformTypeBadge compact :platform="row.platform" :type="row.type" :plan-type="row.credentials?.plan_type" :privacy-mode="row.extra?.privacy_mode" :subscription-expires-at="row.credentials?.subscription_expires_at" />
                 <span
                   v-if="getAntigravityTierLabel(row)"
                   :class="['inline-block rounded px-1.5 py-0.5 text-[10px] font-medium', getAntigravityTierClass(row)]"
@@ -243,25 +280,14 @@
                   {{ getAntigravityTierLabel(row) }}
                 </span>
               </div>
-              <div
-                v-if="getOpenAICompactMeta(row)"
-                :class="[
-                  'inline-flex items-center gap-1.5 pl-0.5 text-[11px] font-medium leading-4',
-                  getOpenAICompactMeta(row)?.className
-                ]"
-                :title="getOpenAICompactTitle(row)"
-              >
-                <span :class="['h-1.5 w-1.5 rounded-full', getOpenAICompactMeta(row)?.dotClass]" />
-                <span>{{ getOpenAICompactMeta(row)?.label }}</span>
-              </div>
             </div>
           </template>
           <template #cell-capacity="{ row }">
             <AccountCapacityCell :account="row" />
           </template>
           <template #cell-status="{ row }">
-            <div class="flex items-center gap-1.5">
-              <AccountStatusIndicator :account="row" @show-temp-unsched="handleShowTempUnsched" />
+            <div class="flex items-center" :title="accountHealthTitle(row)">
+              <AccountStatusIndicator compact :account="row" @show-temp-unsched="handleShowTempUnsched" />
             </div>
           </template>
           <template #cell-schedulable="{ row }">
@@ -291,6 +317,7 @@
               :today-stats="todayStatsByAccountId[String(row.id)] ?? null"
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
+              compact
             />
           </template>
           <template #cell-proxy="{ row }">
@@ -326,7 +353,7 @@
             <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatRelativeTime(value) }}</span>
           </template>
           <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
+            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateOnly(value) }}</span>
           </template>
           <template #cell-expires_at="{ row, value }">
             <div class="flex flex-col items-start gap-1">
@@ -363,18 +390,20 @@
               </button>
             </div>
           </template>
-        </DataTable>
+            </DataTable>
+          </div>
         </div>
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
+    </div>
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" @create-spark-shadow="handleCreateSparkShadow" />
+    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
@@ -390,7 +419,6 @@
     />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
-    <ConfirmDialog :show="showCreateShadowDialog" :title="t('admin.accounts.createSparkShadow')" :message="t('admin.accounts.createSparkShadowConfirm', { name: creatingShadowAcc?.name })" @confirm="confirmCreateSparkShadow" @cancel="showCreateShadowDialog = false" />
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
@@ -415,6 +443,7 @@ import { useTableSelection } from '@/composables/useTableSelection'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import type { Column } from '@/components/common/types'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -438,8 +467,9 @@ import PlatformTypeBadge from '@/components/common/PlatformTypeBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import ErrorPassthroughRulesModal from '@/components/admin/ErrorPassthroughRulesModal.vue'
 import TLSFingerprintProfilesModal from '@/components/admin/TLSFingerprintProfilesModal.vue'
+import { accountAnomalyReasonFilterOrder, deriveAccountAnomalyReason, type AccountAnomalyReasonCode } from '@/utils/accountAnomaly'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
-import { formatDateTime, formatRelativeTime } from '@/utils/format'
+import { formatDateOnly, formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
 
@@ -464,6 +494,7 @@ type AccountBulkEditTarget =
         platform?: string
         type?: string
         status?: string
+        anomaly_reason?: string
         group?: string
         search?: string
         privacy_mode?: string
@@ -500,7 +531,6 @@ const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
-const showCreateShadowDialog = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
 const showStats = ref(false)
@@ -509,7 +539,6 @@ const showTLSFingerprintProfiles = ref(false)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
-const creatingShadowAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
@@ -523,6 +552,7 @@ const exportingData = ref(false)
 // Account tools dropdown
 const showAccountToolsDropdown = ref(false)
 const accountToolsDropdownRef = ref<HTMLElement | null>(null)
+const accountToolsDropdownPosition = ref<{ top: number; left: number } | null>(null)
 const hiddenColumns = reactive<Set<string>>(new Set())
 const DEFAULT_HIDDEN_COLUMNS = ['today_stats', 'proxy', 'notes', 'priority', 'rate_multiplier']
 const HIDDEN_COLUMNS_KEY = 'account-hidden-columns'
@@ -755,10 +785,12 @@ const {
   handlePageSizeChange: baseHandlePageSizeChange
 } = useTableLoader<Account, any>({
   fetchFn: adminAPI.accounts.list,
+  pageSize: 10,
   initialParams: {
     platform: '',
     type: '',
     status: '',
+    anomaly_reason: '',
     privacy_mode: '',
     group: '',
     search: '',
@@ -790,6 +822,18 @@ const swipeVirtualContext: SwipeSelectVirtualContext = {
   getSortedData: () => dataTableRef.value?.sortedData ?? accounts.value,
   getRowId: (row: any) => row.id,
 }
+
+const ACCOUNT_TABLE_ROW_HEIGHT_PX = 84
+const ACCOUNT_TABLE_HEADER_HEIGHT_PX = 60
+const ACCOUNT_TABLE_SCROLLBAR_HEIGHT_PX = 16
+
+const accountTableViewportStyle = computed(() => {
+  const rowCount = Math.max(1, Math.min(accounts.value.length || 0, pagination.page_size || 10))
+  const tableHeight = ACCOUNT_TABLE_HEADER_HEIGHT_PX + ACCOUNT_TABLE_SCROLLBAR_HEIGHT_PX + (rowCount * ACCOUNT_TABLE_ROW_HEIGHT_PX)
+  return {
+    '--account-table-visible-height': `${tableHeight}px`
+  } as Record<string, string>
+})
 
 useSwipeSelect(accountTableRef, {
   isSelected,
@@ -905,6 +949,8 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
     current.current_concurrency !== next.current_concurrency ||
     current.current_window_cost !== next.current_window_cost ||
     current.active_sessions !== next.active_sessions ||
+    current.health?.score !== next.health?.score ||
+    current.health?.level !== next.health?.level ||
     current.schedulable !== next.schedulable ||
     current.status !== next.status ||
     current.rate_limit_reset_at !== next.rate_limit_reset_at ||
@@ -912,6 +958,102 @@ const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
     current.temp_unschedulable_until !== next.temp_unschedulable_until ||
     buildOpenAIUsageRefreshKey(current) !== buildOpenAIUsageRefreshKey(next)
   )
+}
+
+const isFutureTime = (value?: string | null) => {
+  if (!value) return false
+  return new Date(value).getTime() > Date.now()
+}
+
+const resolveAccountHealth = (account: Account) => {
+  if (account.health) return account.health
+  let score = 100
+  const reasons: string[] = []
+  let nextAction = ''
+  const addReason = (points: number, reason: string, action = '') => {
+    score -= points
+    reasons.push(reason)
+    if (!nextAction && action) nextAction = action
+  }
+
+  if (account.status === 'error') {
+    addReason(55, '账号处于错误状态', '查看错误信息并执行恢复状态或重新授权')
+  } else if (account.status !== 'active') {
+    addReason(40, '账号未启用', '启用账号后再参与调度')
+  }
+  if (!account.schedulable) addReason(35, '已暂停调度', '确认后可重新开启调度')
+  if (account.auto_pause_on_expired && account.expires_at && account.expires_at * 1000 <= Date.now()) {
+    addReason(45, '账号已过期并自动暂停', '刷新凭证或更新过期时间')
+  }
+  if (isFutureTime(account.temp_unschedulable_until)) {
+    addReason(35, account.temp_unschedulable_reason ? `临时冷却中：${account.temp_unschedulable_reason}` : '临时冷却中', '等待冷却结束，或确认风险后恢复状态')
+  }
+  if (isFutureTime(account.rate_limit_reset_at)) addReason(30, '上游限流中', '等待限流窗口结束，或切换/补充账号池')
+  if (isFutureTime(account.overload_until)) addReason(30, '上游过载冷却中', '等待过载冷却结束，或降低该账号调度权重')
+
+  const quotaExceeded = (used?: number | null, limit?: number | null) =>
+    typeof limit === 'number' && limit > 0 && typeof used === 'number' && used >= limit
+  if (
+    quotaExceeded(account.quota_used, account.quota_limit) ||
+    quotaExceeded(account.quota_daily_used, account.quota_daily_limit) ||
+    quotaExceeded(account.quota_weekly_used, account.quota_weekly_limit)
+  ) {
+    addReason(45, '账号配额已耗尽', '重置配额或调整预算上限')
+  }
+
+  const currentConcurrency = account.current_concurrency ?? 0
+  if (account.concurrency > 0 && currentConcurrency >= account.concurrency) {
+    addReason(18, '并发已满', '等待请求完成，或提高并发上限')
+  } else if (account.concurrency > 0 && currentConcurrency >= account.concurrency * 0.8) {
+    addReason(8, '并发接近上限', '观察请求堆积情况')
+  }
+
+  if (typeof account.current_window_cost === 'number' && typeof account.window_cost_limit === 'number' && account.window_cost_limit > 0) {
+    const ratio = account.current_window_cost / account.window_cost_limit
+    if (ratio >= 1) addReason(28, '5h 费用窗口已达阈值', '等待窗口重置或调整费用阈值')
+    else if (ratio >= 0.8) addReason(12, '5h 费用窗口接近阈值', '关注成本水位')
+  }
+
+  if (typeof account.active_sessions === 'number' && typeof account.max_sessions === 'number' && account.max_sessions > 0) {
+    const ratio = account.active_sessions / account.max_sessions
+    if (ratio >= 1) addReason(20, '活跃会话已满', '等待会话空闲释放或提高会话上限')
+    else if (ratio >= 0.8) addReason(8, '活跃会话接近上限', '观察会话占用')
+  }
+
+  if (typeof account.current_rpm === 'number' && typeof account.base_rpm === 'number' && account.base_rpm > 0) {
+    const ratio = account.current_rpm / account.base_rpm
+    if (ratio >= 1) addReason(20, 'RPM 已达基础上限', '等待分钟窗口恢复或提高 RPM 上限')
+    else if (ratio >= 0.8) addReason(8, 'RPM 接近基础上限', '观察短时请求峰值')
+  }
+
+  score = Math.max(0, score)
+  const level = score < 50 ? 'critical' : score < 75 ? 'warning' : 'good'
+  const label = score < 50 ? '需处理' : score < 75 ? '需留意' : '安稳'
+  return {
+    score,
+    level,
+    label,
+    reasons: reasons.length ? reasons : ['运行状态正常'],
+    next_action: nextAction
+  }
+}
+
+const accountHealthTitle = (account: Account) => {
+  const anomaly = deriveAccountAnomalyReason(account)
+  const health = resolveAccountHealth(account)
+  if (!health) return ''
+  const parts = [`账号脉象：${health.label} · ${health.score}`]
+  if (anomaly.code !== 'healthy') {
+    parts.push(`异常：${anomalyReasonLabel(anomaly.code)}${anomaly.detail ? `（${anomaly.detail}）` : ''}`)
+    parts.push(`建议：${anomalyReasonAction(anomaly.code)}`)
+  }
+  if (health.reasons?.length) {
+    parts.push(`原因：${health.reasons.join('；')}`)
+  }
+  if (health.next_action) {
+    parts.push(`建议：${health.next_action}`)
+  }
+  return parts.join('\n')
 }
 
 const syncAccountRefs = (nextAccount: Account) => {
@@ -963,6 +1105,7 @@ const refreshAccountsIncrementally = async () => {
         platform?: string
         type?: string
         status?: string
+        anomaly_reason?: string
         privacy_mode?: string
         group?: string
         search?: string
@@ -999,6 +1142,44 @@ const handleManualRefresh = async () => {
 
 const closeAccountToolsDropdown = () => {
   showAccountToolsDropdown.value = false
+  accountToolsDropdownPosition.value = null
+}
+
+const openAccountToolsDropdown = (event: MouseEvent) => {
+  const target = event.currentTarget as HTMLElement | null
+  if (!target) {
+    showAccountToolsDropdown.value = true
+    accountToolsDropdownPosition.value = { top: event.clientY, left: Math.max(16, event.clientX - 240) }
+    return
+  }
+
+  const rect = target.getBoundingClientRect()
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const padding = 16
+  const menuWidth = Math.min(320, viewportWidth - padding * 2)
+  const estimatedMenuHeight = 440
+
+  const left = Math.max(
+    padding,
+    Math.min(rect.right - menuWidth, viewportWidth - menuWidth - padding)
+  )
+
+  let top = rect.bottom + 8
+  if (top + estimatedMenuHeight > viewportHeight - padding) {
+    top = Math.max(padding, rect.top - estimatedMenuHeight - 8)
+  }
+
+  accountToolsDropdownPosition.value = { top, left }
+  showAccountToolsDropdown.value = true
+}
+
+const toggleAccountToolsDropdown = (event: MouseEvent) => {
+  if (showAccountToolsDropdown.value) {
+    closeAccountToolsDropdown()
+    return
+  }
+  openAccountToolsDropdown(event)
 }
 
 const openSyncFromCrs = () => {
@@ -1084,59 +1265,6 @@ function getAntigravityTierLabel(row: any): string | null {
   }
 }
 
-// 账号显示邮箱:优先账号自身(extra/credentials),影子账号回退母账号 parent_email。
-// 供名称单元格 v-if/标题/文本三处共用,避免同一回退链在模板里重复三次。
-function accountDisplayEmail(row: any): string {
-  return row.extra?.email_address || row.extra?.email || row.credentials?.email || row.parent_email || ''
-}
-
-type OpenAICompactBadgeState = 'active' | 'blocked' | 'auto'
-
-function getOpenAICompactState(row: any): OpenAICompactBadgeState | null {
-  if (row.platform !== 'openai' || (row.type !== 'oauth' && row.type !== 'apikey')) return null
-  const extra = row.extra as Record<string, unknown> | undefined
-  const mode = typeof extra?.openai_compact_mode === 'string' ? extra.openai_compact_mode : 'auto'
-  if (mode === 'force_on') return 'active'
-  if (mode === 'force_off') return 'blocked'
-  if (typeof extra?.openai_compact_supported === 'boolean') {
-    return extra.openai_compact_supported ? 'active' : 'blocked'
-  }
-  return 'auto'
-}
-
-function getOpenAICompactMeta(row: any): { label: string; className: string; dotClass: string } | null {
-  const state = getOpenAICompactState(row)
-  if (!state) return null
-  switch (state) {
-    case 'active':
-      return {
-        label: t('admin.accounts.openai.compactSupported'),
-        className: 'text-emerald-600 dark:text-emerald-300',
-        dotClass: 'bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.14)]'
-      }
-    case 'blocked':
-      return {
-        label: t('admin.accounts.openai.compactUnsupported'),
-        className: 'text-rose-600 dark:text-rose-300',
-        dotClass: 'bg-rose-500 shadow-[0_0_0_2px_rgba(244,63,94,0.14)]'
-      }
-    case 'auto':
-      return {
-        label: t('admin.accounts.openai.compactAuto'),
-        className: 'text-slate-500 dark:text-slate-400',
-        dotClass: 'bg-slate-300 dark:bg-slate-500'
-      }
-  }
-}
-
-function getOpenAICompactTitle(row: any): string {
-  const extra = row.extra as Record<string, unknown> | undefined
-  const checkedAt = typeof extra?.openai_compact_checked_at === 'string' ? extra.openai_compact_checked_at : ''
-  const label = getOpenAICompactMeta(row)?.label || ''
-  if (!checkedAt) return label
-  return `${label} | ${t('admin.accounts.openai.compactLastChecked')}: ${formatDateTime(new Date(checkedAt))}`
-}
-
 function getAntigravityTierClass(row: any): string {
   const tier = getAntigravityTierFromRow(row)
   switch (tier) {
@@ -1147,31 +1275,53 @@ function getAntigravityTierClass(row: any): string {
   }
 }
 
+const ACCOUNT_COLUMN_CLASS_MAP: Record<string, string> = {
+  select: 'w-12 min-w-[3rem] max-w-[3rem]',
+  id: 'w-[5.5rem] min-w-[5.5rem]',
+  platform_type: 'w-[9rem] min-w-[9rem]',
+  capacity: 'w-[6.75rem] min-w-[6.75rem]',
+  status: 'w-[5.5rem] min-w-[5.5rem]',
+  schedulable: 'w-[4.75rem] min-w-[4.75rem]',
+  today_stats: 'w-[10rem] min-w-[10rem]',
+  groups: 'w-[14.5rem] min-w-[14.5rem]',
+  usage: 'w-[11rem] min-w-[11rem]',
+  proxy: 'w-[9rem] min-w-[9rem]',
+  priority: 'w-[4rem] min-w-[4rem]',
+  rate_multiplier: 'w-[5.25rem] min-w-[5.25rem]',
+  last_used_at: 'w-[9.5rem] min-w-[9.5rem]',
+  created_at: 'w-[6.5rem] min-w-[6.5rem]',
+  expires_at: 'w-[9.5rem] min-w-[9.5rem]',
+  notes: 'w-[10rem] min-w-[10rem]',
+  actions: 'w-[8rem] min-w-[8rem]'
+}
+
+const getAccountColumnClass = (key: string) => ACCOUNT_COLUMN_CLASS_MAP[key] ?? ''
+
 // All available columns
-const allColumns = computed(() => {
-  const c = [
-    { key: 'select', label: '', sortable: false },
+const allColumns = computed<Column[]>(() => {
+  const c: Column[] = [
+    { key: 'select', label: '', sortable: false, class: getAccountColumnClass('select') },
     { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
-    { key: 'id', label: t('admin.accounts.columns.id'), sortable: true },
-    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
-    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
-    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
-    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true },
-    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false }
+    { key: 'id', label: t('admin.accounts.columns.id'), sortable: true, class: getAccountColumnClass('id') },
+    { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, class: getAccountColumnClass('platform_type') },
+    { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, class: getAccountColumnClass('capacity') },
+    { key: 'status', label: t('admin.accounts.columns.status'), sortable: true, class: getAccountColumnClass('status') },
+    { key: 'schedulable', label: t('admin.accounts.columns.schedulable'), sortable: true, class: getAccountColumnClass('schedulable') },
+    { key: 'today_stats', label: t('admin.accounts.columns.todayStats'), sortable: false, class: getAccountColumnClass('today_stats') }
   ]
   if (!authStore.isSimpleMode) {
-    c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false })
+    c.push({ key: 'groups', label: t('admin.accounts.columns.groups'), sortable: false, class: getAccountColumnClass('groups') })
   }
   c.push(
-    { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
-    { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
-    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
-    { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },
-    { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true },
-    { key: 'created_at', label: t('admin.accounts.columns.createdAt'), sortable: true },
-    { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true },
-    { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false },
-    { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false }
+    { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false, class: getAccountColumnClass('usage') },
+    { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false, class: getAccountColumnClass('proxy') },
+    { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true, class: getAccountColumnClass('priority') },
+    { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true, class: getAccountColumnClass('rate_multiplier') },
+    { key: 'last_used_at', label: t('admin.accounts.columns.lastUsed'), sortable: true, class: getAccountColumnClass('last_used_at') },
+    { key: 'created_at', label: t('admin.accounts.columns.createdAt'), sortable: true, class: getAccountColumnClass('created_at') },
+    { key: 'expires_at', label: t('admin.accounts.columns.expiresAt'), sortable: true, class: getAccountColumnClass('expires_at') },
+    { key: 'notes', label: t('admin.accounts.columns.notes'), sortable: false, class: getAccountColumnClass('notes') },
+    { key: 'actions', label: t('admin.accounts.columns.actions'), sortable: false, class: getAccountColumnClass('actions') }
   )
   return c
 })
@@ -1386,6 +1536,7 @@ const buildBulkEditFilterSnapshot = () => {
     platform: typeof rawParams.platform === 'string' ? rawParams.platform : '',
     type: typeof rawParams.type === 'string' ? rawParams.type : '',
     status: typeof rawParams.status === 'string' ? rawParams.status : '',
+    anomaly_reason: typeof rawParams.anomaly_reason === 'string' ? rawParams.anomaly_reason : '',
     group: typeof rawParams.group === 'string' ? rawParams.group : '',
     search: typeof rawParams.search === 'string' ? rawParams.search : '',
     privacy_mode: typeof rawParams.privacy_mode === 'string' ? rawParams.privacy_mode : '',
@@ -1433,16 +1584,34 @@ const handleBulkUpdated = () => {
 const handleDataImported = () => { showImportData.value = false; reload() }
 const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
 const ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE = '__unset__'
+const anomalyReasonLabel = (code: AccountAnomalyReasonCode) => t(`admin.accounts.anomalyReasons.${code}.label`)
+const anomalyReasonAction = (code: AccountAnomalyReasonCode) => t(`admin.accounts.anomalyReasons.${code}.action`)
 const buildAccountQueryFilters = () => ({
   platform: params.platform || '',
   type: params.type || '',
   status: params.status || '',
+  anomaly_reason: params.anomaly_reason || '',
   group: params.group || '',
   privacy_mode: params.privacy_mode || '',
   search: params.search || '',
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
+const accountAnomalySummaryItems = computed(() => {
+  const counts = new Map<AccountAnomalyReasonCode, number>()
+  for (const account of accounts.value) {
+    const code = deriveAccountAnomalyReason(account).code
+    if (code === 'healthy') continue
+    counts.set(code, (counts.get(code) || 0) + 1)
+  }
+  return accountAnomalyReasonFilterOrder
+    .map(code => ({ code, count: counts.get(code) || 0 }))
+    .filter(item => item.count > 0)
+})
+const applyAnomalyReasonFilter = (code: AccountAnomalyReasonCode | '') => {
+  params.anomaly_reason = code
+  debouncedReload()
+}
 const accountMatchesCurrentFilters = (account: Account) => {
   const filters = buildAccountQueryFilters()
   if (filters.platform && account.platform !== filters.platform) return false
@@ -1465,6 +1634,9 @@ const accountMatchesCurrentFilters = (account: Account) => {
     } else if (account.status !== filters.status) {
       return false
     }
+  }
+  if (filters.anomaly_reason) {
+    if (deriveAccountAnomalyReason(account).code !== filters.anomaly_reason) return false
   }
   if (filters.group) {
     const groupIds = account.group_ids ?? account.groups?.map((group) => group.id) ?? []
@@ -1560,13 +1732,7 @@ const handleExportData = async () => {
     link.download = filename
     link.click()
     URL.revokeObjectURL(url)
-    // spark 影子账号被后端排除出备份(其凭据透传母账号、调度配置不可经凭据型导入重建);
-    // 跳过非零时明确提示用户,避免「下载成功但少了账号」的静默丢失。
-    if (dataPayload.skipped_shadows && dataPayload.skipped_shadows > 0) {
-      appStore.showWarning(t('admin.accounts.dataExportedSkippedShadows', { count: dataPayload.skipped_shadows }))
-    } else {
-      appStore.showSuccess(t('admin.accounts.dataExported'))
-    }
+    appStore.showSuccess(t('admin.accounts.dataExported'))
   } catch (error: any) {
     appStore.showError(error?.message || t('admin.accounts.dataExportFailed'))
   } finally {
@@ -1622,39 +1788,12 @@ const handleResetQuota = async (a: Account) => {
     console.error('Failed to reset quota:', error)
   }
 }
-
-const privacyResultMessageKey = (account: Account): { type: 'success' | 'error'; key: string } => {
-  const mode = typeof account.extra?.privacy_mode === 'string' ? account.extra.privacy_mode : ''
-  if (account.platform === 'openai') {
-    switch (mode) {
-      case 'training_off':
-        return { type: 'success', key: 'admin.accounts.privacyTrainingOff' }
-      case 'training_set_cf_blocked':
-        return { type: 'error', key: 'admin.accounts.privacyCfBlocked' }
-      default:
-        return { type: 'error', key: 'admin.accounts.privacyFailed' }
-    }
-  }
-  if (account.platform === 'antigravity') {
-    if (mode === 'privacy_set') {
-      return { type: 'success', key: 'admin.accounts.privacyAntigravitySet' }
-    }
-    return { type: 'error', key: 'admin.accounts.privacyAntigravityFailed' }
-  }
-  return { type: 'error', key: 'admin.accounts.privacyFailed' }
-}
-
 const handleSetPrivacy = async (a: Account) => {
   try {
     const updated = await adminAPI.accounts.setPrivacy(a.id)
     patchAccountInList(updated)
     enterAutoRefreshSilentWindow()
-    const result = privacyResultMessageKey(updated)
-    if (result.type === 'success') {
-      appStore.showSuccess(t(result.key))
-    } else {
-      appStore.showError(t(result.key))
-    }
+    appStore.showSuccess(t('common.success'))
   } catch (error: any) {
     console.error('Failed to set privacy:', error)
     appStore.showError(error?.response?.data?.message || t('admin.accounts.privacyFailed'))
@@ -1668,24 +1807,6 @@ const onRevertFallback = async (a: Account) => {
   } catch (error: any) {
     console.error('Failed to revert proxy fallback:', error)
     appStore.showError(error?.response?.data?.message || t('admin.accounts.revertProxyFailed'))
-  }
-}
-const handleCreateSparkShadow = (a: Account) => {
-  creatingShadowAcc.value = a
-  showCreateShadowDialog.value = true
-}
-const confirmCreateSparkShadow = async () => {
-  const a = creatingShadowAcc.value
-  if (!a) return
-  try {
-    await adminAPI.accounts.createSparkShadow(a.id, { name: `${a.name} (Spark)` })
-    showCreateShadowDialog.value = false
-    creatingShadowAcc.value = null
-    appStore.showSuccess(t('admin.accounts.createSparkShadowSuccess'))
-    reload()
-  } catch (error: any) {
-    console.error('Failed to create spark shadow:', error)
-    appStore.showError(error?.response?.data?.message || t('admin.accounts.createSparkShadowFailed'))
   }
 }
 const handleDelete = (a: Account) => { deletingAcc.value = a; showDeleteDialog.value = true }
@@ -1746,7 +1867,7 @@ const handleScroll = () => {
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
   if (accountToolsDropdownRef.value && !accountToolsDropdownRef.value.contains(target)) {
-    showAccountToolsDropdown.value = false
+    closeAccountToolsDropdown()
   }
   if (autoRefreshDropdownRef.value && !autoRefreshDropdownRef.value.contains(target)) {
     showAutoRefreshDropdown.value = false
@@ -1780,11 +1901,193 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.sst-admin-page {
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.sst-admin-page :deep(.table-page-layout),
+.sst-admin-page :deep(.layout-section-fixed),
+.sst-admin-page :deep(.layout-section-scrollable),
+.sst-admin-page :deep(.table-scroll-container) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.sst-admin-page :deep(.table-page-layout) {
+  height: auto;
+  min-height: calc(100vh - 64px - 4rem);
+}
+
+.sst-admin-page :deep(.layout-section-scrollable) {
+  flex: 0 0 auto;
+}
+
+.sst-admin-page :deep(.table-scroll-container) {
+  height: auto;
+}
+
+.sst-admin-page :deep(.layout-section-fixed) {
+  overflow-x: hidden;
+}
+
+.account-table-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.account-table-scroll-x {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
+.account-table-scroll-x :deep(.table-wrapper) {
+  width: max-content;
+  max-width: none;
+  min-width: 100%;
+  overflow-x: visible !important;
+  overflow-y: auto;
+  height: var(--account-table-visible-height, min(72vh, 52rem));
+  min-height: var(--account-table-visible-height, min(72vh, 52rem));
+}
+
+.account-table-scroll-x :deep(.sticky-header-cell) {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.account-table-scroll-x :deep(tbody td) {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.account-table-scroll-x :deep(table) {
+  min-width: max-content;
+}
+
+.account-table-scroll-x::-webkit-scrollbar {
+  height: 12px;
+}
+
+.account-table-scroll-x::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+}
+
+.account-table-scroll-x::-webkit-scrollbar-thumb {
+  background: rgba(107, 114, 128, 0.72);
+  border-radius: 6px;
+}
+
+.account-table-scroll-x::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 85, 99, 0.88);
+}
+
 .account-tools-menu-item {
-  @apply flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700;
+  @apply flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors;
+  color: #38413a;
+  background: transparent;
+}
+
+.account-tools-menu-item:hover {
+  background: rgba(167, 58, 42, 0.055);
 }
 
 .account-tools-menu-icon {
   @apply inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md;
+  border: 1px solid rgba(198, 184, 157, 0.34);
+  background: rgba(250, 247, 239, 0.78);
+}
+
+.account-tools-dropdown {
+  max-width: min(20rem, calc(100vw - 2rem));
+}
+
+.account-health-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  max-width: 8.5rem;
+  border-radius: 999px;
+  border: 1px solid rgba(198, 184, 157, 0.42);
+  padding: 0.125rem 0.45rem;
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.account-health-pill strong {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.625rem;
+  opacity: 0.82;
+}
+
+.account-health-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.account-health-pill-good {
+  color: #51624f;
+  background: rgba(233, 239, 225, 0.72);
+}
+
+.account-health-pill-warning {
+  color: #8a6424;
+  background: rgba(250, 238, 204, 0.82);
+}
+
+.account-health-pill-critical {
+  color: #9b3f31;
+  background: rgba(248, 225, 217, 0.82);
+}
+
+</style>
+<style>
+.dark .account-tools-menu-item {
+  color: #d7d0c2;
+}
+
+.dark .account-tools-menu-item:hover {
+  background: rgba(167, 58, 42, 0.12);
+}
+
+.dark .account-tools-menu-icon {
+  border-color: rgba(48, 52, 43, 0.84);
+  background: rgba(24, 26, 21, 0.74);
+}
+
+.dark .account-health-pill {
+  border-color: rgba(91, 82, 64, 0.78);
+}
+
+.dark .account-health-pill-good {
+  color: #a8b89e;
+  background: rgba(64, 80, 56, 0.34);
+}
+
+.dark .account-health-pill-warning {
+  color: #d4b16b;
+  background: rgba(105, 76, 30, 0.34);
+}
+
+.dark .account-health-pill-critical {
+  color: #df9a8d;
+  background: rgba(111, 46, 38, 0.34);
 }
 </style>
+

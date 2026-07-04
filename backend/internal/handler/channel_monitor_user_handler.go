@@ -1,10 +1,11 @@
 package handler
 
 import (
+	"strconv"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -162,8 +163,7 @@ func (h *ChannelMonitorUserHandler) GetStatus(c *gin.Context) {
 		response.ErrorFrom(c, service.ErrChannelMonitorNotFound)
 		return
 	}
-	// 复用 admin.ParseChannelMonitorID 保持错误码与日志一致。
-	id, ok := admin.ParseChannelMonitorID(c)
+	id, ok := parseUserMonitorID(c)
 	if !ok {
 		return
 	}
@@ -173,4 +173,13 @@ func (h *ChannelMonitorUserHandler) GetStatus(c *gin.Context) {
 		return
 	}
 	response.Success(c, userMonitorDetailToResponse(detail))
+}
+
+func parseUserMonitorID(c *gin.Context) (int64, bool) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id == 0 {
+		response.ErrorFrom(c, infraerrors.BadRequest("INVALID_MONITOR_ID", "invalid monitor id"))
+		return 0, false
+	}
+	return id, true
 }

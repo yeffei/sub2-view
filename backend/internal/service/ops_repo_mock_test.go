@@ -38,6 +38,10 @@ func (m *opsRepoMock) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorL
 	return &OpsErrorLogDetail{}, nil
 }
 
+func (m *opsRepoMock) GetUserAPIKeyErrorSummaries(ctx context.Context, userID int64, apiKeyIDs []int64, startTime time.Time) (map[int64]*APIKeyErrorSummary, error) {
+	return map[int64]*APIKeyErrorSummary{}, nil
+}
+
 func (m *opsRepoMock) ListRequestDetails(ctx context.Context, filter *OpsRequestDetailFilter) ([]*OpsRequestDetail, int64, error) {
 	return []*OpsRequestDetail{}, 0, nil
 }

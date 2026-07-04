@@ -14,6 +14,9 @@ type stubAdminService struct {
 	apiKeys              []service.APIKey
 	groups               []service.Group
 	accounts             []service.Account
+	upstreamPools        []service.UpstreamPool
+	upstreamPoolMembers  []service.UpstreamPoolMember
+	upstreamPoolBindings []service.UpstreamPoolBinding
 	proxies              []service.Proxy
 	proxyCounts          []service.ProxyWithAccountCount
 	redeems              []service.RedeemCode
@@ -26,7 +29,6 @@ type stubAdminService struct {
 	testedProxyIDs       []int64
 	getUserErr           error
 	createAccountErr     error
-	createSparkShadowErr error
 	updateAccountErr     error
 	bulkUpdateAccountErr error
 	checkMixedErr        error
@@ -39,6 +41,7 @@ type stubAdminService struct {
 		platform    string
 		accountType string
 		status      string
+		anomalyReason string
 		search      string
 		groupID     int64
 		privacyMode string
@@ -132,6 +135,33 @@ func newStubAdminService() *stubAdminService {
 		apiKeys:     []service.APIKey{apiKey},
 		groups:      []service.Group{group},
 		accounts:    []service.Account{account},
+		upstreamPools: []service.UpstreamPool{{
+			ID:        11,
+			Name:      "pool",
+			Code:      "openai-main",
+			Platform:  service.PlatformOpenAI,
+			Enabled:   true,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}},
+		upstreamPoolMembers: []service.UpstreamPoolMember{{
+			ID:        21,
+			PoolID:    11,
+			AccountID: account.ID,
+			Enabled:   true,
+			Weight:    100,
+			JoinedAt:   now,
+			UpdatedAt:  now,
+		}},
+		upstreamPoolBindings: []service.UpstreamPoolBinding{{
+			ID:        31,
+			GroupID:   group.ID,
+			PoolID:    11,
+			Platform:  service.PlatformOpenAI,
+			Enabled:   true,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}},
 		proxies:     []service.Proxy{proxy},
 		proxyCounts: []service.ProxyWithAccountCount{{Proxy: proxy, AccountCount: 1}},
 		redeems:     []service.RedeemCode{redeem},
@@ -299,6 +329,93 @@ func (s *stubAdminService) GetGroupAPIKeys(ctx context.Context, groupID int64, p
 	return s.apiKeys, int64(len(s.apiKeys)), nil
 }
 
+func (s *stubAdminService) ListUpstreamPools(ctx context.Context) ([]service.UpstreamPool, error) {
+	return s.upstreamPools, nil
+}
+
+func (s *stubAdminService) GetUpstreamPoolByID(ctx context.Context, id int64) (*service.UpstreamPool, error) {
+	for i := range s.upstreamPools {
+		if s.upstreamPools[i].ID == id {
+			return &s.upstreamPools[i], nil
+		}
+	}
+	return nil, service.ErrUpstreamPoolNotFound
+}
+
+func (s *stubAdminService) CreateUpstreamPool(ctx context.Context, input *service.CreateUpstreamPoolInput) (*service.UpstreamPool, error) {
+	pool := service.UpstreamPool{ID: 1001, Name: input.Name, Code: input.Code, Platform: input.Platform, Enabled: true}
+	return &pool, nil
+}
+
+func (s *stubAdminService) UpdateUpstreamPool(ctx context.Context, id int64, input *service.UpdateUpstreamPoolInput) (*service.UpstreamPool, error) {
+	pool := service.UpstreamPool{ID: id, Name: "pool", Code: "pool-code", Platform: service.PlatformOpenAI, Enabled: true}
+	return &pool, nil
+}
+
+func (s *stubAdminService) DeleteUpstreamPool(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (s *stubAdminService) GetUpstreamPoolMemberByID(ctx context.Context, id int64) (*service.UpstreamPoolMember, error) {
+	for i := range s.upstreamPoolMembers {
+		if s.upstreamPoolMembers[i].ID == id {
+			return &s.upstreamPoolMembers[i], nil
+		}
+	}
+	return nil, service.ErrUpstreamPoolNotFound
+}
+
+func (s *stubAdminService) ListUpstreamPoolMembers(ctx context.Context, poolID int64) ([]service.UpstreamPoolMember, error) {
+	out := make([]service.UpstreamPoolMember, 0)
+	for _, member := range s.upstreamPoolMembers {
+		if member.PoolID == poolID {
+			out = append(out, member)
+		}
+	}
+	return out, nil
+}
+
+func (s *stubAdminService) CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *service.CreateUpstreamPoolMemberInput) (*service.UpstreamPoolMember, error) {
+	member := service.UpstreamPoolMember{ID: 201, PoolID: poolID, AccountID: input.AccountID, Enabled: true, Weight: 100}
+	return &member, nil
+}
+
+func (s *stubAdminService) UpdateUpstreamPoolMember(ctx context.Context, id int64, input *service.UpdateUpstreamPoolMemberInput) (*service.UpstreamPoolMember, error) {
+	member := service.UpstreamPoolMember{ID: id, PoolID: 11, AccountID: 3, Enabled: true, Weight: 100}
+	return &member, nil
+}
+
+func (s *stubAdminService) DeleteUpstreamPoolMember(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (s *stubAdminService) ListUpstreamPoolBindings(ctx context.Context) ([]service.UpstreamPoolBinding, error) {
+	return s.upstreamPoolBindings, nil
+}
+
+func (s *stubAdminService) GetUpstreamPoolBindingByID(ctx context.Context, id int64) (*service.UpstreamPoolBinding, error) {
+	for i := range s.upstreamPoolBindings {
+		if s.upstreamPoolBindings[i].ID == id {
+			return &s.upstreamPoolBindings[i], nil
+		}
+	}
+	return nil, service.ErrUpstreamPoolNotFound
+}
+
+func (s *stubAdminService) CreateUpstreamPoolBinding(ctx context.Context, input *service.CreateUpstreamPoolBindingInput) (*service.UpstreamPoolBinding, error) {
+	binding := service.UpstreamPoolBinding{ID: 301, GroupID: input.GroupID, PoolID: input.PoolID, Platform: input.Platform, Enabled: true}
+	return &binding, nil
+}
+
+func (s *stubAdminService) UpdateUpstreamPoolBinding(ctx context.Context, id int64, input *service.UpdateUpstreamPoolBindingInput) (*service.UpstreamPoolBinding, error) {
+	binding := service.UpstreamPoolBinding{ID: id, GroupID: 2, PoolID: 11, Platform: service.PlatformOpenAI, Enabled: true}
+	return &binding, nil
+}
+
+func (s *stubAdminService) DeleteUpstreamPoolBinding(ctx context.Context, id int64) error {
+	return nil
+}
+
 func (s *stubAdminService) GetGroupRateMultipliers(_ context.Context, _ int64) ([]service.UserGroupRateEntry, error) {
 	return nil, nil
 }
@@ -319,10 +436,11 @@ func (s *stubAdminService) BatchSetGroupRPMOverrides(_ context.Context, _ int64,
 	return nil
 }
 
-func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]service.Account, int64, error) {
+func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, anomalyReason, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]service.Account, int64, error) {
 	s.lastListAccounts.platform = platform
 	s.lastListAccounts.accountType = accountType
 	s.lastListAccounts.status = status
+	s.lastListAccounts.anomalyReason = anomalyReason
 	s.lastListAccounts.search = search
 	s.lastListAccounts.groupID = groupID
 	s.lastListAccounts.privacyMode = privacyMode
@@ -635,26 +753,6 @@ func (s *stubAdminService) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 
 func (s *stubAdminService) RevertAccountProxyFallback(ctx context.Context, id int64) error {
 	return nil
-}
-
-func (s *stubAdminService) CreateShadow(ctx context.Context, parentID int64, opts service.ShadowOptions) (*service.Account, error) {
-	if s.createSparkShadowErr != nil {
-		return nil, s.createSparkShadowErr
-	}
-	pid := parentID
-	return &service.Account{
-		ID:              9001,
-		Name:            opts.Name,
-		Platform:        service.PlatformOpenAI,
-		Type:            service.AccountTypeOAuth,
-		Priority:        opts.Priority,
-		Concurrency:     opts.Concurrency,
-		GroupIDs:        opts.GroupIDs,
-		ParentAccountID: &pid,
-		QuotaDimension:  service.QuotaDimensionSpark,
-		Credentials:     map[string]any{},
-		Extra:           map[string]any{},
-	}, nil
 }
 
 // Ensure stub implements interface.

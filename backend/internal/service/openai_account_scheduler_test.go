@@ -475,50 +475,6 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DefaultDisabled_Embeddi
 	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
 }
 
-func TestOpenAIGatewayService_SelectAccountWithScheduler_DefaultDisabled_AllowsGrokChatAccount(t *testing.T) {
-	resetOpenAIAdvancedSchedulerSettingCacheForTest()
-
-	ctx := context.Background()
-	groupID := int64(10113)
-	accounts := []Account{
-		{
-			ID:          36041,
-			Platform:    PlatformGrok,
-			Type:        AccountTypeOAuth,
-			Status:      StatusActive,
-			Schedulable: true,
-			Concurrency: 1,
-			Priority:    0,
-		},
-	}
-	cfg := &config.Config{}
-	cfg.Gateway.Scheduling.LoadBatchEnabled = false
-	svc := &OpenAIGatewayService{
-		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
-		cache:              &schedulerTestGatewayCache{},
-		cfg:                cfg,
-		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
-	}
-
-	selection, decision, err := svc.SelectAccountWithSchedulerForCapability(
-		ctx,
-		&groupID,
-		"",
-		"",
-		"grok-4.3",
-		nil,
-		OpenAIUpstreamTransportAny,
-		OpenAIEndpointCapabilityChatCompletions,
-		false,
-		PlatformGrok,
-	)
-	require.NoError(t, err)
-	require.NotNil(t, selection)
-	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(36041), selection.Account.ID)
-	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
-}
-
 func TestOpenAIGatewayService_SelectAccountWithScheduler_EnabledUsesAdvancedPreviousResponseRouting(t *testing.T) {
 	resetOpenAIAdvancedSchedulerSettingCacheForTest()
 
@@ -1560,6 +1516,106 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeDisa
 	require.True(t, decision.StickySessionHit)
 }
 
+func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapeUsesPoolThreshold(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(10105)
+	accounts := []Account{
+		{ID: 21511, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}},
+		{ID: 21512, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1, GroupIDs: []int64{groupID}},
+	}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_pool_threshold": 21511}}
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled = true
+	cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 15000
+	cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate = 0.5
+	cfg.Gateway.OpenAIWS.LBTopK = 2
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Priority = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Queue = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate = 1
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT = 1
+	poolStickyEscapeEnabled := true
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
+		upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+			memberIDs:                      map[int64]struct{}{21511: {}, 21512: {}},
+			stickyEscapeEnabled:            &poolStickyEscapeEnabled,
+			stickyEscapeErrorRateThreshold: 0.3,
+			stickyEscapeTTFTMSThreshold:    6000,
+		},
+		cache: cache,
+		cfg:   cfg,
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
+			acquireResults: map[int64]bool{21512: true},
+			loadMap: map[int64]*AccountLoadInfo{
+				21511: {AccountID: 21511, LoadRate: 95, WaitingCount: 8},
+				21512: {AccountID: 21512, LoadRate: 1, WaitingCount: 0},
+			},
+		}),
+		openaiAccountStats: newOpenAIAccountRuntimeStats(),
+	}
+	slowButNotGlobalThreshold := 7000
+	for i := 0; i < 3; i++ {
+		svc.openaiAccountStats.report(21511, true, &slowButNotGlobalThreshold)
+	}
+
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "session_hash_pool_threshold", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(21512), selection.Account.ID, "pool ttft threshold should override looser global threshold")
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.False(t, decision.StickySessionHit)
+	require.Equal(t, int64(21511), cache.sessionBindings["openai:session_hash_pool_threshold"])
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyEscapePoolDisableOverridesGlobal(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(10106)
+	accounts := []Account{
+		{ID: 21611, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}},
+		{ID: 21612, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 1, GroupIDs: []int64{groupID}},
+	}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_pool_disable": 21611}}
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled = true
+	cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 15000
+	cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate = 0.5
+	poolStickyEscapeEnabled := false
+	svc := &OpenAIGatewayService{
+		accountRepo: schedulerGroupAwareOpenAIAccountRepo{schedulerTestOpenAIAccountRepo{accounts: accounts}},
+		upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+			memberIDs:                      map[int64]struct{}{21611: {}, 21612: {}},
+			stickyEscapeEnabled:            &poolStickyEscapeEnabled,
+			stickyEscapeErrorRateThreshold: 0.3,
+			stickyEscapeTTFTMSThreshold:    6000,
+		},
+		cache:              cache,
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{acquireResults: map[int64]bool{21611: true, 21612: true}}),
+		openaiAccountStats: newOpenAIAccountRuntimeStats(),
+	}
+	verySlowTTFT := 20000
+	svc.openaiAccountStats.report(21611, true, &verySlowTTFT)
+	for i := 0; i < 5; i++ {
+		svc.openaiAccountStats.report(21611, false, nil)
+	}
+
+	selection, decision, err := svc.SelectAccountWithScheduler(ctx, &groupID, "", "session_hash_pool_disable", "gpt-5.1", nil, OpenAIUpstreamTransportAny, false)
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(21611), selection.Account.ID, "pool disable should keep sticky even when global escape is enabled")
+	require.Equal(t, openAIAccountScheduleLayerSessionSticky, decision.Layer)
+	require.True(t, decision.StickySessionHit)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
 func TestDefaultOpenAIAccountScheduler_ShouldEscapeStickyAccount_ThresholdBoundary(t *testing.T) {
 	stats := newOpenAIAccountRuntimeStats()
 	accountID := int64(21501)
@@ -1598,6 +1654,32 @@ func TestDefaultOpenAIAccountScheduler_ShouldEscapeStickyAccount_ThresholdBounda
 	require.Empty(t, reason)
 	require.InDelta(t, 0.655936, errorRate, 1e-9)
 	require.InDelta(t, 15000, observedTTFT, 1e-9)
+}
+
+func TestOpenAIGatewayService_OpenAIStickyEscapeConfig_SourceAndThresholds(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled = true
+	cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs = 15000
+	cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate = 0.5
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	globalCfg, globalSource := svc.openAIStickyEscapeConfig(nil)
+	require.Equal(t, "global", globalSource)
+	require.True(t, globalCfg.enabled)
+	require.Equal(t, 15000.0, globalCfg.ttftMs)
+	require.Equal(t, 0.5, globalCfg.errorRate)
+
+	disabled := false
+	poolCfg, poolSource := svc.openAIStickyEscapeConfig(&OpenAIRoutingPolicy{
+		HasBinding:                     true,
+		StickyEscapeEnabled:            &disabled,
+		StickyEscapeTTFTMSThreshold:    6000,
+		StickyEscapeErrorRateThreshold: 0.3,
+	})
+	require.Equal(t, "pool", poolSource)
+	require.False(t, poolCfg.enabled)
+	require.Equal(t, 6000.0, poolCfg.ttftMs)
+	require.Equal(t, 0.3, poolCfg.errorRate)
 }
 
 func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionSticky_ForceHTTP(t *testing.T) {
@@ -2117,6 +2199,63 @@ func TestSelectTopKOpenAICandidates(t *testing.T) {
 	require.Equal(t, int64(14), topAll[3].account.ID)
 }
 
+func TestSelectCacheAffinityTopKOpenAICandidates_DeterministicByAffinityKey(t *testing.T) {
+	candidates := []openAIAccountCandidateScore{
+		{account: &Account{ID: 201, Priority: 0}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 202, Priority: 0}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 203, Priority: 0}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 204, Priority: 0}, loadInfo: &AccountLoadInfo{}, score: 1},
+	}
+	req := OpenAIAccountScheduleRequest{
+		GroupID:        int64PtrForTest(7),
+		SessionHash:    "cache_affinity_seed",
+		RequestedModel: "gpt-5.1",
+	}
+
+	first, firstHash, firstIDs := selectCacheAffinityTopKOpenAICandidates(candidates, 2, req)
+	second, secondHash, secondIDs := selectCacheAffinityTopKOpenAICandidates(candidates, 2, req)
+
+	require.Len(t, first, 2)
+	require.Len(t, second, 2)
+	require.NotEmpty(t, firstHash)
+	require.Equal(t, firstHash, secondHash)
+	require.Equal(t, firstIDs, secondIDs)
+	require.Equal(t, first[0].account.ID, second[0].account.ID)
+	require.Equal(t, first[1].account.ID, second[1].account.ID)
+}
+
+func TestSelectCacheAffinityTopKOpenAICandidates_NoAffinityFallsBack(t *testing.T) {
+	candidates := []openAIAccountCandidateScore{
+		{account: &Account{ID: 301}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 302}, loadInfo: &AccountLoadInfo{}, score: 1},
+	}
+
+	topK, affinityHash, affinityIDs := selectCacheAffinityTopKOpenAICandidates(candidates, 2, OpenAIAccountScheduleRequest{
+		RequestedModel: "gpt-5.1",
+	})
+
+	require.Nil(t, topK)
+	require.Empty(t, affinityHash)
+	require.Empty(t, affinityIDs)
+}
+
+func TestSelectCacheAffinityTopKOpenAICandidates_DisabledByPolicy(t *testing.T) {
+	candidates := []openAIAccountCandidateScore{
+		{account: &Account{ID: 401}, loadInfo: &AccountLoadInfo{}, score: 1},
+		{account: &Account{ID: 402}, loadInfo: &AccountLoadInfo{}, score: 1},
+	}
+
+	topK, affinityHash, affinityIDs := selectCacheAffinityTopKOpenAICandidates(candidates, 2, OpenAIAccountScheduleRequest{
+		SessionHash:          "cache-key",
+		RequestedModel:       "gpt-5.1",
+		CacheAffinityEnabled: boolPtr(false),
+	})
+
+	require.Nil(t, topK)
+	require.Empty(t, affinityHash)
+	require.Empty(t, affinityIDs)
+}
+
 func TestBuildOpenAIWeightedSelectionOrder_DeterministicBySessionSeed(t *testing.T) {
 	candidates := []openAIAccountCandidateScore{
 		{
@@ -2391,7 +2530,6 @@ func TestDefaultOpenAIAccountScheduler_IsAccountTransportCompatible_Branches(t *
 	require.True(t, scheduler.isAccountTransportCompatible(nil, OpenAIUpstreamTransportAny))
 	require.True(t, scheduler.isAccountTransportCompatible(nil, OpenAIUpstreamTransportHTTPSSE))
 	require.False(t, scheduler.isAccountTransportCompatible(nil, OpenAIUpstreamTransportResponsesWebsocketV2))
-	require.False(t, scheduler.isAccountTransportCompatible(nil, OpenAIUpstreamTransportResponsesWebsocketV2Ingress))
 
 	cfg := newSchedulerTestOpenAIWSV2Config()
 	scheduler.service = &OpenAIGatewayService{cfg: cfg}
@@ -2407,15 +2545,6 @@ func TestDefaultOpenAIAccountScheduler_IsAccountTransportCompatible_Branches(t *
 		},
 	}
 	require.True(t, scheduler.isAccountTransportCompatible(account, OpenAIUpstreamTransportResponsesWebsocketV2))
-	require.True(t, scheduler.isAccountTransportCompatible(account, OpenAIUpstreamTransportResponsesWebsocketV2Ingress))
-
-	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
-	account.Extra["openai_apikey_responses_websockets_v2_mode"] = OpenAIWSIngressModeHTTPBridge
-	require.False(t, scheduler.isAccountTransportCompatible(account, OpenAIUpstreamTransportResponsesWebsocketV2))
-	require.True(t, scheduler.isAccountTransportCompatible(account, OpenAIUpstreamTransportResponsesWebsocketV2Ingress))
-
-	account.Extra["openai_apikey_responses_websockets_v2_mode"] = OpenAIWSIngressModeOff
-	require.False(t, scheduler.isAccountTransportCompatible(account, OpenAIUpstreamTransportResponsesWebsocketV2Ingress))
 }
 
 func int64PtrForTest(v int64) *int64 {

@@ -59,8 +59,10 @@ type ChannelMonitorRepository interface {
 
 // ChannelMonitorService 渠道监控管理服务。
 type ChannelMonitorService struct {
-	repo      ChannelMonitorRepository
-	encryptor SecretEncryptor
+	repo             ChannelMonitorRepository
+	encryptor        SecretEncryptor
+	upstreamPoolRepo UpstreamPoolRepository
+	accountRepo      AccountRepository
 	// scheduler 由 wire 通过 SetScheduler 注入；CRUD 后调用对应钩子即时同步任务。
 	// 测试或未注入场景下保持 nil，所有钩子调用变为 no-op。
 	scheduler MonitorScheduler
@@ -335,6 +337,16 @@ func (s *ChannelMonitorService) runChecksConcurrent(ctx context.Context, m *Chan
 // 通过 setter 注入避免 service ↔ runner 的依赖环。
 func (s *ChannelMonitorService) SetScheduler(sched MonitorScheduler) {
 	s.scheduler = sched
+}
+
+// SetUpstreamPoolRepository 注入上游池仓库，用户侧监控视图据此合并为池级卡片。
+func (s *ChannelMonitorService) SetUpstreamPoolRepository(repo UpstreamPoolRepository) {
+	s.upstreamPoolRepo = repo
+}
+
+// SetAccountRepository 注入账号仓库，供池级用户监控结合真实成员可调度状态做兜底判定。
+func (s *ChannelMonitorService) SetAccountRepository(repo AccountRepository) {
+	s.accountRepo = repo
 }
 
 // ListEnabledMonitors 返回所有 enabled=true 的监控（解密后），供 runner 启动时建立任务表。

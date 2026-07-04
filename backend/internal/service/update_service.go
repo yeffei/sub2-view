@@ -22,7 +22,8 @@ import (
 )
 
 var (
-	ErrNoUpdateAvailable = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
+	ErrNoUpdateAvailable    = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
+	ErrUpdatePreflightFailed = infraerrors.BadRequest("UPDATE_PREFLIGHT_FAILED", "update preflight failed")
 )
 
 const (
@@ -78,6 +79,30 @@ type UpdateInfo struct {
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
 	BuildType      string       `json:"build_type"` // "source" or "release"
+}
+
+// UpdatePreflightInfo contains safety checks that must pass before an in-place update.
+type UpdatePreflightInfo struct {
+	CurrentVersion string                 `json:"current_version"`
+	LatestVersion  string                 `json:"latest_version"`
+	HasUpdate      bool                   `json:"has_update"`
+	CanUpdate      bool                   `json:"can_update"`
+	BuildType      string                 `json:"build_type"`
+	ArchiveName    string                 `json:"archive_name"`
+	DownloadAsset  *Asset                 `json:"download_asset,omitempty"`
+	ChecksumAsset  *Asset                 `json:"checksum_asset,omitempty"`
+	ExecutablePath string                 `json:"executable_path,omitempty"`
+	BackupPath     string                 `json:"backup_path,omitempty"`
+	Checks         []UpdatePreflightCheck `json:"checks"`
+	BlockingReasons []string              `json:"blocking_reasons,omitempty"`
+	Warnings       []string               `json:"warnings,omitempty"`
+}
+
+type UpdatePreflightCheck struct {
+	Key     string `json:"key"`
+	Label   string `json:"label"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
 }
 
 // ReleaseInfo contains GitHub release details
@@ -143,6 +168,15 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 	return info, nil
 }
 
+// CheckUpdatePreflight runs the safety checks required before applying a release update.
+func (s *UpdateService) CheckUpdatePreflight(ctx context.Context, force bool) (*UpdatePreflightInfo, error) {
+	info, err := s.CheckUpdate(ctx, force)
+	if err != nil {
+		return nil, err
+	}
+	return s.buildPreflightInfo(info), nil
+}
+
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
 func (s *UpdateService) PerformUpdate(ctx context.Context) error {
@@ -153,6 +187,11 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 
 	if !info.HasUpdate {
 		return ErrNoUpdateAvailable
+	}
+
+	preflight := s.buildPreflightInfo(info)
+	if !preflight.CanUpdate {
+		return fmt.Errorf("%w: %s", ErrUpdatePreflightFailed, strings.Join(preflight.BlockingReasons, "; "))
 	}
 
 	// Find matching archive and checksum for current platform
@@ -253,6 +292,122 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 	// Success - backup file is kept for rollback capability
 	// It will be cleaned up on next successful update
 	return nil
+}
+
+func (s *UpdateService) buildPreflightInfo(info *UpdateInfo) *UpdatePreflightInfo {
+	preflight := &UpdatePreflightInfo{
+		CurrentVersion: info.CurrentVersion,
+		LatestVersion:  info.LatestVersion,
+		HasUpdate:      info.HasUpdate,
+		BuildType:      s.buildType,
+		ArchiveName:    s.getArchiveName(),
+	}
+
+	addCheck := func(key, label, status, message string) {
+		preflight.Checks = append(preflight.Checks, UpdatePreflightCheck{
+			Key:     key,
+			Label:   label,
+			Status:  status,
+			Message: message,
+		})
+		switch status {
+		case "fail":
+			preflight.BlockingReasons = append(preflight.BlockingReasons, message)
+		case "warn":
+			preflight.Warnings = append(preflight.Warnings, message)
+		}
+	}
+
+	if s.buildType == "release" {
+		addCheck("build_type", "Release build", "pass", "release build supports in-place update")
+	} else {
+		addCheck("build_type", "Release build", "fail", "source build must be upgraded with git/worktree workflow")
+	}
+
+	if info.HasUpdate {
+		addCheck("version", "Version", "pass", fmt.Sprintf("update available: v%s", info.LatestVersion))
+	} else {
+		addCheck("version", "Version", "fail", "already up to date")
+	}
+
+	if info.ReleaseInfo == nil {
+		addCheck("release", "Release", "fail", "release metadata is unavailable")
+	} else {
+		addCheck("release", "Release", "pass", "release metadata is available")
+	}
+
+	downloadAsset, checksumAsset := s.findUpdateAssets(info)
+	preflight.DownloadAsset = downloadAsset
+	preflight.ChecksumAsset = checksumAsset
+
+	if downloadAsset == nil {
+		addCheck("asset", "Platform asset", "fail", fmt.Sprintf("no compatible release asset for %s/%s", runtime.GOOS, runtime.GOARCH))
+	} else if downloadAsset.Size <= 0 || downloadAsset.Size > maxDownloadSize {
+		addCheck("asset", "Platform asset", "fail", fmt.Sprintf("release asset has invalid size: %d", downloadAsset.Size))
+	} else if err := validateDownloadURL(downloadAsset.DownloadURL); err != nil {
+		addCheck("asset", "Platform asset", "fail", "release asset URL is not trusted: "+err.Error())
+	} else {
+		addCheck("asset", "Platform asset", "pass", downloadAsset.Name)
+	}
+
+	if checksumAsset == nil {
+		addCheck("checksum", "Checksum", "warn", "checksums.txt is unavailable; update will rely on trusted GitHub download only")
+	} else if err := validateDownloadURL(checksumAsset.DownloadURL); err != nil {
+		addCheck("checksum", "Checksum", "fail", "checksum URL is not trusted: "+err.Error())
+	} else {
+		addCheck("checksum", "Checksum", "pass", checksumAsset.Name)
+	}
+
+	exePath, err := os.Executable()
+	if err != nil {
+		addCheck("executable", "Executable", "fail", "failed to get executable path: "+err.Error())
+	} else if resolved, err := filepath.EvalSymlinks(exePath); err != nil {
+		addCheck("executable", "Executable", "fail", "failed to resolve executable symlink: "+err.Error())
+	} else {
+		preflight.ExecutablePath = resolved
+		preflight.BackupPath = resolved + ".backup"
+		addCheck("executable", "Executable", "pass", resolved)
+
+		exeDir := filepath.Dir(resolved)
+		tempDir, err := os.MkdirTemp(exeDir, ".sub2api-preflight-*")
+		if err != nil {
+			addCheck("writable", "Writable directory", "fail", "executable directory is not writable: "+err.Error())
+		} else {
+			_ = os.RemoveAll(tempDir)
+			addCheck("writable", "Writable directory", "pass", exeDir)
+		}
+
+		if _, err := os.Stat(preflight.BackupPath); err == nil {
+			addCheck("backup", "Rollback backup", "warn", "existing backup will be replaced after a successful update")
+		} else if os.IsNotExist(err) {
+			addCheck("backup", "Rollback backup", "pass", "backup slot is available")
+		} else {
+			addCheck("backup", "Rollback backup", "warn", "backup slot could not be checked: "+err.Error())
+		}
+	}
+
+	preflight.CanUpdate = len(preflight.BlockingReasons) == 0
+	return preflight
+}
+
+func (s *UpdateService) findUpdateAssets(info *UpdateInfo) (*Asset, *Asset) {
+	if info == nil || info.ReleaseInfo == nil {
+		return nil, nil
+	}
+
+	archiveName := s.getArchiveName()
+	var downloadAsset *Asset
+	var checksumAsset *Asset
+	for i := range info.ReleaseInfo.Assets {
+		asset := &info.ReleaseInfo.Assets[i]
+		if strings.Contains(asset.Name, archiveName) && !strings.HasSuffix(asset.Name, ".txt") {
+			downloadAsset = asset
+		}
+		if asset.Name == "checksums.txt" {
+			checksumAsset = asset
+		}
+	}
+	return downloadAsset, checksumAsset
 }
 
 // Rollback restores the previous version

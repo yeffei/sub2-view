@@ -15,6 +15,8 @@ import {
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
 
 export const useAppStore = defineStore('app', () => {
+  const defaultSiteName = '山枢庭'
+  const defaultSiteLogo = '/logo.png'
   // ==================== State ====================
 
   const sidebarCollapsed = ref<boolean>(false)
@@ -25,8 +27,8 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('Sub2API')
-  const siteLogo = ref<string>('')
+  const siteName = ref<string>(defaultSiteName)
+  const siteLogo = ref<string>(defaultSiteLogo)
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
   const apiBaseUrl = ref<string>('')
@@ -292,8 +294,8 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'Sub2API'
-    siteLogo.value = config.site_logo || ''
+    siteName.value = config.site_name || defaultSiteName
+    siteLogo.value = config.site_logo || defaultSiteLogo
     siteVersion.value = config.version || ''
     contactInfo.value = config.contact_info || ''
     apiBaseUrl.value = config.api_base_url || ''
@@ -335,6 +337,8 @@ export const useAppStore = defineStore('app', () => {
         doc_url: docUrl.value,
         home_content: '',
         hide_ccs_import_button: false,
+        purchase_subscription_enabled: false,
+        purchase_subscription_url: '',
         payment_enabled: false,
         table_default_page_size: 20,
         table_page_size_options: [10, 20, 50, 100],
@@ -355,7 +359,7 @@ export const useAppStore = defineStore('app', () => {
         account_quota_notify_enabled: false,
         balance_low_notify_threshold: 0,
         channel_monitor_enabled: true,
-        channel_monitor_default_interval_seconds: 60,
+        channel_monitor_default_interval_seconds: 300,
         available_channels_enabled: false,
         risk_control_enabled: false,
         service_quota_enabled: false,

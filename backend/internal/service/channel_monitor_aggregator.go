@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"sort"
+	"strings"
 )
 
 // 渠道监控聚合层：把 latest + availability 拼成 admin/user 视图所需的 summary / detail。
@@ -74,7 +77,7 @@ func (s *ChannelMonitorService) ListUserView(ctx context.Context) ([]*UserMonito
 		primaryLatest := pickLatest(latestMap[m.ID], m.PrimaryModel)
 		views = append(views, buildUserViewFromSummary(m, summaries[m.ID], primaryLatest, timelineMap[m.ID]))
 	}
-	return views, nil
+	return s.mergeUserViewsByUpstreamPools(ctx, views)
 }
 
 // collectMonitorIndexes 把 monitors 列表按 ID 展开为聚合查询所需的三个索引结构。
@@ -127,9 +130,442 @@ func pickLatest(rows []*ChannelMonitorLatest, model string) *ChannelMonitorLates
 	return nil
 }
 
+type userMonitorPoolBinding struct {
+	pool    UpstreamPool
+	binding UpstreamPoolBinding
+}
+
+type userMonitorPoolBucket struct {
+	binding  userMonitorPoolBinding
+	monitors []*UserMonitorView
+	runtime  userMonitorPoolRuntime
+}
+
+type userMonitorPoolRuntime struct {
+	activeMembers      int
+	schedulableMembers int
+}
+
+func (s *ChannelMonitorService) mergeUserViewsByUpstreamPools(ctx context.Context, views []*UserMonitorView) ([]*UserMonitorView, error) {
+	if s.upstreamPoolRepo == nil || len(views) == 0 {
+		return views, nil
+	}
+	poolBindings, err := s.loadUserMonitorPoolBindings(ctx)
+	if err != nil {
+		slog.Warn("channel_monitor: load upstream pools for user view failed", "error", err)
+		return views, nil
+	}
+	if len(poolBindings) == 0 {
+		return views, nil
+	}
+	poolRuntime, err := s.loadUserPoolRuntime(ctx, poolBindings)
+	if err != nil {
+		slog.Warn("channel_monitor: load upstream pool runtime for user view failed", "error", err)
+	}
+
+	buckets := make(map[int64]*userMonitorPoolBucket)
+	plain := make([]*UserMonitorView, 0, len(views))
+	for _, view := range views {
+		binding, ok := matchUserMonitorPoolBinding(view, poolBindings)
+		if !ok {
+			plain = append(plain, view)
+			continue
+		}
+		bucket := buckets[binding.pool.ID]
+		if bucket == nil {
+			bucket = &userMonitorPoolBucket{binding: binding, runtime: poolRuntime[binding.pool.ID]}
+			buckets[binding.pool.ID] = bucket
+		}
+		bucket.monitors = append(bucket.monitors, view)
+	}
+
+	out := make([]*UserMonitorView, 0, len(plain)+len(buckets))
+	used := make(map[int64]struct{}, len(buckets))
+	for _, view := range views {
+		binding, ok := matchUserMonitorPoolBinding(view, poolBindings)
+		if !ok {
+			out = append(out, view)
+			continue
+		}
+		if _, exists := used[binding.pool.ID]; exists {
+			continue
+		}
+		used[binding.pool.ID] = struct{}{}
+		if merged := buildUserPoolView(buckets[binding.pool.ID]); merged != nil {
+			out = append(out, merged)
+		}
+	}
+	return out, nil
+}
+
+func (s *ChannelMonitorService) loadUserMonitorPoolBindings(ctx context.Context) ([]userMonitorPoolBinding, error) {
+	pools, err := s.upstreamPoolRepo.ListUpstreamPools(ctx)
+	if err != nil {
+		return nil, err
+	}
+	poolByID := make(map[int64]UpstreamPool, len(pools))
+	for _, pool := range pools {
+		if pool.Enabled {
+			poolByID[pool.ID] = pool
+		}
+	}
+	if len(poolByID) == 0 {
+		return nil, nil
+	}
+	bindings, err := s.upstreamPoolRepo.ListUpstreamPoolBindings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]userMonitorPoolBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if !binding.Enabled {
+			continue
+		}
+		pool, ok := poolByID[binding.PoolID]
+		if !ok {
+			continue
+		}
+		out = append(out, userMonitorPoolBinding{pool: pool, binding: binding})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].binding.Priority != out[j].binding.Priority {
+			return out[i].binding.Priority < out[j].binding.Priority
+		}
+		return out[i].binding.ID < out[j].binding.ID
+	})
+	return out, nil
+}
+
+func matchUserMonitorPoolBinding(view *UserMonitorView, bindings []userMonitorPoolBinding) (userMonitorPoolBinding, bool) {
+	if view == nil {
+		return userMonitorPoolBinding{}, false
+	}
+	for _, binding := range bindings {
+		if !strings.EqualFold(strings.TrimSpace(binding.pool.Platform), strings.TrimSpace(view.Provider)) {
+			continue
+		}
+		if !monitorGroupMatchesBinding(view.GroupName, binding.binding.GroupName) {
+			continue
+		}
+		if !monitorModelMatchesBinding(view.PrimaryModel, binding.binding.Models) {
+			continue
+		}
+		return binding, true
+	}
+	return userMonitorPoolBinding{}, false
+}
+
+func monitorGroupMatchesBinding(monitorGroup, bindingGroup string) bool {
+	monitor := normalizeMonitorGroupName(monitorGroup)
+	group := normalizeMonitorGroupName(bindingGroup)
+	if monitor == "" || group == "" {
+		return false
+	}
+	return monitor == group || strings.Contains(group, monitor) || strings.Contains(monitor, group)
+}
+
+func normalizeMonitorGroupName(v string) string {
+	v = strings.ToLower(strings.TrimSpace(v))
+	v = strings.TrimSuffix(v, "组")
+	v = strings.TrimSuffix(v, "group")
+	return strings.TrimSpace(v)
+}
+
+func monitorModelMatchesBinding(primaryModel string, models []string) bool {
+	if len(models) == 0 {
+		return true
+	}
+	primary := strings.TrimSpace(primaryModel)
+	for _, model := range models {
+		if strings.EqualFold(strings.TrimSpace(model), primary) {
+			return true
+		}
+	}
+	return false
+}
+
+func buildUserPoolView(bucket *userMonitorPoolBucket) *UserMonitorView {
+	if bucket == nil || len(bucket.monitors) == 0 {
+		return nil
+	}
+	monitors := bucket.monitors
+	base := monitors[0]
+	status, latency, ping, availability := aggregateUserMonitorHealth(monitors, bucket.runtime)
+	return &UserMonitorView{
+		ID:                   userPoolMonitorID(bucket.binding.pool.ID),
+		Name:                 bucket.binding.pool.Name,
+		Provider:             bucket.binding.pool.Platform,
+		GroupName:            bucket.binding.binding.GroupName,
+		PrimaryModel:         base.PrimaryModel,
+		PrimaryStatus:        status,
+		PrimaryLatencyMs:     latency,
+		PrimaryPingLatencyMs: ping,
+		Availability7d:       availability,
+		ExtraModels:          aggregateUserMonitorExtraModels(monitors),
+		Timeline:             aggregateUserMonitorTimeline(monitors),
+	}
+}
+
+func aggregateUserMonitorHealth(monitors []*UserMonitorView, runtime userMonitorPoolRuntime) (string, *int, *int, float64) {
+	status := ""
+	availability := 0.0
+	var latencyMin, pingMin *int
+	for _, monitor := range monitors {
+		status = betterMonitorStatus(status, monitor.PrimaryStatus)
+		if monitor.Availability7d > availability {
+			availability = monitor.Availability7d
+		}
+		if isRoutableMonitorStatus(monitor.PrimaryStatus) {
+			latencyMin = minIntPtr(latencyMin, monitor.PrimaryLatencyMs)
+			pingMin = minIntPtr(pingMin, monitor.PrimaryPingLatencyMs)
+		}
+	}
+	if status == "" {
+		status = MonitorStatusError
+	}
+	if runtime.schedulableMembers > 0 && !isRoutableMonitorStatus(status) {
+		status = MonitorStatusDegraded
+	}
+	return status, latencyMin, pingMin, availability
+}
+
+func (s *ChannelMonitorService) loadUserPoolRuntime(ctx context.Context, bindings []userMonitorPoolBinding) (map[int64]userMonitorPoolRuntime, error) {
+	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil || len(bindings) == 0 {
+		return map[int64]userMonitorPoolRuntime{}, nil
+	}
+
+	type poolMemberRef struct {
+		poolID   int64
+		accountID int64
+	}
+
+	refs := make([]poolMemberRef, 0)
+	accountIDs := make([]int64, 0)
+	seenAccounts := make(map[int64]struct{})
+	seenPools := make(map[int64]struct{})
+	for _, binding := range bindings {
+		poolID := binding.pool.ID
+		if poolID <= 0 {
+			continue
+		}
+		if _, ok := seenPools[poolID]; ok {
+			continue
+		}
+		seenPools[poolID] = struct{}{}
+		members, err := s.upstreamPoolRepo.ListUpstreamPoolMembers(ctx, poolID)
+		if err != nil {
+			return nil, err
+		}
+		for _, member := range members {
+			if !member.Enabled || member.ManualDrained {
+				continue
+			}
+			if member.SchedulableOverride != nil && !*member.SchedulableOverride {
+				continue
+			}
+			if member.AccountID <= 0 {
+				continue
+			}
+			refs = append(refs, poolMemberRef{poolID: poolID, accountID: member.AccountID})
+			if _, ok := seenAccounts[member.AccountID]; !ok {
+				seenAccounts[member.AccountID] = struct{}{}
+				accountIDs = append(accountIDs, member.AccountID)
+			}
+		}
+	}
+	if len(accountIDs) == 0 {
+		return map[int64]userMonitorPoolRuntime{}, nil
+	}
+
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	accountByID := make(map[int64]*Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			accountByID[account.ID] = account
+		}
+	}
+
+	out := make(map[int64]userMonitorPoolRuntime, len(seenPools))
+	for _, ref := range refs {
+		runtime := out[ref.poolID]
+		account := accountByID[ref.accountID]
+		if account == nil {
+			out[ref.poolID] = runtime
+			continue
+		}
+		if account.IsActive() {
+			runtime.activeMembers++
+		}
+		if account.IsSchedulable() {
+			runtime.schedulableMembers++
+		}
+		out[ref.poolID] = runtime
+	}
+	return out, nil
+}
+
+func worseMonitorStatus(a, b string) string {
+	if monitorStatusRank(b) > monitorStatusRank(a) {
+		return b
+	}
+	return a
+}
+
+func betterMonitorStatus(a, b string) string {
+	if a == "" || monitorStatusRank(b) < monitorStatusRank(a) {
+		return b
+	}
+	return a
+}
+
+func isRoutableMonitorStatus(status string) bool {
+	return status == MonitorStatusOperational || status == MonitorStatusDegraded
+}
+
+func monitorStatusRank(status string) int {
+	switch status {
+	case MonitorStatusError:
+		return 4
+	case MonitorStatusFailed:
+		return 3
+	case MonitorStatusDegraded:
+		return 2
+	case MonitorStatusOperational:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func minIntPtr(current *int, candidate *int) *int {
+	if candidate == nil {
+		return current
+	}
+	if current == nil || *candidate < *current {
+		v := *candidate
+		return &v
+	}
+	return current
+}
+
+func averageIntPtr(total, count int) *int {
+	if count == 0 {
+		return nil
+	}
+	v := int(math.Round(float64(total) / float64(count)))
+	return &v
+}
+
+func averageFloat(total float64, count int) float64 {
+	if count == 0 {
+		return 0
+	}
+	return math.Round(total/float64(count)*100) / 100
+}
+
+func aggregateUserMonitorExtraModels(monitors []*UserMonitorView) []ExtraModelStatus {
+	seen := make(map[string]ExtraModelStatus)
+	order := make([]string, 0)
+	for _, monitor := range monitors {
+		for _, extra := range monitor.ExtraModels {
+			key := strings.TrimSpace(extra.Model)
+			if key == "" {
+				continue
+			}
+			if _, ok := seen[key]; !ok {
+				order = append(order, key)
+				seen[key] = extra
+				continue
+			}
+			current := seen[key]
+			current.Status = betterMonitorStatus(current.Status, extra.Status)
+			if isRoutableMonitorStatus(extra.Status) {
+				current.LatencyMs = minIntPtr(current.LatencyMs, extra.LatencyMs)
+			}
+			seen[key] = current
+		}
+	}
+	out := make([]ExtraModelStatus, 0, len(order))
+	for _, key := range order {
+		out = append(out, seen[key])
+	}
+	return out
+}
+
+func aggregateUserMonitorTimeline(monitors []*UserMonitorView) []UserMonitorTimelinePoint {
+	if len(monitors) == 0 {
+		return nil
+	}
+	maxLen := 0
+	for _, monitor := range monitors {
+		if len(monitor.Timeline) > maxLen {
+			maxLen = len(monitor.Timeline)
+		}
+	}
+	out := make([]UserMonitorTimelinePoint, 0, maxLen)
+	for i := 0; i < maxLen; i++ {
+		var points []UserMonitorTimelinePoint
+		for _, monitor := range monitors {
+			if i < len(monitor.Timeline) {
+				points = append(points, monitor.Timeline[i])
+			}
+		}
+		if len(points) == 0 {
+			continue
+		}
+		out = append(out, aggregateTimelineSlot(points))
+	}
+	return out
+}
+
+func aggregateTimelineSlot(points []UserMonitorTimelinePoint) UserMonitorTimelinePoint {
+	status := ""
+	latest := points[0].CheckedAt
+	var latencyMin, pingMin *int
+	for _, point := range points {
+		status = betterMonitorStatus(status, point.Status)
+		if point.CheckedAt.After(latest) {
+			latest = point.CheckedAt
+		}
+		if isRoutableMonitorStatus(point.Status) {
+			latencyMin = minIntPtr(latencyMin, point.LatencyMs)
+			pingMin = minIntPtr(pingMin, point.PingLatencyMs)
+		}
+	}
+	if status == "" {
+		status = MonitorStatusError
+	}
+	return UserMonitorTimelinePoint{
+		Status:        status,
+		LatencyMs:     latencyMin,
+		PingLatencyMs: pingMin,
+		CheckedAt:     latest,
+	}
+}
+
+func userPoolMonitorID(poolID int64) int64 {
+	if poolID <= 0 {
+		return 0
+	}
+	return -poolID
+}
+
+func userPoolIDFromMonitorID(id int64) (int64, bool) {
+	if id >= 0 {
+		return 0, false
+	}
+	return -id, true
+}
+
 // GetUserDetail 用户只读视图：单个监控详情（每个模型 7d/15d/30d 可用率与平均延迟）。
 // 不暴露 api_key。
 func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*UserMonitorDetail, error) {
+	if poolID, ok := userPoolIDFromMonitorID(id); ok {
+		return s.GetUserPoolDetail(ctx, poolID)
+	}
 	m, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -155,6 +591,35 @@ func (s *ChannelMonitorService) GetUserDetail(ctx context.Context, id int64) (*U
 		GroupName: m.GroupName,
 		Models:    models,
 	}, nil
+}
+
+func (s *ChannelMonitorService) GetUserPoolDetail(ctx context.Context, poolID int64) (*UserMonitorDetail, error) {
+	views, err := s.ListUserView(ctx)
+	if err != nil {
+		return nil, err
+	}
+	targetID := userPoolMonitorID(poolID)
+	for _, view := range views {
+		if view.ID != targetID {
+			continue
+		}
+		return &UserMonitorDetail{
+			ID:        view.ID,
+			Name:      view.Name,
+			Provider:  view.Provider,
+			GroupName: view.GroupName,
+			Models: []ModelDetail{{
+				Model:           view.PrimaryModel,
+				LatestStatus:    view.PrimaryStatus,
+				LatestLatencyMs: view.PrimaryLatencyMs,
+				Availability7d:  view.Availability7d,
+				Availability15d: view.Availability7d,
+				Availability30d: view.Availability7d,
+				AvgLatency7dMs:  view.PrimaryLatencyMs,
+			}},
+		}, nil
+	}
+	return nil, ErrChannelMonitorNotFound
 }
 
 // collectAvailabilityWindows 一次性查询 7/15/30 天三个窗口，按模型组织。

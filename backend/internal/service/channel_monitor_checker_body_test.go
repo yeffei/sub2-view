@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -125,22 +123,7 @@ func answerFromOpenAIRequest(body map[string]any) string {
 			}
 		}
 	}
-	return answerFromChallengePrompt(prompt)
-}
-
-var challengeQuestionRegex = regexp.MustCompile(`Q: (\d+) ([+-]) (\d+) = \?\nA:$`)
-
-func answerFromChallengePrompt(prompt string) string {
-	m := challengeQuestionRegex.FindStringSubmatch(prompt)
-	if len(m) != 4 {
-		return "0"
-	}
-	left, _ := strconv.Atoi(m[1])
-	right, _ := strconv.Atoi(m[3])
-	if m[2] == "+" {
-		return strconv.Itoa(left + right)
-	}
-	return strconv.Itoa(left - right)
+	return strings.TrimSpace(prompt)
 }
 
 func TestRunCheckForModel_OffMode_PreservesDefaultBody(t *testing.T) {
@@ -185,6 +168,12 @@ func TestRunCheckForModel_OpenAI_DefaultChatRequest(t *testing.T) {
 	if h.lastBody["stream"] != false {
 		t.Errorf("chat body should set stream=false, got %v", h.lastBody["stream"])
 	}
+	if h.lastBody["temperature"] != float64(0) {
+		t.Errorf("chat body should set temperature=0, got %v", h.lastBody["temperature"])
+	}
+	if h.lastBody["max_tokens"] != float64(monitorChallengeMaxTokens) {
+		t.Errorf("chat body should set max_tokens=%d, got %v", monitorChallengeMaxTokens, h.lastBody["max_tokens"])
+	}
 	if h.lastHeaders.Get("Authorization") != "Bearer sk-openai" {
 		t.Errorf("expected bearer auth header, got %q", h.lastHeaders.Get("Authorization"))
 	}
@@ -215,11 +204,20 @@ func TestRunCheckForModel_OpenAIResponses_DefaultRequest(t *testing.T) {
 	if strings.TrimSpace(input) == "" {
 		t.Error("responses body should contain non-empty input")
 	}
+	if strings.TrimSpace(input) != monitorChallengePrompt {
+		t.Errorf("responses input should use minimal challenge %q, got %q", monitorChallengePrompt, input)
+	}
 	if _, ok := h.lastBody["messages"]; ok {
 		t.Error("responses body must not contain chat messages")
 	}
 	if h.lastBody["stream"] != false {
 		t.Errorf("responses body should set stream=false, got %v", h.lastBody["stream"])
+	}
+	if h.lastBody["temperature"] != float64(0) {
+		t.Errorf("responses body should set temperature=0, got %v", h.lastBody["temperature"])
+	}
+	if h.lastBody["max_output_tokens"] != float64(monitorChallengeMaxTokens) {
+		t.Errorf("responses body should set max_output_tokens=%d, got %v", monitorChallengeMaxTokens, h.lastBody["max_output_tokens"])
 	}
 	if h.lastHeaders.Get("Authorization") != "Bearer sk-openai" {
 		t.Errorf("expected bearer auth header, got %q", h.lastHeaders.Get("Authorization"))

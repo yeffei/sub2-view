@@ -17,6 +17,11 @@ const subscriptionStore = useSubscriptionStore()
 const announcementStore = useAnnouncementStore()
 const adminComplianceStore = useAdminComplianceStore()
 const adminSettingsStore = useAdminSettingsStore()
+const PUBLIC_ANNOUNCEMENT_BLOCKED_PATHS = new Set(['/home', '/pricing', '/docs', '/terms', '/privacy', '/faq'])
+
+function shouldFetchAnnouncementsForRoute(): boolean {
+  return route.meta.requiresAuth !== false && !PUBLIC_ANNOUNCEMENT_BLOCKED_PATHS.has(route.path)
+}
 
 function updateDocumentTitle() {
   const customMenuItems = [
@@ -38,24 +43,24 @@ function updateFavicon(logoUrl: string) {
     link.rel = 'icon'
     document.head.appendChild(link)
   }
-  link.type = logoUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/x-icon'
+  link.type = logoUrl.endsWith('.svg') ? 'image/svg+xml' : 'image/png'
   link.href = logoUrl
 }
 
 // Watch for site settings changes and update favicon/title
 watch(
-  () => appStore.siteLogo,
+  () => appStore.cachedPublicSettings?.site_logo,
   (newLogo) => {
-    if (newLogo) {
-      updateFavicon(newLogo)
-    }
+    const resolvedLogo = newLogo?.trim() ? newLogo : '/favicon.png'
+    updateFavicon(resolvedLogo)
   },
   { immediate: true }
 )
 
 watch(
   [
-    () => route.fullPath,
+    () => route.name,
+    () => route.params.id,
     () => route.meta.title,
     () => route.meta.titleKey,
     () => appStore.siteName,
@@ -69,7 +74,7 @@ watch(
 
 // Watch for authentication state and manage subscription data + announcements
 function onVisibilityChange() {
-  if (document.visibilityState === 'visible' && authStore.isAuthenticated) {
+  if (document.visibilityState === 'visible' && authStore.isAuthenticated && shouldFetchAnnouncementsForRoute()) {
     announcementStore.fetchAnnouncements()
   }
 }
@@ -96,12 +101,20 @@ watch(
       subscriptionStore.startPolling()
 
       // Announcements: new login vs page refresh restore
-      if (oldValue === false) {
-        // New login: delay 3s then force fetch
-        setTimeout(() => announcementStore.fetchAnnouncements(true), 3000)
+      if (shouldFetchAnnouncementsForRoute()) {
+        if (oldValue === false) {
+          // New login: delay 3s then force fetch
+          setTimeout(() => {
+            if (authStore.isAuthenticated && shouldFetchAnnouncementsForRoute()) {
+              announcementStore.fetchAnnouncements(true)
+            }
+          }, 3000)
+        } else {
+          // Page refresh restore (oldValue was undefined)
+          announcementStore.fetchAnnouncements()
+        }
       } else {
-        // Page refresh restore (oldValue was undefined)
-        announcementStore.fetchAnnouncements()
+        announcementStore.reset()
       }
 
       // Register visibility change listener
@@ -119,8 +132,10 @@ watch(
 
 // Route change trigger (throttled by store)
 router.afterEach(() => {
-  if (authStore.isAuthenticated) {
+  if (authStore.isAuthenticated && shouldFetchAnnouncementsForRoute()) {
     announcementStore.fetchAnnouncements()
+  } else if (!shouldFetchAnnouncementsForRoute()) {
+    announcementStore.reset()
   }
 })
 

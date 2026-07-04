@@ -44,7 +44,7 @@
         <div class="lg:col-span-1 min-h-[360px]">
           <OpsConcurrencyCard :platform-filter="platform" :group-id-filter="groupId" :refresh-token="dashboardRefreshToken" />
         </div>
-        <div class="lg:col-span-1 h-[360px]">
+        <div class="lg:col-span-1 min-h-[360px]">
           <OpsSwitchRateTrendChart
             :points="switchTrend?.points ?? []"
             :loading="loadingSwitchTrend"
@@ -52,7 +52,7 @@
             :fullscreen="isFullscreen"
           />
         </div>
-        <div class="lg:col-span-2 h-[360px]">
+        <div class="lg:col-span-2 min-h-[360px]">
           <OpsThroughputTrendChart
             :points="throughputTrend?.points ?? []"
             :by-platform="throughputTrend?.by_platform ?? []"
@@ -66,6 +66,16 @@
           />
         </div>
       </div>
+
+      <OpsAnomalyCompareCard
+        v-if="opsEnabled && !(loading && !hasLoadedOnce)"
+        :summary="anomalyCompareSummary"
+        :loading="loadingCompare"
+        :error-message="compareErrorMessage"
+        :current-window-label="currentWindowLabel"
+        :previous-window-label="previousWindowLabel"
+        @open-current-details="openCurrentWindowCompareDetails"
+      />
 
       <!-- Row: Visual Analysis (baseline 3-up grid) -->
       <div v-if="opsEnabled && !(loading && !hasLoadedOnce)" class="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -150,7 +160,8 @@ import {
   type OpsErrorTrendResponse,
   type OpsLatencyHistogramResponse,
   type OpsThroughputTrendResponse,
-  type OpsMetricThresholds
+  type OpsMetricThresholds,
+  type OpsQueryMode
 } from '@/api/admin/ops'
 import { useAdminSettingsStore, useAppStore } from '@/stores'
 import OpsDashboardHeader from './components/OpsDashboardHeader.vue'
@@ -161,6 +172,7 @@ import OpsErrorDistributionChart from './components/OpsErrorDistributionChart.vu
 import OpsErrorDetailsModal from './components/OpsErrorDetailsModal.vue'
 import OpsErrorTrendChart from './components/OpsErrorTrendChart.vue'
 import OpsLatencyChart from './components/OpsLatencyChart.vue'
+import OpsAnomalyCompareCard from './components/OpsAnomalyCompareCard.vue'
 import OpsThroughputTrendChart from './components/OpsThroughputTrendChart.vue'
 import OpsSwitchRateTrendChart from './components/OpsSwitchRateTrendChart.vue'
 import OpsAlertEventsCard from './components/OpsAlertEventsCard.vue'
@@ -169,6 +181,7 @@ import OpsSystemLogTable from './components/OpsSystemLogTable.vue'
 import OpsRequestDetailsModal, { type OpsRequestDetailsPreset } from './components/OpsRequestDetailsModal.vue'
 import OpsSettingsDialog from './components/OpsSettingsDialog.vue'
 import OpsAlertRulesCard from './components/OpsAlertRulesCard.vue'
+import { buildAnomalyCompareSummary, buildPreviousWindowRange, type AnomalyCompareSummary } from './utils/anomalyCompare'
 
 const route = useRoute()
 const router = useRouter()
@@ -362,6 +375,13 @@ const loadingErrorTrend = ref(false)
 const errorDistribution = ref<OpsErrorDistributionResponse | null>(null)
 const loadingErrorDistribution = ref(false)
 
+const compareOverview = ref<OpsDashboardOverview | null>(null)
+const compareThroughputTrend = ref<OpsThroughputTrendResponse | null>(null)
+const compareErrorTrend = ref<OpsErrorTrendResponse | null>(null)
+const compareErrorDistribution = ref<OpsErrorDistributionResponse | null>(null)
+const loadingCompare = ref(false)
+const compareErrorMessage = ref('')
+
 const selectedErrorId = ref<number | null>(null)
 const showErrorModal = ref(false)
 
@@ -389,6 +409,36 @@ const autoRefreshCountdown = ref(0)
 
 // Used to trigger child component refreshes in a single shared cadence.
 const dashboardRefreshToken = ref(0)
+
+const anomalyCompareSummary = computed<AnomalyCompareSummary | null>(() => {
+  if (!overview.value || !compareOverview.value) return null
+  return buildAnomalyCompareSummary(
+    {
+      overview: overview.value,
+      errorTrend: errorTrend.value,
+      errorDistribution: errorDistribution.value,
+      throughputTrend: throughputTrend.value
+    },
+    {
+      overview: compareOverview.value,
+      errorTrend: compareErrorTrend.value,
+      errorDistribution: compareErrorDistribution.value,
+      throughputTrend: compareThroughputTrend.value
+    }
+  )
+})
+
+const currentWindowLabel = computed(() => {
+  if (timeRange.value === 'custom' && customStartTime.value && customEndTime.value) {
+    return formatWindowLabel(customStartTime.value, customEndTime.value)
+  }
+  return t('admin.ops.timeRange.' + timeRange.value)
+})
+
+const previousWindowLabel = computed(() => {
+  const previousRange = buildPreviousWindowRange(timeRange.value, customStartTime.value, customEndTime.value)
+  return formatWindowLabel(previousRange.startTime, previousRange.endTime)
+})
 
 // Countdown timer (drives auto refresh; updates every second)
 const { pause: pauseCountdown, resume: resumeCountdown } = useIntervalFn(
@@ -512,6 +562,34 @@ function openError(id: number) {
   showErrorModal.value = true
 }
 
+function formatWindowLabel(startTime: string, endTime: string): string {
+  const start = new Date(startTime)
+  const end = new Date(endTime)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return t('admin.ops.compare.previousWindowAuto')
+  }
+
+  const formatPart = (date: Date) => {
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hour = String(date.getHours()).padStart(2, '0')
+    const minute = String(date.getMinutes()).padStart(2, '0')
+    return month + '-' + day + ' ' + hour + ':' + minute
+  }
+
+  return formatPart(start) + ' ~ ' + formatPart(end)
+}
+
+function openCurrentWindowCompareDetails() {
+  handleOpenRequestDetails({
+    title: t('admin.ops.compare.currentWindowDetails'),
+    kind: 'error',
+    sort: 'created_at_desc',
+    start_time: timeRange.value === 'custom' ? customStartTime.value ?? undefined : undefined,
+    end_time: timeRange.value === 'custom' ? customEndTime.value ?? undefined : undefined
+  })
+}
+
 function buildApiParams() {
   const params: any = {
     platform: platform.value || undefined,
@@ -532,6 +610,17 @@ function buildApiParams() {
   }
 
   return params
+}
+
+function buildCompareApiParams() {
+  const previousRange = buildPreviousWindowRange(timeRange.value, customStartTime.value, customEndTime.value)
+  return {
+    start_time: previousRange.startTime,
+    end_time: previousRange.endTime,
+    platform: platform.value || undefined,
+    group_id: groupId.value ?? undefined,
+    mode: queryMode.value as OpsQueryMode
+  }
 }
 
 function buildSwitchTrendParams() {
@@ -676,11 +765,49 @@ async function refreshErrorDistributionWithCancel(fetchSeq: number, signal: Abor
   }
 }
 
+async function refreshComparePanelsWithCancel(fetchSeq: number, signal: AbortSignal) {
+  if (!opsEnabled.value) return
+  loadingCompare.value = true
+  compareErrorMessage.value = ''
+
+  const params = buildCompareApiParams()
+
+  try {
+    const [compareOverviewData, compareErrorTrendData, compareErrorDistributionData, compareThroughputTrendData] = await Promise.all([
+      opsAPI.getDashboardOverview(params, { signal }),
+      opsAPI.getErrorTrend(params, { signal }),
+      opsAPI.getErrorDistribution(params, { signal }),
+      opsAPI.getThroughputTrend(params, { signal })
+    ])
+
+    if (fetchSeq !== dashboardFetchSeq) return
+
+    compareOverview.value = compareOverviewData
+    compareErrorTrend.value = compareErrorTrendData
+    compareErrorDistribution.value = compareErrorDistributionData
+    compareThroughputTrend.value = compareThroughputTrendData
+  } catch (err) {
+    if (fetchSeq !== dashboardFetchSeq || isCanceledRequest(err)) return
+    compareOverview.value = null
+    compareErrorTrend.value = null
+    compareErrorDistribution.value = null
+    compareThroughputTrend.value = null
+    compareErrorMessage.value = (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string')
+      ? err.message
+      : t('admin.ops.compare.failedToLoad')
+  } finally {
+    if (fetchSeq === dashboardFetchSeq) {
+      loadingCompare.value = false
+    }
+  }
+}
+
 async function refreshDeferredPanels(fetchSeq: number, signal: AbortSignal) {
   if (!opsEnabled.value) return
   await Promise.all([
     refreshLatencyHistogramWithCancel(fetchSeq, signal),
-    refreshErrorDistributionWithCancel(fetchSeq, signal)
+    refreshErrorDistributionWithCancel(fetchSeq, signal),
+    refreshComparePanelsWithCancel(fetchSeq, signal)
   ])
 }
 

@@ -2,7 +2,7 @@
   <Teleport to="body">
     <Transition name="popup-fade">
       <div
-        v-if="announcementStore.currentPopup"
+        v-if="activePopup"
         class="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-gradient-to-br from-black/70 via-black/60 to-black/70 p-4 pt-[8vh] backdrop-blur-md"
       >
         <div
@@ -35,7 +35,7 @@
 
               <!-- Title -->
               <h2 class="mb-2 text-2xl font-bold leading-tight text-gray-900 dark:text-white">
-                {{ announcementStore.currentPopup.title }}
+                {{ activePopup.title }}
               </h2>
 
               <!-- Time -->
@@ -43,7 +43,7 @@
                 <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <time>{{ formatRelativeWithDateTime(announcementStore.currentPopup.created_at) }}</time>
+                <time>{{ formatRelativeWithDateTime(activePopup.created_at) }}</time>
               </div>
             </div>
           </div>
@@ -84,23 +84,39 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { useAuthStore } from '@/stores/auth'
 import { useAnnouncementStore } from '@/stores/announcements'
 import { formatRelativeWithDateTime } from '@/utils/format'
 
 const { t } = useI18n()
+const route = useRoute()
+const authStore = useAuthStore()
 const announcementStore = useAnnouncementStore()
+let lockedBodyScroll = false
 
 marked.setOptions({
   breaks: true,
   gfm: true,
 })
 
+const shouldShowPopup = computed(() =>
+  authStore.isAuthenticated &&
+  route.meta.requiresAuth !== false &&
+  !['/home', '/pricing', '/docs', '/terms', '/privacy', '/faq'].includes(route.path) &&
+  Boolean(announcementStore.currentPopup)
+)
+
+const activePopup = computed(() =>
+  shouldShowPopup.value ? announcementStore.currentPopup : null
+)
+
 const renderedContent = computed(() => {
-  const content = announcementStore.currentPopup?.content
+  const content = activePopup.value?.content
   if (!content) return ''
   const html = marked.parse(content) as string
   return DOMPurify.sanitize(html)
@@ -110,15 +126,25 @@ function handleDismiss() {
   announcementStore.dismissPopup()
 }
 
-// Manage body overflow — only set, never unset (bell component handles restore)
 watch(
-  () => announcementStore.currentPopup,
-  (popup) => {
-    if (popup) {
+  shouldShowPopup,
+  (isVisible) => {
+    if (isVisible) {
       document.body.style.overflow = 'hidden'
+      lockedBodyScroll = true
+    } else if (lockedBodyScroll) {
+      document.body.style.overflow = ''
+      lockedBodyScroll = false
     }
-  }
+  },
+  { immediate: true }
 )
+
+onBeforeUnmount(() => {
+  if (lockedBodyScroll) {
+    document.body.style.overflow = ''
+  }
+})
 </script>
 
 <style scoped>
@@ -163,3 +189,4 @@ watch(
   background: linear-gradient(to bottom, #4b5563, #374151);
 }
 </style>
+

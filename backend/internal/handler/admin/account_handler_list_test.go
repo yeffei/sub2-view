@@ -50,3 +50,14 @@ func TestAccountHandlerListIncludesCreatedAt(t *testing.T) {
 	_, offset := parsed.Zone()
 	require.Equal(t, 0, offset)
 }
+
+func TestAccountHandlerListPassesAnomalyReason(t *testing.T) {
+	router, adminSvc := setupAccountListRouter()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts?anomaly_reason=auth_failed", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "auth_failed", adminSvc.lastListAccounts.anomalyReason)
+}

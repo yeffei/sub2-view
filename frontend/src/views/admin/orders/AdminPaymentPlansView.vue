@@ -1,16 +1,23 @@
 <template>
   <AppLayout>
-    <div class="space-y-4">
-      <!-- Actions -->
-      <div class="flex items-center justify-end gap-2">
-        <button @click="loadPlans" :disabled="plansLoading" class="btn btn-secondary" :title="t('common.refresh')">
-          <Icon name="refresh" size="md" :class="plansLoading ? 'animate-spin' : ''" />
-        </button>
-        <button @click="openPlanEdit(null)" class="btn btn-primary">{{ t('payment.admin.createPlan') }}</button>
-      </div>
+    <div class="sst-admin-page">
+      <div class="sst-plan-workspace space-y-5">
+        <section class="sst-plan-toolbar">
+          <div class="sst-plan-toolbar-copy">
+            <span class="sst-plan-toolbar-label">售卖编排</span>
+            <p>当前共 {{ plans.length }} 个方案，正在售卖 {{ activePlanCount }} 个，未匹配分组 {{ missingGroupPlanCount }} 个。</p>
+          </div>
+          <div class="sst-plan-toolbar-actions">
+            <button @click="loadPlans" :disabled="plansLoading" class="btn btn-secondary inline-flex items-center gap-2" :title="t('common.refresh')">
+              <Icon name="refresh" size="md" :class="plansLoading ? 'animate-spin' : ''" />
+              <span class="hidden sm:inline">{{ t('common.refresh') }}</span>
+            </button>
+            <button @click="openPlanEdit(null)" class="btn btn-primary">{{ t('payment.admin.createPlan') }}</button>
+          </div>
+        </section>
 
-      <!-- Plans Table -->
-      <DataTable :columns="planColumns" :data="plans" :loading="plansLoading">
+        <section class="sst-plan-table-shell">
+          <DataTable :columns="planColumns" :data="plans" :loading="plansLoading">
         <template #cell-name="{ value, row }">
           <span class="text-sm font-medium" :class="getPlanNameClass(row.group_id)">{{ value }}</span>
         </template>
@@ -63,7 +70,17 @@
             </button>
           </div>
         </template>
-      </DataTable>
+        <template #empty>
+          <EmptyState
+            :title="t('payment.admin.noData')"
+            description="当前还没有订阅方案，可先新建方案再继续编排售价与售卖状态。"
+            :action-text="t('payment.admin.createPlan')"
+            @action="openPlanEdit(null)"
+          />
+        </template>
+          </DataTable>
+        </section>
+      </div>
     </div>
 
     <!-- Plan Edit Dialog -->
@@ -86,6 +103,7 @@ import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import PlanEditDialog from './PlanEditDialog.vue'
@@ -126,6 +144,9 @@ const showPlanDialog = ref(false)
 const showDeletePlanDialog = ref(false)
 const editingPlan = ref<SubscriptionPlan | null>(null)
 const deletingPlanId = ref<number | null>(null)
+
+const activePlanCount = computed(() => plans.value.filter((plan) => plan.for_sale).length)
+const missingGroupPlanCount = computed(() => plans.value.filter((plan) => isGroupMissing(plan.group_id)).length)
 
 const planColumns = computed((): Column[] => [
   { key: 'id', label: 'ID' },
@@ -184,3 +205,66 @@ onMounted(() => {
   loadPlans()
 })
 </script>
+
+<style scoped>
+.sst-plan-toolbar {
+  @apply flex flex-col gap-4 rounded-2xl border px-4 py-4 sm:px-5 lg:flex-row lg:items-center lg:justify-between;
+  border-color: rgba(198, 184, 157, 0.5);
+  background:
+    linear-gradient(135deg, rgba(167, 58, 42, 0.05), rgba(255, 255, 255, 0) 38%),
+    rgba(250, 247, 239, 0.58);
+  box-shadow: 0 18px 38px -34px rgba(58, 48, 34, 0.34);
+}
+
+.sst-plan-toolbar-copy {
+  @apply space-y-2;
+}
+
+.sst-plan-toolbar-label {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium tracking-[0.18em] uppercase;
+  color: #8b5e3c;
+  background: rgba(167, 58, 42, 0.08);
+}
+
+.sst-plan-toolbar-copy p {
+  @apply text-sm leading-6;
+  color: #5f6257;
+}
+
+.sst-plan-toolbar-actions {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.sst-plan-table-shell {
+  @apply overflow-hidden rounded-2xl;
+  border: 1px solid rgba(198, 184, 157, 0.46);
+  background: rgba(250, 247, 239, 0.54);
+  box-shadow: 0 24px 44px -40px rgba(58, 48, 34, 0.38);
+}
+
+.sst-plan-table-shell :deep(.card) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+</style>
+<style>
+.dark .sst-plan-toolbar,
+.dark .sst-plan-table-shell {
+  border-color: rgba(58, 61, 54, 0.96);
+  background:
+    linear-gradient(180deg, rgba(24, 26, 21, 0.9), rgba(18, 20, 16, 0.94));
+}
+
+.dark .sst-plan-toolbar-label {
+  color: #e7b58e;
+  background: rgba(167, 58, 42, 0.22);
+}
+
+.dark .sst-plan-toolbar-copy p {
+  color: #9ea49a;
+}
+</style>
+

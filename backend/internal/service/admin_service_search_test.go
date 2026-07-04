@@ -18,6 +18,7 @@ type accountRepoStubForAdminList struct {
 	listWithFiltersPlatform string
 	listWithFiltersType     string
 	listWithFiltersStatus   string
+	listWithFiltersAnomaly  string
 	listWithFiltersSearch   string
 	listWithFiltersPrivacy  string
 	listWithFiltersAccounts []Account
@@ -25,12 +26,13 @@ type accountRepoStubForAdminList struct {
 	listWithFiltersErr      error
 }
 
-func (s *accountRepoStubForAdminList) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
+func (s *accountRepoStubForAdminList) ListWithFilters(_ context.Context, params pagination.PaginationParams, platform, accountType, status, anomalyReason, search string, groupID int64, privacyMode string) ([]Account, *pagination.PaginationResult, error) {
 	s.listWithFiltersCalls++
 	s.listWithFiltersParams = params
 	s.listWithFiltersPlatform = platform
 	s.listWithFiltersType = accountType
 	s.listWithFiltersStatus = status
+	s.listWithFiltersAnomaly = anomalyReason
 	s.listWithFiltersSearch = search
 	s.listWithFiltersPrivacy = privacyMode
 
@@ -170,7 +172,7 @@ func TestAdminService_ListAccounts_WithSearch(t *testing.T) {
 		}
 		svc := &adminServiceImpl{accountRepo: repo}
 
-		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformGemini, AccountTypeOAuth, StatusActive, "acc", 0, "", "name", "ASC")
+		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformGemini, AccountTypeOAuth, StatusActive, "", "acc", 0, "", "name", "ASC")
 		require.NoError(t, err)
 		require.Equal(t, int64(10), total)
 		require.Equal(t, []Account{{ID: 1, Name: "acc"}}, accounts)
@@ -192,11 +194,27 @@ func TestAdminService_ListAccounts_WithPrivacyMode(t *testing.T) {
 		}
 		svc := &adminServiceImpl{accountRepo: repo}
 
-		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, StatusActive, "acc2", 0, PrivacyModeCFBlocked, "", "")
+		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, StatusActive, "", "acc2", 0, PrivacyModeCFBlocked, "", "")
 		require.NoError(t, err)
 		require.Equal(t, int64(1), total)
 		require.Equal(t, []Account{{ID: 2, Name: "acc2"}}, accounts)
 		require.Equal(t, PrivacyModeCFBlocked, repo.listWithFiltersPrivacy)
+	})
+}
+
+func TestAdminService_ListAccounts_WithAnomalyReason(t *testing.T) {
+	t.Run("anomaly_reason 参数正常传递到 repository 层", func(t *testing.T) {
+		repo := &accountRepoStubForAdminList{
+			listWithFiltersAccounts: []Account{{ID: 3, Name: "acc3"}},
+			listWithFiltersResult:   &pagination.PaginationResult{Total: 1},
+		}
+		svc := &adminServiceImpl{accountRepo: repo}
+
+		accounts, total, err := svc.ListAccounts(context.Background(), 1, 20, PlatformOpenAI, AccountTypeOAuth, "", AccountAnomalyReasonAuthFailed, "", 0, "", "", "")
+		require.NoError(t, err)
+		require.Equal(t, int64(1), total)
+		require.Equal(t, []Account{{ID: 3, Name: "acc3"}}, accounts)
+		require.Equal(t, AccountAnomalyReasonAuthFailed, repo.listWithFiltersAnomaly)
 	})
 }
 

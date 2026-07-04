@@ -2,12 +2,23 @@ import { i18n } from '@/i18n'
 import type { RouteLocationNormalizedLoaded } from 'vue-router'
 import type { CustomMenuItem } from '@/types'
 
+const DEFAULT_SITE_NAME = '山枢庭'
+const LEGACY_SITE_NAMES = new Set(['Sub2API'])
+const HOME_TAGLINE_TITLE = '统一入口，安静流转。'
+
+export function resolveDisplaySiteName(siteName?: string): string {
+  const normalizedSiteName = typeof siteName === 'string' ? siteName.trim() : ''
+  return normalizedSiteName && !LEGACY_SITE_NAMES.has(normalizedSiteName)
+    ? normalizedSiteName
+    : DEFAULT_SITE_NAME
+}
+
 /**
  * 统一生成页面标题，避免多处写入 document.title 产生覆盖冲突。
  * 优先使用 titleKey 通过 i18n 翻译，fallback 到静态 routeTitle。
  */
 export function resolveDocumentTitle(routeTitle: unknown, siteName?: string, titleKey?: string): string {
-  const normalizedSiteName = typeof siteName === 'string' && siteName.trim() ? siteName.trim() : 'Sub2API'
+  const normalizedSiteName = resolveDisplaySiteName(siteName)
 
   if (typeof titleKey === 'string' && titleKey.trim()) {
     const translated = i18n.global.t(titleKey)
@@ -17,6 +28,10 @@ export function resolveDocumentTitle(routeTitle: unknown, siteName?: string, tit
   }
 
   if (typeof routeTitle === 'string' && routeTitle.trim()) {
+    if (routeTitle.trim() === HOME_TAGLINE_TITLE) {
+      return `${normalizedSiteName} - ${HOME_TAGLINE_TITLE}`
+    }
+
     return `${routeTitle.trim()} - ${normalizedSiteName}`
   }
 
@@ -34,5 +49,9 @@ export function resolveRouteDocumentTitle(
     : undefined
   const menuTitle = menuItem?.label.trim()
 
-  return resolveDocumentTitle(menuTitle || route.meta.title, siteName, menuTitle ? undefined : route.meta.titleKey as string)
+  return resolveDocumentTitle(
+    menuTitle || route.meta.title,
+    siteName,
+    menuTitle ? undefined : route.meta.titleKey as string,
+  )
 }

@@ -1,23 +1,30 @@
 <template>
   <AppLayout>
-    <MonitorHero
-      :overall-status="overallStatus"
-      :interval-seconds="DEFAULT_INTERVAL_SECONDS"
-      :window="currentWindow"
-      :loading="loading"
-      :auto-refresh="autoRefresh"
-      @update:window="handleWindowChange"
-      @refresh="manualReload"
-    />
+    <div class="monitor-page mx-auto max-w-[78rem] space-y-5 md:space-y-6">
+      <MonitorHero
+        :overall-status="overallStatus"
+        :interval-seconds="DEFAULT_STATUS_REFRESH_INTERVAL_SECONDS"
+        :window="currentWindow"
+        :loading="loading"
+        :auto-refresh="autoRefresh"
+        :total-count="items.length"
+        :healthy-count="healthyCount"
+        :attention-count="attentionCount"
+        :provider-count="providerCount"
+        :latest-checked-at="latestCheckedAt"
+        @update:window="handleWindowChange"
+        @refresh="manualReload"
+      />
 
-    <MonitorCardGrid
-      :items="items"
-      :window="currentWindow"
-      :countdown-seconds="countdown"
-      :loading="loading"
-      :detail-cache="detailCache"
-      @card-click="openDetail"
-    />
+      <MonitorCardGrid
+        :items="items"
+        :window="currentWindow"
+        :countdown-seconds="countdown"
+        :loading="loading"
+        :detail-cache="detailCache"
+        @card-click="openDetail"
+      />
+    </div>
 
     <MonitorDetailDialog
       :show="showDetail"
@@ -46,7 +53,10 @@ import MonitorHero, {
 } from '@/components/user/monitor/MonitorHero.vue'
 import MonitorCardGrid from '@/components/user/monitor/MonitorCardGrid.vue'
 import MonitorDetailDialog from '@/components/user/MonitorDetailDialog.vue'
-import { DEFAULT_INTERVAL_SECONDS, STATUS_OPERATIONAL } from '@/constants/channelMonitor'
+import {
+  DEFAULT_STATUS_REFRESH_INTERVAL_SECONDS,
+  STATUS_OPERATIONAL,
+} from '@/constants/channelMonitor'
 import { useAutoRefresh } from '@/composables/useAutoRefresh'
 
 const { t } = useI18n()
@@ -65,7 +75,7 @@ let abortController: AbortController | null = null
 const autoRefresh = useAutoRefresh({
   storageKey: 'channel-status-auto-refresh',
   intervals: [30, 60, 120] as const,
-  defaultInterval: DEFAULT_INTERVAL_SECONDS,
+  defaultInterval: DEFAULT_STATUS_REFRESH_INTERVAL_SECONDS,
   onRefresh: () => reload(true),
   shouldPause: () => document.hidden || loading.value,
 })
@@ -79,6 +89,31 @@ const overallStatus = computed<OverallStatus>(() => {
     if (it.primary_status !== STATUS_OPERATIONAL) return 'degraded'
   }
   return 'operational'
+})
+
+const healthyCount = computed(() =>
+  items.value.filter(it => it.primary_status === STATUS_OPERATIONAL).length
+)
+
+const attentionCount = computed(() => Math.max(0, items.value.length - healthyCount.value))
+
+const providerCount = computed(() => new Set(items.value.map(it => it.provider)).size)
+
+const latestCheckedAt = computed(() => {
+  let latest: string | null = null
+  let latestTs = Number.NEGATIVE_INFINITY
+
+  for (const item of items.value) {
+    for (const point of item.timeline ?? []) {
+      const ts = Date.parse(point.checked_at)
+      if (!Number.isNaN(ts) && ts > latestTs) {
+        latestTs = ts
+        latest = point.checked_at
+      }
+    }
+  }
+
+  return latest
 })
 
 const detailTitle = computed(() => {
@@ -102,7 +137,7 @@ async function reload(silent = false) {
   } finally {
     if (abortController === ctrl) {
       if (!silent) loading.value = false
-      countdown.value = DEFAULT_INTERVAL_SECONDS
+      countdown.value = DEFAULT_STATUS_REFRESH_INTERVAL_SECONDS
       abortController = null
     }
   }
@@ -170,3 +205,9 @@ onBeforeUnmount(() => {
   if (abortController) abortController.abort()
 })
 </script>
+
+<style scoped>
+.monitor-page {
+  min-width: 0;
+}
+</style>

@@ -420,28 +420,27 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
+import { resolveDisplaySiteName } from '@/router/title'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { buildGatewayUrl } from '@/api/client'
+import { initTheme, toggleTheme as toggleDocumentTheme, useThemeState } from '@/utils/theme'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
 
 // ==================== Site Settings (same as HomeView) ====================
 
-const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
+const siteName = computed(() => resolveDisplaySiteName(appStore.cachedPublicSettings?.site_name || appStore.siteName))
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
 // ==================== Theme (same as HomeView) ====================
 
-const isDark = ref(document.documentElement.classList.contains('dark'))
+const isDark = useThemeState()
 
 function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+  isDark.value = toggleDocumentTheme(isDark.value)
 }
 
 const currentYear = computed(() => new Date().getFullYear())
@@ -857,7 +856,7 @@ function getBrowserTimezone(): string {
 
 async function fetchUsage(key: string) {
   const dateParams = getDateParams()
-  const url = buildGatewayUrl('/v1/usage') + (dateParams ? '?' + dateParams : '')
+  const url = '/v1/usage' + (dateParams ? '?' + dateParams : '')
   const res = await fetch(url, {
     headers: { 'Authorization': 'Bearer ' + key },
   })
@@ -904,14 +903,6 @@ async function queryKey() {
 }
 
 // ==================== Lifecycle ====================
-
-function initTheme() {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    isDark.value = true
-    document.documentElement.classList.add('dark')
-  }
-}
 
 function formatResetTime(resetAt: string | null | undefined): string {
   if (!resetAt) return ''

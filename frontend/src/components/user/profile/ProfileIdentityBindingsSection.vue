@@ -14,11 +14,9 @@
 
     <div :class="props.embedded ? 'space-y-4' : 'divide-y divide-gray-100 dark:divide-dark-700'">
       <div v-if="props.embedded">
-        <p class="text-sm font-semibold text-gray-900 dark:text-white">
+        <span class="binding-section-kicker">绑定方式</span>
+        <p class="mt-2 text-sm font-semibold text-zen-ink dark:text-zen-paper">
           {{ t('profile.authBindings.title') }}
-        </p>
-        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {{ t('profile.authBindings.description') }}
         </p>
       </div>
 
@@ -61,18 +59,18 @@
 
               <p
                 v-if="providerSummary(item.provider)"
-                class="text-sm text-gray-600 dark:text-gray-300"
+                class="text-sm text-zen-mist dark:text-zen-stone"
               >
                 {{ providerSummary(item.provider) }}
               </p>
 
               <div
                 v-if="hasBindingDetails(item.provider, item.details)"
-                class="grid gap-1 text-sm text-gray-500 dark:text-gray-400"
+                class="grid gap-1 text-sm text-zen-mist dark:text-zen-stone"
               >
                 <p
                   v-if="item.provider !== 'email' && item.details?.display_name"
-                  class="font-medium text-gray-700 dark:text-gray-200"
+                  class="font-medium text-zen-ink dark:text-zen-paper"
                 >
                   {{ item.details.display_name }}
                 </p>
@@ -493,15 +491,15 @@ function providerIconClass(provider: UserAuthProvider): string {
     return 'bg-orange-100 text-orange-600 dark:bg-orange-900/20 dark:text-orange-300'
   }
   if (provider === 'dingtalk') {
-    return 'bg-blue-100 text-blue-600 dark:bg-blue-900/20 dark:text-blue-300'
+    return 'bg-[#a73a2a]/8 text-[#a73a2a] dark:bg-[#a73a2a]/18 dark:text-[#f0b4a8]'
   }
   if (provider === 'wechat') {
-    return 'bg-green-100 text-green-600 dark:bg-green-900/20 dark:text-green-300'
+    return 'bg-[#51624f]/10 text-[#51624f] dark:bg-[#51624f]/20 dark:text-emerald-300'
   }
   if (provider === 'oidc') {
-    return 'bg-sky-100 text-sky-600 dark:bg-sky-900/20 dark:text-sky-300'
+    return 'bg-[#9b8155]/12 text-[#7b6a53] dark:bg-[#9b8155]/20 dark:text-amber-300'
   }
-  return 'bg-primary-100 text-primary-600 dark:bg-primary-900/20 dark:text-primary-300'
+  return 'bg-[#a73a2a]/8 text-[#a73a2a] dark:bg-[#a73a2a]/18 dark:text-[#f0b4a8]'
 }
 
 function providerSummary(provider: UserAuthProvider): string {
@@ -658,3 +656,17 @@ async function bindEmail(): Promise<void> {
   }
 }
 </script>
+
+<style scoped>
+.binding-section-kicker {
+  color: #8c7a61;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dark .binding-section-kicker {
+  color: #a89a80;
+}
+</style>

@@ -4,7 +4,7 @@
     <template v-if="isAdmin">
       <button
         @click="toggleDropdown"
-        class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors"
+        class="version-badge-trigger flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs transition-colors"
         :class="[
           hasUpdate
             ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50'
@@ -12,7 +12,7 @@
         ]"
         :title="hasUpdate ? t('version.updateAvailable') : t('version.upToDate')"
       >
-        <span v-if="currentVersion" class="font-medium">v{{ currentVersion }}</span>
+        <span v-if="currentVersion" class="version-badge-value font-medium">v{{ currentVersion }}</span>
         <span
           v-else
           class="h-3 w-12 animate-pulse rounded bg-gray-200 font-medium dark:bg-dark-600"
@@ -146,6 +146,19 @@
                 >
                   {{ t('version.retry') }}
                 </button>
+
+                <ul
+                  v-if="preflightChecks.length"
+                  class="space-y-1 rounded-lg border border-red-100 bg-red-50/60 p-2 text-xs text-red-700 dark:border-red-800/40 dark:bg-red-900/10 dark:text-red-300"
+                >
+                  <li
+                    v-for="item in preflightChecks"
+                    :key="item"
+                    class="break-words"
+                  >
+                    {{ item }}
+                  </li>
+                </ul>
               </div>
 
               <!-- Priority 2: Update success - need restart -->
@@ -179,7 +192,7 @@
                 <!-- Restart button with countdown -->
                 <button
                   @click="handleRestart"
-                  :disabled="restarting"
+                  :disabled="restarting || rollingBack"
                   class="flex w-full items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <svg
@@ -223,6 +236,35 @@
                     >
                   </template>
                   <span v-else>{{ t('version.restartNow') }}</span>
+                </button>
+
+                <button
+                  @click="handleRollback"
+                  :disabled="restarting || rollingBack"
+                  class="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-800/50 dark:bg-dark-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                >
+                  <svg
+                    v-if="rollingBack"
+                    class="h-4 w-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      class="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      stroke-width="4"
+                    ></circle>
+                    <path
+                      class="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  <Icon v-else name="refresh" size="sm" :stroke-width="2" />
+                  {{ rollingBack ? t('version.rollingBack') : t('version.rollbackNow') }}
                 </button>
               </div>
 
@@ -384,7 +426,12 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
-import { performUpdate, restartService } from '@/api/admin/system'
+import {
+  checkUpdatePreflight,
+  performUpdate,
+  restartService,
+  rollback as rollbackUpdate,
+} from '@/api/admin/system'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
@@ -411,11 +458,14 @@ const buildType = computed(() => appStore.buildType)
 
 // Update process states (local to this component)
 const updating = ref(false)
+const rollingBack = ref(false)
 const restarting = ref(false)
 const needRestart = ref(false)
 const updateError = ref('')
 const updateSuccess = ref(false)
 const restartCountdown = ref(0)
+const updateIdempotencyKey = ref('')
+const preflightChecks = ref<string[]>([])
 
 // Only show update check for release builds (binary/docker deployment)
 const isReleaseBuild = computed(() => buildType.value === 'release')
@@ -435,8 +485,17 @@ async function refreshVersion(force = true) {
   updateError.value = ''
   updateSuccess.value = false
   needRestart.value = false
+  updateIdempotencyKey.value = ''
+  preflightChecks.value = []
 
   await appStore.fetchVersion(force)
+}
+
+function createSystemOperationIdempotencyKey(operation: string) {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `system-${operation}-${crypto.randomUUID()}`
+  }
+  return `system-${operation}-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 async function handleUpdate() {
@@ -445,18 +504,84 @@ async function handleUpdate() {
   updating.value = true
   updateError.value = ''
   updateSuccess.value = false
+  preflightChecks.value = []
+  if (!updateIdempotencyKey.value) {
+    updateIdempotencyKey.value = createSystemOperationIdempotencyKey('update')
+  }
 
   try {
-    const result = await performUpdate()
+    const preflight = await checkUpdatePreflight(true)
+    preflightChecks.value = [
+      ...(preflight.blocking_reasons ?? []),
+      ...(preflight.warnings ?? []),
+    ]
+
+    if (!preflight.can_update) {
+      if (!preflight.has_update) {
+        updateIdempotencyKey.value = ''
+        appStore.showInfo(t('version.upToDate'))
+        await refreshVersion(true)
+        return
+      }
+      updateError.value = preflight.blocking_reasons?.join('; ') || t('version.preflightFailed')
+      return
+    }
+
+    const result = await performUpdate(updateIdempotencyKey.value)
+
+    if (result.already_up_to_date) {
+      needRestart.value = false
+      updateSuccess.value = false
+      updateIdempotencyKey.value = ''
+      appStore.showInfo(t('version.upToDate'))
+      await refreshVersion(true)
+      return
+    }
+
     updateSuccess.value = true
-    needRestart.value = result.need_restart
+    needRestart.value = Boolean(result.need_restart)
     // Clear version cache to reflect update completed
     appStore.clearVersionCache()
+    if (!result.need_restart) {
+      appStore.showSuccess(result.message || t('version.updateComplete'))
+      await refreshVersion(true)
+      updateIdempotencyKey.value = ''
+    }
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { message?: string } }; message?: string }
-    updateError.value = err.response?.data?.message || err.message || t('version.updateFailed')
+    const err = error as {
+      response?: { data?: { message?: string } }
+      message?: string
+      code?: string
+      metadata?: { retry_after_seconds?: number }
+    }
+    const retryAfter = err.metadata?.retry_after_seconds
+    const retryHint = retryAfter ? ` (${t('version.retryLater', { seconds: retryAfter })})` : ''
+    updateError.value =
+      (err.response?.data?.message || err.message || t('version.updateFailed')) + retryHint
   } finally {
     updating.value = false
+  }
+}
+
+async function handleRollback() {
+  if (rollingBack.value) return
+  if (!window.confirm(t('version.rollbackConfirm'))) return
+
+  rollingBack.value = true
+  updateError.value = ''
+  preflightChecks.value = []
+
+  try {
+    const result = await rollbackUpdate(createSystemOperationIdempotencyKey('rollback'))
+    updateSuccess.value = true
+    needRestart.value = Boolean(result.need_restart)
+    appStore.clearVersionCache()
+    appStore.showSuccess(result.message || t('version.rollbackComplete'))
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string } }; message?: string }
+    updateError.value = err.response?.data?.message || err.message || t('version.rollbackFailed')
+  } finally {
+    rollingBack.value = false
   }
 }
 
@@ -467,7 +592,7 @@ async function handleRestart() {
   restartCountdown.value = 8
 
   try {
-    await restartService()
+    await restartService(createSystemOperationIdempotencyKey('restart'))
     // Service will restart, page will reload automatically or show disconnected
   } catch (error) {
     // Expected - connection will be lost during restart

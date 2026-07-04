@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"testing"
+	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
@@ -34,6 +35,10 @@ func (s *stubOpsRepoForUserErr) GetErrorLogByID(ctx context.Context, id int64) (
 		return nil, s.detailErrToReturn
 	}
 	return s.detailToReturn, nil
+}
+
+func (s *stubOpsRepoForUserErr) GetUserAPIKeyErrorSummaries(ctx context.Context, userID int64, apiKeyIDs []int64, startTime time.Time) (map[int64]*APIKeyErrorSummary, error) {
+	return map[int64]*APIKeyErrorSummary{}, nil
 }
 
 func TestListUserErrorRequests_ForcesScopeAndRedacts(t *testing.T) {
@@ -134,6 +139,9 @@ func TestGetUserErrorRequestDetail_OwnershipEnforced(t *testing.T) {
 	if got2.Message != "upstream failed" {
 		t.Errorf("want Message=%q, got %q", "upstream failed", got2.Message)
 	}
+	if got2.Diagnosis == nil || got2.Diagnosis.ReasonCode != "upstream_temporarily_unavailable" {
+		t.Fatalf("expected upstream diagnosis, got %+v", got2.Diagnosis)
+	}
 }
 
 func TestGetUserErrorRequestDetail_NotFound(t *testing.T) {
@@ -184,16 +192,16 @@ func TestGetUserErrorRequestDetail_DeletedKeyOwnerAccess(t *testing.T) {
 	mk := func() *OpsErrorLogDetail {
 		return &OpsErrorLogDetail{
 			OpsErrorLog: OpsErrorLog{
-				ID:                    55,
-				Phase:                 "auth",
-				Type:                  "api_error",
-				StatusCode:            401,
-				Message:               "Invalid API key",
-				UserID:                nil,
-				APIKeyName:            "my-old-key",
-				APIKeyDeleted:         true,
-				DeletedKeyOwnerUserID: &ownerUID,
+				ID:            55,
+				Phase:         "auth",
+				Type:          "api_error",
+				StatusCode:    401,
+				Message:       "Invalid API key",
+				UserID:        nil,
+				APIKeyName:    "my-old-key",
+				APIKeyDeleted: true,
 			},
+			DeletedKeyOwnerUserID: &ownerUID,
 		}
 	}
 

@@ -1,91 +1,123 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div class="flex flex-col gap-3">
-          <div class="flex flex-wrap items-center gap-3">
-            <SearchInput
-              v-model="filterSearch"
-              :placeholder="t('keys.searchPlaceholder')"
-              class="w-full sm:w-64"
-              @search="onFilterChange"
-            />
-            <Select
-              :model-value="filterGroupId"
-              class="w-40"
-              :options="groupFilterOptions"
-              @update:model-value="onGroupFilterChange"
-            />
-            <Select
-              :model-value="filterStatus"
-              class="w-40"
-              :options="statusFilterOptions"
-              @update:model-value="onStatusFilterChange"
-            />
+    <div class="keys-page space-y-6">
+      <section class="keys-hero overflow-hidden rounded-zen border border-zen-paperLine bg-white/45 p-6 shadow-paper dark:border-zen-nightLine dark:bg-zen-nightPanel/70 lg:p-7">
+        <div class="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div>
+            <div class="mb-4 flex items-center gap-4">
+              <span class="h-px w-14 bg-zen-paperLine dark:bg-zen-nightLine"></span>
+              <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">密钥庭册</span>
+            </div>
+            <h1 class="font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper sm:text-4xl">调用凭证</h1>
           </div>
+
+          <div class="keys-ledger grid gap-3 sm:grid-cols-3 lg:min-w-[28rem]">
+            <div class="keys-ledger-item">
+              <span>当前清册</span>
+              <strong>{{ pagination.total.toLocaleString() }}</strong>
+            </div>
+            <div class="keys-ledger-item">
+              <span>本页启用</span>
+              <strong>{{ activeKeyCount.toLocaleString() }}</strong>
+            </div>
+            <div class="keys-ledger-item">
+              <span>分组可用</span>
+              <strong>{{ groups.length.toLocaleString() }}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="keys-workspace">
+        <div class="keys-toolbar-shell">
+          <div class="keys-toolbar-grid">
+            <div class="keys-filter-field keys-filter-field-key">
+              <Select
+                :model-value="selectedFilterKeyId"
+                class="w-full"
+                :options="keyFilterOptions"
+                :searchable="true"
+                aria-label="选择密钥"
+                search-placeholder="搜索密钥名称或前缀"
+                dropdown-class="keys-filter-dropdown"
+                @update:model-value="onKeyFilterChange"
+              />
+            </div>
+
+            <div class="keys-filter-field">
+              <Select
+                :model-value="filterGroupId"
+                class="w-full"
+                :options="groupFilterOptions"
+                aria-label="选择分组"
+                dropdown-class="keys-filter-dropdown"
+                @update:model-value="onGroupFilterChange"
+              />
+            </div>
+
+            <div class="keys-filter-field">
+              <Select
+                :model-value="filterStatus"
+                class="w-full"
+                :options="statusFilterOptions"
+                aria-label="选择状态"
+                dropdown-class="keys-filter-dropdown"
+                @update:model-value="onStatusFilterChange"
+              />
+            </div>
+
+            <div class="keys-toolbar-actions">
+              <button @click="openCreateModal" class="btn btn-primary" data-tour="keys-create-btn">
+                <Icon name="plus" size="md" class="mr-2" />
+                {{ t('keys.createKey') }}
+              </button>
+              <button
+                @click="loadApiKeys"
+                :disabled="loading"
+                class="btn btn-secondary"
+                :title="t('common.refresh')"
+              >
+                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+                {{ t('common.refresh') }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
+          class="keys-endpoint-popover-shell"
+        >
           <EndpointPopover
-            v-if="publicSettings?.api_base_url || (publicSettings?.custom_endpoints?.length ?? 0) > 0"
             :api-base-url="publicSettings?.api_base_url || ''"
             :custom-endpoints="publicSettings?.custom_endpoints || []"
           />
         </div>
-      </template>
 
-      <template #actions>
-        <div class="flex justify-end gap-3">
-          <button
-            @click="loadApiKeys"
-            :disabled="loading"
-            class="btn btn-secondary"
-            :title="t('common.refresh')"
-          >
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
-          <div class="relative" ref="columnDropdownRef">
-            <button
-              @click="showColumnDropdown = !showColumnDropdown"
-              class="btn btn-secondary px-2 md:px-3"
-              :title="t('keys.columnSettings')"
-            >
-              <svg class="h-4 w-4 md:mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" />
-              </svg>
-              <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
-            </button>
-            <div
-              v-if="showColumnDropdown"
-              class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
-            >
-              <button
-                v-for="col in toggleableColumns"
-                :key="col.key"
-                @click="toggleColumn(col.key)"
-                class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
-              >
-                <span>{{ col.label }}</span>
-                <Icon
-                  v-if="isColumnVisible(col.key)"
-                  name="check"
-                  size="sm"
-                  class="text-primary-500"
-                  :stroke-width="2"
-                />
+        <div class="keys-data-shell">
+          <div class="keys-access-strip">
+            <div class="keys-access-value">
+              <span>接入地址</span>
+              <strong>{{ resolvedApiBaseUrl }}</strong>
+            </div>
+            <div class="keys-access-strip-actions">
+              <button type="button" @click="copyEndpoint">
+                <Icon name="clipboard" size="sm" />
+                复制地址
+              </button>
+              <button type="button" :disabled="apiKeys.length === 0" @click="openConnectionTestDialog">
+                <Icon name="link" size="sm" />
+                接入体检
               </button>
             </div>
           </div>
-          <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
-            <Icon name="plus" size="md" class="mr-2" />
-            {{ t('keys.createKey') }}
-          </button>
-        </div>
-      </template>
-
-      <template #table>
         <DataTable
           :columns="columns"
           :data="apiKeys"
           :loading="loading"
           :server-side-sort="true"
+          :sticky-first-column="false"
+          :sticky-actions-column="false"
           default-sort-key="created_at"
           default-sort-order="desc"
           @sort="handleSort"
@@ -117,13 +149,13 @@
           </template>
 
           <template #cell-name="{ value, row }">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <div class="key-name-cell">
+              <span class="key-name-text font-medium text-gray-900 dark:text-white">{{ value }}</span>
               <Icon
                 v-if="row.ip_whitelist?.length > 0 || row.ip_blacklist?.length > 0"
                 name="shield"
                 size="sm"
-                class="text-blue-500"
+                class="key-name-flag"
                 :title="t('keys.ipRestrictionEnabled')"
               />
             </div>
@@ -132,10 +164,13 @@
           <template #cell-group="{ row }">
             <div class="group/dropdown relative">
               <button
+                type="button"
                 :ref="(el) => setGroupButtonRef(row.id, el)"
-                @click="openGroupSelector(row)"
-                class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
+                @click.stop="openGroupSelector(row)"
+                class="key-group-trigger"
                 :title="t('keys.clickToChangeGroup')"
+                aria-haspopup="listbox"
+                :aria-expanded="groupSelectorKeyId === row.id"
               >
                 <GroupBadge
                   v-if="row.group"
@@ -144,194 +179,90 @@
                   :subscription-type="row.group.subscription_type"
                   :rate-multiplier="row.group.rate_multiplier"
                   :user-rate-multiplier="userGroupRates[row.group.id]"
-                  :peak-rate-enabled="row.group.peak_rate_enabled"
-                  :peak-start="row.group.peak_start"
-                  :peak-end="row.group.peak_end"
-                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
                 />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
+                <span v-else class="key-group-empty">{{
                   t('keys.noGroup')
                 }}</span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
-                <svg
-                  class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9"
-                  />
-                </svg>
+                <span class="key-group-helper">{{ t('keys.selectGroup') }}</span>
+                <Icon
+                  name="arrowsUpDown"
+                  size="sm"
+                  class="key-group-chevron"
+                  :stroke-width="2"
+                />
               </button>
             </div>
           </template>
 
           <template #cell-usage="{ row }">
-            <div class="text-sm">
-              <div class="flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <div class="mt-0.5 flex items-center gap-1.5">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
-                <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
-                </span>
-              </div>
-              <!-- Quota progress (if quota is set) -->
-              <div v-if="row.quota > 0" class="mt-1.5">
-                <div class="flex items-center gap-1.5">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('keys.quota') }}:</span>
-                  <span :class="[
-                    'font-medium',
-                    row.quota_used >= row.quota ? 'text-red-500' :
-                    row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
-                    'text-gray-900 dark:text-white'
-                  ]">
-                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
-                  </span>
+            <div class="key-usage-cell">
+              <div class="key-usage-ledger">
+                <div class="key-usage-stat">
+                  <span>{{ t('keys.today') }}</span>
+                  <strong>{{ formatUsd(workbenchStats[row.id]?.today_actual_cost, 4) }}</strong>
                 </div>
-                <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.quota_used >= row.quota ? 'bg-red-500' :
-                      row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
-                    :style="{ width: Math.min((row.quota_used / row.quota) * 100, 100) + '%' }"
-                  />
+                <div class="key-usage-stat">
+                  <span>{{ t('keys.total') }}</span>
+                  <strong>{{ formatUsd(workbenchStats[row.id]?.total_actual_cost, 4) }}</strong>
+                </div>
+                <div class="key-usage-stat">
+                  <span>24h 成功</span>
+                  <strong>{{ (workbenchStats[row.id]?.success_requests_24h ?? 0).toLocaleString() }}</strong>
+                </div>
+                <div class="key-usage-stat">
+                  <span>24h 胜率</span>
+                  <strong>{{ formatSuccessRate(workbenchStats[row.id]?.success_rate_24h) }}</strong>
+                </div>
+              </div>
+
+              <div v-if="getRateLimitWindows(row).length" class="key-usage-meta">
+                <div v-if="getRateLimitWindows(row).length" class="key-rate-inline-list">
+                  <span
+                    v-for="window in getRateLimitWindows(row)"
+                    :key="window.key"
+                    class="key-rate-inline-chip"
+                    :class="`tone-${getMeterTone(window.usage, window.limit)}`"
+                  >
+                    <strong>{{ window.label }}</strong>
+                    <span>{{ formatUsd(window.usage) }}/{{ formatUsd(window.limit) }}</span>
+                  </span>
                 </div>
               </div>
             </div>
           </template>
 
-          <template #cell-rate_limit="{ row }">
-            <div v-if="row.rate_limit_5h > 0 || row.rate_limit_1d > 0 || row.rate_limit_7d > 0" class="space-y-1.5 min-w-[140px]">
-              <!-- 5h window -->
-              <div v-if="row.rate_limit_5h > 0">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">5h</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_5h >= row.rate_limit_5h ? 'text-red-500' :
-                    row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
-                    ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_5h >= row.rate_limit_5h ? 'bg-red-500' :
-                      row.usage_5h >= row.rate_limit_5h * 0.8 ? 'bg-yellow-500' :
-                      'bg-emerald-500'
-                    ]"
-                    :style="{ width: Math.min((row.usage_5h / row.rate_limit_5h) * 100, 100) + '%' }"
-                  />
-                </div>
-                <div v-if="row.reset_5h_at && formatResetTime(row.reset_5h_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                  ⟳ {{ formatResetTime(row.reset_5h_at) }}
-                </div>
+          <template #cell-status="{ value, row }">
+            <div class="key-health-cell">
+              <span :class="[
+                'badge',
+                value === 'active' ? 'badge-success' :
+                value === 'quota_exhausted' ? 'badge-warning' :
+                value === 'expired' ? 'badge-danger' :
+                'badge-gray'
+              ]">
+                {{ t('keys.status.' + value) }}
+              </span>
+              <div class="key-health-lines">
+                <span>{{ getKeyHealth(row).lastCall }}</span>
+                <span>{{ getKeyHealth(row).requestPulse }}</span>
+                <span :class="{ 'key-health-lines-alert': getKeyHealth(row).hasAttention }">{{ getKeyHealth(row).summary }}</span>
+                <span
+                  v-for="hint in getKeyHealth(row).modelHints"
+                  :key="hint"
+                  class="key-health-model-hint"
+                >
+                  {{ hint }}
+                </span>
+                <button
+                  v-if="getKeyHealth(row).canReview"
+                  type="button"
+                  class="key-health-link"
+                  @click="openKeyErrorLedger(row.id)"
+                >
+                  查看最近失败
+                </button>
               </div>
-              <!-- 1d window -->
-              <div v-if="row.rate_limit_1d > 0">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">1d</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_1d >= row.rate_limit_1d ? 'text-red-500' :
-                    row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
-                    ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_1d >= row.rate_limit_1d ? 'bg-red-500' :
-                      row.usage_1d >= row.rate_limit_1d * 0.8 ? 'bg-yellow-500' :
-                      'bg-emerald-500'
-                    ]"
-                    :style="{ width: Math.min((row.usage_1d / row.rate_limit_1d) * 100, 100) + '%' }"
-                  />
-                </div>
-                <div v-if="row.reset_1d_at && formatResetTime(row.reset_1d_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                  ⟳ {{ formatResetTime(row.reset_1d_at) }}
-                </div>
-              </div>
-              <!-- 7d window -->
-              <div v-if="row.rate_limit_7d > 0">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-gray-500 dark:text-gray-400">7d</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_7d >= row.rate_limit_7d ? 'text-red-500' :
-                    row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
-                    ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
-                  </span>
-                </div>
-                <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
-                  <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_7d >= row.rate_limit_7d ? 'bg-red-500' :
-                      row.usage_7d >= row.rate_limit_7d * 0.8 ? 'bg-yellow-500' :
-                      'bg-emerald-500'
-                    ]"
-                    :style="{ width: Math.min((row.usage_7d / row.rate_limit_7d) * 100, 100) + '%' }"
-                  />
-                </div>
-                <div v-if="row.reset_7d_at && formatResetTime(row.reset_7d_at)" class="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
-                  ⟳ {{ formatResetTime(row.reset_7d_at) }}
-                </div>
-              </div>
-              <!-- Reset button -->
-              <button
-                v-if="row.usage_5h > 0 || row.usage_1d > 0 || row.usage_7d > 0"
-                @click.stop="confirmResetRateLimitFromTable(row)"
-                class="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
-                :title="t('keys.resetRateLimitUsage')"
-              >
-                <Icon name="refresh" size="xs" />
-                {{ t('keys.resetUsage') }}
-              </button>
             </div>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
-          </template>
-
-          <template #cell-expires_at="{ value }">
-            <span v-if="value" :class="[
-              'text-sm',
-              new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
-            ]">
-              {{ formatDateTime(value) }}
-            </span>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{ t('keys.noExpiration') }}</span>
-          </template>
-
-          <template #cell-status="{ value }">
-            <span :class="[
-              'badge',
-              value === 'active' ? 'badge-success' :
-              value === 'quota_exhausted' ? 'badge-warning' :
-              value === 'expired' ? 'badge-danger' :
-              'badge-gray'
-            ]">
-              {{ t('keys.status.' + value) }}
-            </span>
           </template>
 
           <template #cell-last_used_at="{ value }">
@@ -342,57 +273,52 @@
           </template>
 
           <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateTime(value) }}</span>
+            <span class="text-sm text-gray-500 dark:text-dark-400">{{ formatDateOnly(value) }}</span>
           </template>
 
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
+            <div class="key-row-actions">
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                class="key-row-action"
+                :title="t('keys.useKey')"
               >
                 <Icon name="terminal" size="sm" />
-                <span class="text-xs">{{ t('keys.useKey') }}</span>
               </button>
               <!-- Import to CC Switch Button -->
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                class="key-row-action"
+                :title="t('keys.importToCcSwitch')"
               >
                 <Icon name="upload" size="sm" />
-                <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
               </button>
               <!-- Toggle Status Button -->
               <button
                 @click="toggleKeyStatus(row)"
-                :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
-                  row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
-                ]"
+                class="key-row-action"
+                :title="row.status === 'active' ? t('keys.disable') : t('keys.enable')"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
                 <Icon v-else name="checkCircle" size="sm" />
-                <span class="text-xs">{{ row.status === 'active' ? t('keys.disable') : t('keys.enable') }}</span>
               </button>
               <!-- Edit Button -->
               <button
                 @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="key-row-action"
+                :title="t('common.edit')"
               >
                 <Icon name="edit" size="sm" />
-                <span class="text-xs">{{ t('common.edit') }}</span>
               </button>
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="key-row-action is-danger"
+                :title="t('common.delete')"
               >
                 <Icon name="trash" size="sm" />
-                <span class="text-xs">{{ t('common.delete') }}</span>
               </button>
             </div>
           </template>
@@ -402,32 +328,132 @@
               :title="t('keys.noKeysYet')"
               :description="t('keys.createFirstKey')"
               :action-text="t('keys.createKey')"
-              @action="showCreateModal = true"
+              @action="openCreateModal"
             />
           </template>
         </DataTable>
-      </template>
 
-      <template #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
           :total="pagination.total"
           :page-size="pagination.page_size"
+          :show-controls-when-single-page="false"
+          page-size-dropdown-class="keys-page-size-dropdown"
           @update:page="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         />
+        </div>
+      </section>
+    </div>
+
+
+    <BaseDialog
+      :show="showConnectionTestDialog"
+      title="接入配置"
+      width="normal"
+      class="connection-test-modal"
+      @close="closeConnectionTestDialog"
+    >
+      <div class="connection-test-dialog">
+        <div class="connection-key-list">
+          <button
+            v-for="key in apiKeys"
+            :key="key.id"
+            type="button"
+            :class="{ 'is-selected': connectionTestKeyId === key.id }"
+            @click="selectConnectionTestKey(key.id)"
+          >
+            <span>{{ key.name }}</span>
+            <small>{{ maskApiKey(key.key) }}</small>
+          </button>
+        </div>
+
+        <div class="integration-kit" v-if="selectedConnectionTestKey">
+          <div class="integration-kit-actions">
+            <button type="button" @click="copyIntegrationSnippet('curl')">复制 curl</button>
+            <button type="button" @click="copyIntegrationSnippet('openai')">复制 OpenAI SDK</button>
+            <button type="button" @click="copyIntegrationSnippet('env')">复制环境变量</button>
+            <button type="button" @click="openUseKeyModalFromConnectionTest">查看全量配置</button>
+          </div>
+        </div>
+
+        <div
+          v-if="selectedConnectionTestKey && (selectedConnectionModelHints.length || selectedConnectionWorkbenchSummary?.latest_error)"
+          class="connection-model-brief"
+        >
+          <div class="connection-model-brief-head">
+            <div>
+              <span>近期模型提示</span>
+              <strong>{{ selectedConnectionLatestErrorLabel }}</strong>
+            </div>
+            <button type="button" @click="openKeyErrorLedger(selectedConnectionTestKey.id)">查看最近失败</button>
+          </div>
+          <ul v-if="selectedConnectionModelHints.length" class="connection-model-brief-list">
+            <li v-for="hint in selectedConnectionModelHints" :key="hint">{{ hint }}</li>
+          </ul>
+        </div>
+
+        <div v-if="connectionTestResult" class="connection-test-report" :class="`is-${connectionTestResult.tone}`">
+          <div class="connection-report-head">
+            <div>
+              <span>体检记录</span>
+              <strong>{{ connectionTestResult.title }}</strong>
+            </div>
+            <button type="button" @click="copyConnectionDiagnosticReport">复制报告</button>
+          </div>
+          <p>{{ connectionTestResult.detail }}</p>
+          <div class="connection-report-grid">
+            <div><span>接入地址</span><strong>{{ resolvedApiBaseUrl }}/v1</strong></div>
+            <div><span>密钥状态</span><strong>{{ selectedConnectionTestKey?.status || '-' }}</strong></div>
+            <div><span>模型接口</span><strong>{{ connectionTestResult.statusCode ? 'HTTP ' + connectionTestResult.statusCode : connectionTestResult.tone === 'success' ? '可访问' : '未完成' }}</strong></div>
+            <div><span>响应耗时</span><strong>{{ connectionTestResult.latencyMs !== null ? connectionTestResult.latencyMs + 'ms' : '-' }}</strong></div>
+          </div>
+          <div v-if="connectionTestResult.sampleModels.length" class="connection-model-samples">
+            <div class="connection-model-samples-head">
+              <span>模型可见性</span>
+              <strong>{{ connectionTestResult.availableModelCount !== null ? connectionTestResult.availableModelCount + ' 个可见模型' : '-' }}</strong>
+            </div>
+            <div class="connection-model-sample-list">
+              <code v-for="model in visibleConnectionModels" :key="model">{{ model }}</code>
+              <button
+                v-if="hiddenConnectionModelCount > 0 || showAllConnectionModels"
+                type="button"
+                class="connection-model-sample-more"
+                @click="toggleConnectionModelsExpanded"
+              >
+                {{ showAllConnectionModels ? '收起' : '+' + hiddenConnectionModelCount }}
+              </button>
+            </div>
+          </div>
+          <small v-if="connectionTestResult.action">{{ connectionTestResult.action }}</small>
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="btn btn-secondary" @click="closeConnectionTestDialog">取消</button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            :disabled="!selectedConnectionTestKey || testingKeyId !== null"
+            @click="testKeyConnection(selectedConnectionTestKey)"
+          >
+            <Icon name="refresh" size="sm" :class="testingKeyId !== null ? 'animate-spin' : ''" />
+            {{ testingKeyId !== null ? '体检中…' : '开始体检' }}
+          </button>
+        </div>
       </template>
-    </TablePageLayout>
+    </BaseDialog>
 
     <!-- Create/Edit Modal -->
     <BaseDialog
       :show="showCreateModal || showEditModal"
       :title="showEditModal ? t('keys.editKey') : t('keys.createKey')"
       width="normal"
+      class="key-editor-modal"
       @close="closeModals"
     >
-      <form id="key-form" @submit.prevent="handleSubmit" class="space-y-5">
+      <form id="key-form" @submit.prevent="handleSubmit" class="key-editor-form space-y-5">
         <div>
           <label class="input-label">{{ t('keys.nameLabel') }}</label>
           <input
@@ -448,6 +474,7 @@
             :placeholder="t('keys.selectGroup')"
             :searchable="true"
             :search-placeholder="t('keys.searchGroup')"
+            dropdown-class="key-editor-dropdown"
             data-tour="key-form-group"
           >
             <template #selected="{ option }">
@@ -458,10 +485,6 @@
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
-                :peak-start="(option as unknown as GroupOption).peakStart"
-                :peak-end="(option as unknown as GroupOption).peakEnd"
-                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
               />
               <span v-else class="text-gray-400">{{ t('keys.selectGroup') }}</span>
             </template>
@@ -472,10 +495,6 @@
                 :subscription-type="(option as unknown as GroupOption).subscriptionType"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
-                :peak-rate-enabled="(option as unknown as GroupOption).peakRateEnabled"
-                :peak-start="(option as unknown as GroupOption).peakStart"
-                :peak-end="(option as unknown as GroupOption).peakEnd"
-                :peak-rate-multiplier="(option as unknown as GroupOption).peakRateMultiplier"
                 :description="(option as unknown as GroupOption).description"
                 :selected="selected"
               />
@@ -522,8 +541,31 @@
             v-model="formData.status"
             :options="statusOptions"
             :placeholder="t('keys.selectStatus')"
+            dropdown-class="key-editor-dropdown"
           />
         </div>
+
+        <div class="key-advanced-shell">
+          <button
+            type="button"
+            class="key-advanced-toggle"
+            :aria-expanded="advancedSettingsExpanded"
+            @click="advancedSettingsExpanded = !advancedSettingsExpanded"
+          >
+            <div class="key-advanced-copy">
+              <span>高级控制</span>
+              <strong>{{ advancedSettingsSummary }}</strong>
+            </div>
+            <div class="key-advanced-meta">
+              <div v-if="advancedSummaryItems.length" class="key-advanced-chips">
+                <span v-for="item in advancedSummaryItems" :key="item">{{ item }}</span>
+              </div>
+              <small>{{ advancedSettingsExpanded ? t('common.collapse') : t('common.expand') }}</small>
+              <Icon name="chevronDown" size="sm" :class="['transition-transform duration-200', advancedSettingsExpanded && 'rotate-180']" />
+            </div>
+          </button>
+
+          <div v-if="advancedSettingsExpanded" class="key-advanced-panel space-y-5">
 
         <!-- IP Restriction Section -->
         <div class="space-y-3">
@@ -883,6 +925,8 @@
             </div>
           </div>
         </div>
+          </div>
+        </div>
       </form>
       <template #footer>
         <div class="flex justify-end gap-3">
@@ -896,26 +940,7 @@
             class="btn btn-primary"
             data-tour="key-form-submit"
           >
-            <svg
-              v-if="submitting"
-              class="-ml-1 mr-2 h-4 w-4 animate-spin"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <circle
-                class="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                stroke-width="4"
-              ></circle>
-              <path
-                class="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
+            <Icon v-if="submitting" name="refresh" size="sm" class="-ml-1 mr-2 animate-spin" />
             {{
               submitting
                 ? t('keys.saving')
@@ -1033,13 +1058,12 @@
           bottom: dropdownPosition.bottom !== undefined ? dropdownPosition.bottom + 'px' : undefined,
           left: dropdownPosition.left + 'px'
         }"
+        @click.stop
       >
         <!-- Search box -->
         <div class="border-b border-gray-100 p-2 dark:border-dark-700">
           <div class="relative">
-            <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+            <Icon name="search" size="sm" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" :stroke-width="2" />
             <input
               v-model="groupSearchQuery"
               type="text"
@@ -1071,10 +1095,6 @@
               :subscription-type="option.subscriptionType"
               :rate-multiplier="option.rate"
               :user-rate-multiplier="option.userRate"
-              :peak-rate-enabled="option.peakRateEnabled"
-              :peak-start="option.peakStart"
-              :peak-end="option.peakEnd"
-              :peak-rate-multiplier="option.peakRateMultiplier"
               :description="option.description"
               :selected="
                 selectedKeyForGroup?.group_id === option.value ||
@@ -1093,34 +1113,37 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, computed, onMounted, onUnmounted, nextTick, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 	import { useOnboardingStore } from '@/stores/onboarding'
 	import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useRoute, useRouter } from 'vue-router'
 
 const { t } = useI18n()
-import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
+const route = useRoute()
+const router = useRouter()
+import { keysAPI, authAPI, userGroupsAPI, usageAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
-import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
 	import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 	import EmptyState from '@/components/common/EmptyState.vue'
 	import Select from '@/components/common/Select.vue'
-	import SearchInput from '@/components/common/SearchInput.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
+	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
-import type { BatchApiKeyUsageStats } from '@/api/usage'
+import type { ApiKeyWorkbenchSummary } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
 import { maskApiKey } from '@/utils/maskApiKey'
+import { buildWorkbenchLatestErrorLabel, buildWorkbenchModelHints } from '@/utils/apiKeyWorkbench'
+import { extractErrorTextFromPayload, extractModelIdsFromModelsPayload, safeParseJson } from '@/utils/modelsEndpoint'
 import {
   buildCcSwitchImportDeeplink,
   type CcSwitchClientType
@@ -1139,10 +1162,6 @@ interface GroupOption {
   description: string | null
   rate: number
   userRate: number | null
-  peakRateEnabled: boolean
-  peakStart: string
-  peakEnd: string
-  peakRateMultiplier: number
   subscriptionType: SubscriptionType
   platform: GroupPlatform
 }
@@ -1151,88 +1170,155 @@ const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
-const allColumns = computed<Column[]>(() => [
-  { key: 'name', label: t('common.name'), sortable: true },
-  { key: 'key', label: t('keys.apiKey'), sortable: false },
-  { key: 'group', label: t('keys.group'), sortable: false },
-  { key: 'usage', label: t('keys.usage'), sortable: false },
-  { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
-  { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
-  { key: 'status', label: t('common.status'), sortable: true },
-  { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
-  { key: 'created_at', label: t('keys.created'), sortable: true },
-  { key: 'actions', label: t('common.actions'), sortable: false }
+const columns = computed<Column[]>(() => [
+  { key: 'name', label: t('common.name'), sortable: true, class: 'min-w-[8rem]' },
+  { key: 'key', label: t('keys.apiKey'), sortable: false, class: 'min-w-[8.75rem]' },
+  { key: 'group', label: t('keys.group'), sortable: false, class: 'min-w-[8rem]' },
+  { key: 'usage', label: '账册', sortable: false, class: 'min-w-[12rem]' },
+  { key: 'created_at', label: '创建时间', sortable: true, class: 'min-w-[6.25rem]' },
+  { key: 'status', label: '健康状态', sortable: true, class: 'min-w-[7.5rem]' },
+  { key: 'actions', label: t('common.actions'), sortable: false, class: 'min-w-[6rem]' }
 ])
 
-const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
-const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at']
-const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
-const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 1
-
-const toggleableColumns = computed(() =>
-  allColumns.value.filter((col) => !ALWAYS_VISIBLE_COLUMNS.has(col.key))
-)
-
-const hiddenColumns = reactive<Set<string>>(new Set())
-
-const saveColumnsToStorage = () => {
-  try {
-    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (error) {
-    console.error('Failed to save API key table columns:', error)
-  }
-}
-
-const loadSavedColumns = () => {
-  hiddenColumns.clear()
-  try {
-    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
-    if (saved) {
-      const parsed = JSON.parse(saved) as string[]
-      const validColumnKeys = new Set(allColumns.value.map((col) => col.key))
-      parsed
-        .filter((key) =>
-          typeof key === 'string' &&
-          validColumnKeys.has(key) &&
-          !ALWAYS_VISIBLE_COLUMNS.has(key)
-        )
-        .forEach((key) => hiddenColumns.add(key))
-    } else {
-      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-    }
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
-  } catch (error) {
-    console.error('Failed to load API key table columns:', error)
-    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
-  }
-}
-
-const toggleColumn = (key: string) => {
-  if (ALWAYS_VISIBLE_COLUMNS.has(key)) return
-  if (hiddenColumns.has(key)) {
-    hiddenColumns.delete(key)
-  } else {
-    hiddenColumns.add(key)
-  }
-  saveColumnsToStorage()
-}
-
-const isColumnVisible = (key: string) => !hiddenColumns.has(key)
-
-const columns = computed<Column[]>(() =>
-  allColumns.value.filter((col) => ALWAYS_VISIBLE_COLUMNS.has(col.key) || !hiddenColumns.has(col.key))
-)
-
 const apiKeys = ref<ApiKey[]>([])
+const activeKeyCount = computed(() => apiKeys.value.filter((key) => key.status === 'active').length)
+const firstTestableKey = computed(function () { return apiKeys.value.find(function (key) { return key.status === 'active' }) || apiKeys.value[0] || null })
+const selectedConnectionTestKey = computed(function () { return apiKeys.value.find(function (key) { return key.id === connectionTestKeyId.value }) || firstTestableKey.value })
+const selectedConnectionWorkbenchSummary = computed(() => {
+  if (!selectedConnectionTestKey.value) return null
+  return getWorkbenchStat(selectedConnectionTestKey.value.id)
+})
+const selectedConnectionModelHints = computed(() => buildWorkbenchModelHints(selectedConnectionWorkbenchSummary.value?.latest_error))
+const selectedConnectionLatestErrorLabel = computed(() => describeLatestError(selectedConnectionWorkbenchSummary.value))
+const formatDateOnly = (value: string | null | undefined) => value ? new Intl.DateTimeFormat('zh-CN', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit'
+}).format(new Date(value)).replace(/\//g, '-') : '-'
+
+const keyReasonLabels: Record<string, string> = {
+  auth_key_deleted: '旧 Key 已删除',
+  auth_invalid_credentials: '凭证未通过校验',
+  quota_balance_exhausted: '余额或额度耗尽',
+  quota_subscription_exhausted: '套餐或订阅失效',
+  rate_limit_window_exhausted: '速率窗口已打满',
+  request_model_not_supported: '模型不可用',
+  request_payload_too_large: '请求体过大',
+  request_invalid: '请求参数不匹配',
+  service_model_not_available: '当前线路未开放该模型',
+  service_model_rate_limited: '该模型当前线路已限流',
+  service_no_route_available: '当前无可用线路',
+  upstream_temporarily_unavailable: '上游临时不可用',
+  upstream_transport_error: '上游链路异常',
+  internal_gateway_error: '平台内部异常',
+  cyber_policy_blocked: '触发安全策略',
+}
+
+const keyCategoryLabels: Record<string, string> = {
+  auth: '认证失败',
+  rate_limit: '限流',
+  quota: '额度不足',
+  invalid_request: '参数错误',
+  service_unavailable: '线路暂不可用',
+  upstream: '上游错误',
+  internal: '平台错误',
+  cyber: '安全策略',
+  other: '其他异常',
+}
+
+const describeLatestError = (summary?: ApiKeyWorkbenchSummary | null) => {
+  return buildWorkbenchLatestErrorLabel(summary?.latest_error, keyReasonLabels, keyCategoryLabels)
+}
+
+const getWorkbenchStat = (keyId: number) => workbenchStats.value[keyId] || workbenchStats.value[String(keyId)] || null
+
+const getKeyHealth = (key: ApiKey) => {
+  const summary = getWorkbenchStat(key.id)
+  const lastCall = key.last_used_at ? '最近调用 ' + formatDateOnly(key.last_used_at) : '暂无调用'
+  const requestPulse = summary
+    ? summary.attempt_count_24h > 0
+      ? `24h 共 ${summary.attempt_count_24h} 次，请求成功 ${summary.success_requests_24h} 次`
+      : '24h 暂无请求'
+    : '正在整理最近请求'
+  const group = key.group ? '分组正常' : '未绑定分组'
+  const statusFallback = key.status === 'inactive'
+    ? '当前已停用'
+    : key.status === 'quota_exhausted'
+      ? '当前额度已耗尽'
+      : key.status === 'expired'
+        ? '当前已过期'
+        : describeLatestError(summary)
+  const summaryLine = `${group} / ${statusFallback}`
+
+  return {
+    lastCall,
+    requestPulse,
+    summary: summaryLine,
+    modelHints: buildWorkbenchModelHints(summary?.latest_error),
+    hasAttention: !!summary?.latest_error || key.status !== 'active' || !key.group,
+    canReview: !!summary?.latest_error,
+  }
+}
+
+const formatUsd = (value: number | null | undefined, digits = 2) => `$${(value ?? 0).toFixed(digits)}`
+
+const formatSuccessRate = (value: number | null | undefined) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return '-'
+  return `${(value * 100).toFixed(value >= 0.995 ? 0 : 1)}%`
+}
+
+const getMeterTone = (used: number | null | undefined, limit: number | null | undefined) => {
+  const current = used ?? 0
+  const total = limit ?? 0
+  if (total <= 0) return 'muted'
+  if (current >= total) return 'danger'
+  if (current >= total * 0.8) return 'warning'
+  return 'safe'
+}
+
+const getRateLimitWindows = (row: ApiKey) => ([
+  {
+    key: '5h',
+    label: '5h',
+    usage: row.usage_5h ?? 0,
+    limit: row.rate_limit_5h ?? 0,
+    resetAt: row.reset_5h_at ?? null,
+  },
+  {
+    key: '1d',
+    label: '1d',
+    usage: row.usage_1d ?? 0,
+    limit: row.rate_limit_1d ?? 0,
+    resetAt: row.reset_1d_at ?? null,
+  },
+  {
+    key: '7d',
+    label: '7d',
+    usage: row.usage_7d ?? 0,
+    limit: row.rate_limit_7d ?? 0,
+    resetAt: row.reset_7d_at ?? null,
+  }
+]).filter((window) => window.limit > 0)
+
+type ConnectionTestResult = {
+  tone: 'success' | 'warning' | 'danger'
+  title: string
+  detail: string
+  latencyMs: number | null
+  statusCode: number | null
+  checkedAt: string
+  action: string
+  availableModelCount: number | null
+  allModels: string[]
+  sampleModels: string[]
+}
 const groups = ref<Group[]>([])
 const loading = ref(false)
 const submitting = ref(false)
-const now = ref(new Date())
-let resetTimer: ReturnType<typeof setInterval> | null = null
-const usageStats = ref<Record<string, BatchApiKeyUsageStats>>({})
+const workbenchStats = ref<Record<string, ApiKeyWorkbenchSummary>>({})
 const userGroupRates = ref<Record<number, number>>({})
+const filterKeyCatalog = ref<ApiKey[]>([])
 
 const pagination = ref({
   page: 1,
@@ -1249,6 +1335,7 @@ const sortState = ref({
 const filterSearch = ref('')
 const filterStatus = ref('')
 const filterGroupId = ref<string | number>('')
+const selectedFilterKeyId = ref<string | number | null>('')
 
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -1256,24 +1343,46 @@ const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
+const showConnectionTestDialog = ref(false)
+const advancedSettingsExpanded = ref(false)
+const connectionTestKeyId = ref<number | null>(null)
 const showCcsClientSelect = ref(false)
-const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const testingKeyId = ref<number | null>(null)
+const connectionTestResult = ref<ConnectionTestResult | null>(null)
+const showAllConnectionModels = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
-const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
+let workbenchAbortController: AbortController | null = null
+
+const visibleConnectionModels = computed(() => {
+  if (!connectionTestResult.value) return [] as string[]
+  return showAllConnectionModels.value
+    ? connectionTestResult.value.allModels
+    : connectionTestResult.value.sampleModels
+})
+
+const hiddenConnectionModelCount = computed(() => {
+  if (!connectionTestResult.value) return 0
+  return Math.max(0, connectionTestResult.value.allModels.length - connectionTestResult.value.sampleModels.length)
+})
 
 // Get the currently selected key for group change
 const selectedKeyForGroup = computed(() => {
   if (groupSelectorKeyId.value === null) return null
   return apiKeys.value.find((k) => k.id === groupSelectorKeyId.value) || null
 })
+
+const GROUP_SELECTOR_MIN_WIDTH = 380
+const GROUP_SELECTOR_ESTIMATED_HEIGHT = 360
+const GROUP_SELECTOR_VIEWPORT_GAP = 12
+const GROUP_SELECTOR_OFFSET = 8
 
 const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance | null) => {
   if (el instanceof HTMLElement) {
@@ -1321,17 +1430,27 @@ const customKeyError = computed(() => {
   return ''
 })
 
+const advancedSummaryItems = computed(() => {
+  const items: string[] = []
+  if (!showEditModal.value && formData.value.use_custom_key) items.push(t('keys.customKeyLabel'))
+  if (formData.value.enable_ip_restriction) items.push(t('keys.ipRestriction'))
+  if (formData.value.quota && formData.value.quota > 0) items.push(t('keys.quotaLimit'))
+  if (formData.value.enable_rate_limit) items.push(t('keys.rateLimitSection'))
+  if (formData.value.enable_expiration) items.push(t('keys.expiration'))
+  return items
+})
+
+const advancedSettingsSummary = computed(() => {
+  if (advancedSummaryItems.value.length === 0) {
+    return '当前使用默认限制'
+  }
+  return `已启用 ${advancedSummaryItems.value.length} 项高级设置`
+})
+
 const statusOptions = computed(() => [
   { value: 'active', label: t('common.active') },
   { value: 'inactive', label: t('common.inactive') }
 ])
-
-const shouldSubmitEditStatus = (key: ApiKey, status: 'active' | 'inactive') => {
-  if (key.status === 'quota_exhausted' || key.status === 'expired') {
-    return status === 'active'
-  }
-  return true
-}
 
 // Filter dropdown options
 const groupFilterOptions = computed(() => [
@@ -1348,9 +1467,29 @@ const statusFilterOptions = computed(() => [
   { value: 'expired', label: t('keys.status.expired') }
 ])
 
+const keyFilterOptions = computed(() => {
+  const allOption = { value: '', label: '全部密钥' }
+  const source = filterKeyCatalog.value.length ? filterKeyCatalog.value : apiKeys.value
+  const options = source.map((key) => ({
+    value: key.id,
+    label: `${key.name} · ${maskApiKey(key.key)}`,
+    description: key.group?.name || '未分组',
+  }))
+  return [allOption, ...options]
+})
+
 const onFilterChange = () => {
   pagination.value.page = 1
   loadApiKeys()
+}
+
+const onKeyFilterChange = (value: string | number | boolean | null) => {
+  selectedFilterKeyId.value = value as string | number | null
+  const selectedKey = typeof value === 'number'
+    ? apiKeys.value.find((key) => key.id === value)
+    : null
+  filterSearch.value = selectedKey ? `${selectedKey.name} ${selectedKey.key}` : ''
+  onFilterChange()
 }
 
 const onGroupFilterChange = (value: string | number | boolean | null) => {
@@ -1371,10 +1510,6 @@ const groupOptions = computed(() =>
     description: group.description,
     rate: group.rate_multiplier,
     userRate: userGroupRates.value[group.id] ?? null,
-    peakRateEnabled: group.peak_rate_enabled,
-    peakStart: group.peak_start,
-    peakEnd: group.peak_end,
-    peakRateMultiplier: group.peak_rate_multiplier,
     subscriptionType: group.subscription_type,
     platform: group.platform
   }))
@@ -1382,6 +1517,8 @@ const groupOptions = computed(() =>
 
 // Group dropdown search
 const groupSearchQuery = ref('')
+const resolvedApiBaseUrl = computed(() => (publicSettings.value?.api_base_url || window.location.origin).replace(/\/$/, ''))
+
 const filteredGroupOptions = computed(() => {
   const query = groupSearchQuery.value.trim().toLowerCase()
   if (!query) return groupOptions.value
@@ -1401,217 +1538,426 @@ const copyToClipboard = async (text: string, keyId: number) => {
   }
 }
 
-const isAbortError = (error: unknown) => {
-  if (!error || typeof error !== 'object') return false
-  const { name, code } = error as { name?: string; code?: string }
-  return name === 'AbortError' || code === 'ERR_CANCELED'
+const copyEndpoint = async () => {
+  await clipboardCopy(resolvedApiBaseUrl.value, '接入地址已复制')
+}
+
+const loadKeyWorkbenchStats = async (keys: ApiKey[]) => {
+  if (workbenchAbortController) workbenchAbortController.abort()
+  workbenchAbortController = new AbortController()
+  if (!keys.length) {
+    workbenchStats.value = {}
+    return
+  }
+  try {
+    const response = await usageAPI.getDashboardApiKeysWorkbench(
+      keys.map((key) => key.id),
+      { signal: workbenchAbortController.signal }
+    )
+    workbenchStats.value = response.stats || {}
+  } catch (error: any) {
+    if (error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') return
+    console.error('Failed to load key workbench stats:', error)
+    workbenchStats.value = {}
+  }
 }
 
 const loadApiKeys = async () => {
-  abortController?.abort()
-  const controller = new AbortController()
-  abortController = controller
-  const { signal } = controller
+  if (abortController) abortController.abort()
+  abortController = new AbortController()
   loading.value = true
   try {
-    // Build filters
-    const filters: {
-      search?: string
-      status?: string
-      group_id?: number | string
-      sort_by?: string
-      sort_order?: 'asc' | 'desc'
-    } = {}
-    if (filterSearch.value) filters.search = filterSearch.value
-    if (filterStatus.value) filters.status = filterStatus.value
-    if (filterGroupId.value !== '') filters.group_id = filterGroupId.value
-    filters.sort_by = sortState.value.sort_by
-    filters.sort_order = sortState.value.sort_order
-
-    const response = await keysAPI.list(pagination.value.page, pagination.value.page_size, filters, {
-      signal
-    })
-    if (signal.aborted) return
-    apiKeys.value = response.items
-    pagination.value.total = response.total
-    pagination.value.pages = response.pages
-
-    // Load usage stats for all API keys in the list
-    if (response.items.length > 0) {
-      const keyIds = response.items.map((k) => k.id)
-      try {
-        const usageResponse = await usageAPI.getDashboardApiKeysUsage(keyIds, { signal })
-        if (signal.aborted) return
-        usageStats.value = usageResponse.stats
-      } catch (e) {
-        if (!isAbortError(e)) {
-          console.error('Failed to load usage stats:', e)
-        }
+    const groupId = filterGroupId.value === '' ? undefined : filterGroupId.value
+    const response = await keysAPI.list(pagination.value.page, pagination.value.page_size, {
+      search: filterSearch.value || undefined,
+      status: filterStatus.value || undefined,
+      group_id: groupId,
+      sort_by: sortState.value.sort_by,
+      sort_order: sortState.value.sort_order,
+    }, { signal: abortController.signal })
+    apiKeys.value = response.items || []
+    if (typeof selectedFilterKeyId.value === 'number') {
+      const stillExists = apiKeys.value.some((key) => key.id === selectedFilterKeyId.value)
+      if (!stillExists) {
+        selectedFilterKeyId.value = ''
       }
     }
-  } catch (error) {
-    if (isAbortError(error)) {
-      return
-    }
-    appStore.showError(t('keys.failedToLoad'))
+    pagination.value.total = response.total || 0
+    pagination.value.pages = response.pages || 0
+    await loadKeyWorkbenchStats(apiKeys.value)
+  } catch (error: any) {
+    if (error?.name !== 'AbortError' && error?.code !== 'ERR_CANCELED') appStore.showError(t('keys.failedToLoad'))
   } finally {
-    if (abortController === controller) {
-      loading.value = false
-    }
+    loading.value = false
   }
 }
 
 const loadGroups = async () => {
-  try {
-    groups.value = await userGroupsAPI.getAvailable()
-  } catch (error) {
-    console.error('Failed to load groups:', error)
-  }
+  try { groups.value = await userGroupsAPI.getAvailable() } catch (error) { console.error('Failed to load groups:', error) }
 }
 
 const loadUserGroupRates = async () => {
-  try {
-    userGroupRates.value = await userGroupsAPI.getUserGroupRates()
-  } catch (error) {
-    console.error('Failed to load user group rates:', error)
-  }
+  try { userGroupRates.value = await userGroupsAPI.getUserGroupRates() } catch (error) { console.error('Failed to load user group rates:', error) }
 }
 
 const loadPublicSettings = async () => {
+  try { publicSettings.value = await authAPI.getPublicSettings() } catch (error) { console.error('Failed to load public settings:', error) }
+}
+
+const loadFilterKeyCatalog = async () => {
   try {
-    publicSettings.value = await authAPI.getPublicSettings()
+    const response = await keysAPI.list(1, 100, {
+      sort_by: 'created_at',
+      sort_order: 'desc'
+    })
+    filterKeyCatalog.value = response.items || []
   } catch (error) {
-    console.error('Failed to load public settings:', error)
+    console.error('Failed to load key filter catalog:', error)
   }
 }
 
-const openUseKeyModal = (key: ApiKey) => {
-  selectedKey.value = key
-  showUseKeyModal.value = true
-}
-
-const closeUseKeyModal = () => {
-  showUseKeyModal.value = false
-  selectedKey.value = null
-}
-
-const handlePageChange = (page: number) => {
-  pagination.value.page = page
-  loadApiKeys()
-}
-
-const handlePageSizeChange = (pageSize: number) => {
-  pagination.value.page_size = pageSize
-  pagination.value.page = 1
-  loadApiKeys()
-}
-
 const handleSort = (key: string, order: 'asc' | 'desc') => {
-  sortState.value.sort_by = key
-  sortState.value.sort_order = order
+  sortState.value = { sort_by: key, sort_order: order }
   pagination.value.page = 1
   loadApiKeys()
+}
+
+const handlePageChange = (page: number) => { pagination.value.page = page; loadApiKeys() }
+const handlePageSizeChange = (pageSize: number) => { pagination.value.page_size = pageSize; pagination.value.page = 1; loadApiKeys() }
+const openUseKeyModal = (key: ApiKey) => { selectedKey.value = key; showUseKeyModal.value = true }
+const closeUseKeyModal = () => { showUseKeyModal.value = false; selectedKey.value = null }
+const openKeyErrorLedger = (apiKeyId: number) => { router.push({ path: '/usage', query: { tab: 'errors', api_key_id: String(apiKeyId) } }) }
+
+const toggleKeyStatus = async (key: ApiKey) => {
+  try { await keysAPI.toggleStatus(key.id, key.status === 'active' ? 'inactive' : 'active'); appStore.showSuccess(t('common.success')); await loadApiKeys() }
+  catch (error: any) { appStore.showError(error?.message || t('common.error')) }
+}
+
+const openCreateModal = () => {
+  closeModals()
+  showCreateModal.value = true
+  advancedSettingsExpanded.value = false
 }
 
 const editKey = (key: ApiKey) => {
   selectedKey.value = key
-  const hasIPRestriction = (key.ip_whitelist?.length > 0) || (key.ip_blacklist?.length > 0)
-  const hasExpiration = !!key.expires_at
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
-    status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
+    group_id: key.group_id ?? null,
+    status: key.status as 'active' | 'inactive',
     use_custom_key: false,
     custom_key: '',
-    enable_ip_restriction: hasIPRestriction,
+    enable_ip_restriction: !!((key.ip_whitelist?.length || 0) > 0 || (key.ip_blacklist?.length || 0) > 0),
     ip_whitelist: (key.ip_whitelist || []).join('\n'),
     ip_blacklist: (key.ip_blacklist || []).join('\n'),
-    enable_quota: key.quota > 0,
-    quota: key.quota > 0 ? key.quota : null,
-    enable_rate_limit: (key.rate_limit_5h > 0) || (key.rate_limit_1d > 0) || (key.rate_limit_7d > 0),
-    rate_limit_5h: key.rate_limit_5h || null,
-    rate_limit_1d: key.rate_limit_1d || null,
-    rate_limit_7d: key.rate_limit_7d || null,
-    enable_expiration: hasExpiration,
+    enable_quota: (key.quota || 0) > 0,
+    quota: (key.quota || 0) > 0 ? key.quota : null,
+    enable_rate_limit: (key.rate_limit_5h || 0) > 0 || (key.rate_limit_1d || 0) > 0 || (key.rate_limit_7d || 0) > 0,
+    rate_limit_5h: (key.rate_limit_5h || 0) > 0 ? key.rate_limit_5h : null,
+    rate_limit_1d: (key.rate_limit_1d || 0) > 0 ? key.rate_limit_1d : null,
+    rate_limit_7d: (key.rate_limit_7d || 0) > 0 ? key.rate_limit_7d : null,
+    enable_expiration: !!key.expires_at,
     expiration_preset: 'custom',
     expiration_date: key.expires_at ? formatDateTimeLocal(key.expires_at) : ''
   }
+  advancedSettingsExpanded.value = false
   showEditModal.value = true
 }
 
-const toggleKeyStatus = async (key: ApiKey) => {
-  const newStatus = key.status === 'active' ? 'inactive' : 'active'
-  try {
-    await keysAPI.toggleStatus(key.id, newStatus)
-    appStore.showSuccess(
-      newStatus === 'active' ? t('keys.keyEnabledSuccess') : t('keys.keyDisabledSuccess')
-    )
-    loadApiKeys()
-  } catch (error) {
-    appStore.showError(t('keys.failedToUpdateStatus'))
-  }
-}
+const confirmDelete = (key: ApiKey) => { selectedKey.value = key; showDeleteDialog.value = true }
 
-const openGroupSelector = (key: ApiKey) => {
-  if (groupSelectorKeyId.value === key.id) {
-    groupSelectorKeyId.value = null
+const updateGroupSelectorPosition = () => {
+  if (groupSelectorKeyId.value === null) {
     dropdownPosition.value = null
-  } else {
-    const buttonEl = groupButtonRefs.value.get(key.id)
-    if (buttonEl) {
-      const rect = buttonEl.getBoundingClientRect()
-      const dropdownEstHeight = 400 // estimated max dropdown height
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
+    return
+  }
 
-      if (spaceBelow < dropdownEstHeight && spaceAbove > spaceBelow) {
-        // Not enough space below, pop upward
-        dropdownPosition.value = {
-          bottom: window.innerHeight - rect.top + 4,
-          left: rect.left
-        }
-      } else {
-        // Default: pop downward
-        dropdownPosition.value = {
-          top: rect.bottom + 4,
-          left: rect.left
-        }
+  const buttonEl = groupButtonRefs.value.get(groupSelectorKeyId.value)
+  if (!buttonEl) {
+    dropdownPosition.value = null
+    return
+  }
+
+  const rect = buttonEl.getBoundingClientRect()
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+  const menuWidth = Math.max(GROUP_SELECTOR_MIN_WIDTH, rect.width)
+  const maxLeft = Math.max(GROUP_SELECTOR_VIEWPORT_GAP, viewportWidth - menuWidth - GROUP_SELECTOR_VIEWPORT_GAP)
+  const left = Math.min(Math.max(GROUP_SELECTOR_VIEWPORT_GAP, rect.left), maxLeft)
+  const shouldOpenAbove =
+    rect.bottom + GROUP_SELECTOR_OFFSET + GROUP_SELECTOR_ESTIMATED_HEIGHT > viewportHeight - GROUP_SELECTOR_VIEWPORT_GAP &&
+    rect.top > GROUP_SELECTOR_ESTIMATED_HEIGHT / 2
+
+  dropdownPosition.value = shouldOpenAbove
+    ? {
+        bottom: Math.max(GROUP_SELECTOR_VIEWPORT_GAP, viewportHeight - rect.top + GROUP_SELECTOR_OFFSET),
+        left
       }
-    }
-    groupSelectorKeyId.value = key.id
-    groupSearchQuery.value = ''
-  }
+    : {
+        top: rect.bottom + GROUP_SELECTOR_OFFSET,
+        left
+      }
 }
 
-const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
+const openGroupSelector = async (key: ApiKey) => {
+  if (groupSelectorKeyId.value === key.id) {
+    closeGroupSelector()
+    return
+  }
+
+  groupSelectorKeyId.value = key.id
+  groupSearchQuery.value = ''
+  await nextTick()
+  updateGroupSelectorPosition()
+}
+
+const closeGroupSelector = () => {
   groupSelectorKeyId.value = null
+  groupSearchQuery.value = ''
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+}
 
+const handleGroupSelectorViewportChange = () => {
+  if (groupSelectorKeyId.value !== null) {
+    updateGroupSelectorPosition()
+  }
+}
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (groupSelectorKeyId.value === null) return
+
+  const target = event.target
+  if (!(target instanceof Node)) {
+    closeGroupSelector()
+    return
+  }
+
+  if (dropdownRef.value?.contains(target)) return
+
+  const activeButton = groupButtonRefs.value.get(groupSelectorKeyId.value)
+  if (activeButton?.contains(target)) return
+
+  closeGroupSelector()
+}
+
+const changeGroup = async (key: ApiKey, groupId: number | string | boolean | null) => {
+  if (typeof groupId !== 'number') return
+  if (key.group_id === groupId) {
+    closeGroupSelector()
+    return
+  }
   try {
-    await keysAPI.update(key.id, { group_id: newGroupId })
+    await keysAPI.update(key.id, { group_id: groupId === 0 ? null : groupId })
     appStore.showSuccess(t('keys.groupChangedSuccess'))
-    loadApiKeys()
+    closeGroupSelector()
+    await loadApiKeys()
+  }
+  catch (error: any) {
+    appStore.showError(error?.message || t('keys.failedToChangeGroup'))
+  }
+}
+
+const selectConnectionTestKey = (keyId: number) => {
+  connectionTestKeyId.value = keyId
+  connectionTestResult.value = null
+  showAllConnectionModels.value = false
+}
+
+const openConnectionTestDialog = () => {
+  connectionTestKeyId.value = firstTestableKey.value?.id ?? null
+  connectionTestResult.value = null
+  showAllConnectionModels.value = false
+  showConnectionTestDialog.value = true
+}
+
+const closeConnectionTestDialog = () => {
+  showConnectionTestDialog.value = false
+  connectionTestResult.value = null
+  showAllConnectionModels.value = false
+}
+
+const toggleConnectionModelsExpanded = () => {
+  showAllConnectionModels.value = !showAllConnectionModels.value
+}
+
+const buildIntegrationSnippet = (type: 'curl' | 'openai' | 'env', key: ApiKey) => {
+  const modelsUrl = `${resolvedApiBaseUrl.value}/v1/models`
+  if (type === 'curl') {
+    return `curl ${modelsUrl} \\
+  -H "Authorization: Bearer ${key.key}"`
+  }
+
+  if (type === 'env') {
+    return `OPENAI_API_KEY=${key.key}
+OPENAI_BASE_URL=${resolvedApiBaseUrl.value}/v1`
+  }
+
+  return `import OpenAI from 'openai'
+
+const client = new OpenAI({
+  apiKey: '${key.key}',
+  baseURL: '${resolvedApiBaseUrl.value}/v1'
+})
+
+const models = await client.models.list()`
+}
+
+const copyIntegrationSnippet = async (type: 'curl' | 'openai' | 'env') => {
+  if (!selectedConnectionTestKey.value) return
+  const message = type === 'curl' ? 'curl 已复制' : type === 'openai' ? 'SDK 配置已复制' : '环境变量已复制'
+  await clipboardCopy(buildIntegrationSnippet(type, selectedConnectionTestKey.value), message)
+}
+
+const buildConnectionDiagnosticReport = () => {
+  const key = selectedConnectionTestKey.value
+  const result = connectionTestResult.value
+  if (!key || !result) return ''
+  const lines = [
+    '山枢庭 SST 接入体检报告',
+    '检查时间：' + new Date(result.checkedAt).toLocaleString(),
+    'API Key：' + key.name + ' (' + maskApiKey(key.key) + ')',
+    '接入地址：' + resolvedApiBaseUrl.value + '/v1',
+    '密钥状态：' + key.status,
+    '模型接口：' + (result.statusCode ? 'HTTP ' + result.statusCode : result.tone === 'success' ? '可访问' : '未完成'),
+    '响应耗时：' + (result.latencyMs !== null ? result.latencyMs + 'ms' : '-'),
+    '结论：' + result.title,
+    '说明：' + result.detail,
+  ]
+  if (result.availableModelCount !== null) {
+    lines.push('可见模型：' + result.availableModelCount + ' 个')
+  }
+  if (result.sampleModels.length > 0) {
+    lines.push('示例模型：' + result.sampleModels.join('，'))
+  }
+  if (selectedConnectionModelHints.value.length > 0) {
+    lines.push('近期模型提示：' + selectedConnectionModelHints.value.join('；'))
+  }
+  if (result.action) {
+    lines.push('建议：' + result.action)
+  }
+  return lines.join('\n')
+}
+
+const copyConnectionDiagnosticReport = async () => {
+  const report = buildConnectionDiagnosticReport()
+  if (!report) return
+  await clipboardCopy(report, '诊断报告已复制')
+}
+
+const openUseKeyModalFromConnectionTest = () => {
+  if (!selectedConnectionTestKey.value) return
+  selectedKey.value = selectedConnectionTestKey.value
+  showConnectionTestDialog.value = false
+  connectionTestResult.value = null
+  showUseKeyModal.value = true
+}
+
+const testKeyConnection = async (key: ApiKey | null) => {
+  if (!key || testingKeyId.value) return
+  testingKeyId.value = key.id
+  connectionTestResult.value = null
+  showAllConnectionModels.value = false
+
+  if (key.status !== 'active') {
+    connectionTestResult.value = {
+      tone: 'warning',
+      title: '密钥未启用',
+      detail: '当前密钥未处于 active 状态，建议先启用，或换一枚可用密钥后再体检。',
+      latencyMs: null,
+      statusCode: null,
+      checkedAt: new Date().toISOString(),
+      action: '先启用这枚密钥，或换一枚 active 状态的可用密钥后再检测。',
+      availableModelCount: null,
+      allModels: [],
+      sampleModels: [],
+    }
+    testingKeyId.value = null
+    return
+  }
+
+  const startedAt = performance.now()
+  try {
+    const response = await fetch(resolvedApiBaseUrl.value + '/v1/models', {
+      headers: { Authorization: 'Bearer ' + key.key }
+    })
+    const latencyMs = Math.round(performance.now() - startedAt)
+    const rawBody = await response.text()
+    const payload = safeParseJson(rawBody)
+    if (response.ok) {
+      const modelIds = extractModelIdsFromModelsPayload(payload)
+      if (modelIds.length === 0) {
+        connectionTestResult.value = {
+          tone: 'warning',
+          title: '模型接口已连通，但当前未返回可用模型',
+          detail: '这把 Key 可以访问 /v1/models，但当前分组下没有返回可见模型，通常意味着模型列表未开放、线路未覆盖，或上游还没准备好。',
+          latencyMs,
+          statusCode: response.status,
+          checkedAt: new Date().toISOString(),
+          action: '优先检查当前 Key 绑定分组的模型列表配置，以及这条线路是否真的向用户公开了目标模型。',
+          availableModelCount: 0,
+          allModels: [],
+          sampleModels: [],
+        }
+        appStore.showError('模型接口已连通，但当前未返回可用模型')
+        return
+      }
+      connectionTestResult.value = {
+        tone: 'success',
+        title: '接入体检通过',
+        detail: '模型接口可访问，当前接入地址与密钥可用于基础调用。',
+        latencyMs,
+        statusCode: response.status,
+        checkedAt: new Date().toISOString(),
+        action: '',
+        availableModelCount: modelIds.length,
+        allModels: modelIds,
+        sampleModels: modelIds.slice(0, 5),
+      }
+      appStore.showSuccess('接入体检通过')
+      return
+    }
+    const errorText = extractErrorTextFromPayload(payload) || rawBody.trim()
+    const statusDetail = response.status === 401 || response.status === 403
+      ? '模型接口返回 HTTP ' + response.status + '，更像密钥未通过校验，或当前分组没有查看模型列表的权限。'
+      : response.status === 429
+        ? '模型接口返回 HTTP 429，当前更像线路或上游在限流窗口内。'
+        : response.status >= 500
+          ? '模型接口返回 HTTP ' + response.status + '，当前更像线路或上游暂时不可用。'
+          : '模型接口返回 HTTP ' + response.status + '，请检查密钥权限、分组或接入地址。'
+    connectionTestResult.value = {
+      tone: response.status === 401 || response.status === 403 ? 'danger' : 'warning',
+      title: '接入体检未通过',
+      detail: errorText ? `${statusDetail} 接口返回：${errorText}` : statusDetail,
+      latencyMs,
+      statusCode: response.status,
+      checkedAt: new Date().toISOString(),
+      action: response.status === 401 || response.status === 403
+        ? '优先检查密钥是否启用、是否复制完整，以及分组权限是否允许访问模型列表。'
+        : response.status === 429
+          ? '先拉开重试间隔；如果最近失败里已经提示某个模型限流，优先按那个模型处理。'
+          : '建议稍后重试；若持续失败，可复制体检记录并结合最近模型提示一起排查。',
+      availableModelCount: null,
+      allModels: [],
+      sampleModels: [],
+    }
+    appStore.showError('接入体检未通过：HTTP ' + response.status)
   } catch (error) {
-    appStore.showError(t('keys.failedToChangeGroup'))
+    connectionTestResult.value = {
+      tone: 'danger',
+      title: '无法完成接入体检',
+      detail: '请求未能抵达模型接口，请检查接入地址、浏览器跨域限制或当前网络。',
+      latencyMs: Math.round(performance.now() - startedAt),
+      statusCode: null,
+      checkedAt: new Date().toISOString(),
+      action: '优先确认当前站点接入地址、浏览器网络和跨域限制；必要时复制体检记录给客服排查。',
+      availableModelCount: null,
+      allModels: [],
+      sampleModels: [],
+    }
+    appStore.showError('接入体检失败，请检查接入地址、浏览器跨域限制或当前网络')
+  } finally {
+    testingKeyId.value = null
   }
-}
-
-const closeGroupSelector = (event: MouseEvent) => {
-  const target = event.target as HTMLElement
-  // Check if click is inside the dropdown or the trigger button
-  if (!target.closest('.group\\/dropdown') && !dropdownRef.value?.contains(target)) {
-    groupSelectorKeyId.value = null
-    dropdownPosition.value = null
-  }
-  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
-    showColumnDropdown.value = false
-  }
-}
-
-const confirmDelete = (key: ApiKey) => {
-  selectedKey.value = key
-  showDeleteDialog.value = true
 }
 
 const handleSubmit = async () => {
@@ -1671,9 +2017,10 @@ const handleSubmit = async () => {
   submitting.value = true
   try {
     if (showEditModal.value && selectedKey.value) {
-      const updates: UpdateApiKeyRequest = {
+      await keysAPI.update(selectedKey.value.id, {
         name: formData.value.name,
         group_id: formData.value.group_id,
+        status: formData.value.status,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1681,11 +2028,7 @@ const handleSubmit = async () => {
         rate_limit_5h: rateLimitData.rate_limit_5h,
         rate_limit_1d: rateLimitData.rate_limit_1d,
         rate_limit_7d: rateLimitData.rate_limit_7d,
-      }
-      if (shouldSubmitEditStatus(selectedKey.value, formData.value.status)) {
-        updates.status = formData.value.status
-      }
-      await keysAPI.update(selectedKey.value.id, updates)
+      })
       appStore.showSuccess(t('keys.keyUpdatedSuccess'))
     } else {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
@@ -1717,9 +2060,7 @@ const handleSubmit = async () => {
 }
 
 /**
- * 处理删除 API Key 的操作
- * 优化：错误处理改进，优先显示后端返回的具体错误消息（如权限不足等），
- * 若后端未返回消息则显示默认的国际化文本
+ * 删除 API Key 时优先展示后端返回的具体错误信息。
  */
 const handleDelete = async () => {
   if (!selectedKey.value) return
@@ -1730,7 +2071,7 @@ const handleDelete = async () => {
     showDeleteDialog.value = false
     loadApiKeys()
   } catch (error: any) {
-    // 优先使用后端返回的错误消息，提供更具体的错误信息给用户
+    // Prefer backend error messages when available.
     const errorMsg = error?.message || t('keys.failedToDelete')
     appStore.showError(errorMsg)
   }
@@ -1739,6 +2080,7 @@ const handleDelete = async () => {
 const closeModals = () => {
   showCreateModal.value = false
   showEditModal.value = false
+  advancedSettingsExpanded.value = false
   selectedKey.value = null
   formData.value = {
     name: '',
@@ -1793,12 +2135,6 @@ const resetQuotaUsed = async () => {
 
 // Show reset rate limit confirmation dialog (from edit modal)
 const confirmResetRateLimit = () => {
-  showResetRateLimitDialog.value = true
-}
-
-// Show reset rate limit confirmation dialog (from table row)
-const confirmResetRateLimitFromTable = (row: ApiKey) => {
-  selectedKey.value = row
   showResetRateLimitDialog.value = true
 }
 
@@ -1894,30 +2230,2174 @@ const closeCcsClientSelect = () => {
   pendingCcsRow.value = null
 }
 
-function formatResetTime(resetAt: string | null): string {
-  if (!resetAt) return ''
-  const diff = new Date(resetAt).getTime() - now.value.getTime()
-  if (diff <= 0) return t('keys.resetNow')
-  const days = Math.floor(diff / 86400000)
-  const hours = Math.floor((diff % 86400000) / 3600000)
-  const mins = Math.floor((diff % 3600000) / 60000)
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${mins}m`
-  return `${mins}m`
-}
-
 onMounted(() => {
-  loadSavedColumns()
-  loadApiKeys()
+  loadApiKeys().then(() => {
+    if (route.query.panel === 'connection-test') {
+      nextTick(openConnectionTestDialog)
+    }
+  })
   loadGroups()
   loadUserGroupRates()
   loadPublicSettings()
-  document.addEventListener('click', closeGroupSelector)
-  resetTimer = setInterval(() => { now.value = new Date() }, 60000)
+  loadFilterKeyCatalog()
+  document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('resize', handleGroupSelectorViewportChange)
+  window.addEventListener('scroll', handleGroupSelectorViewportChange, true)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('click', closeGroupSelector)
-  if (resetTimer) clearInterval(resetTimer)
+  if (abortController) abortController.abort()
+  if (workbenchAbortController) workbenchAbortController.abort()
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('resize', handleGroupSelectorViewportChange)
+  window.removeEventListener('scroll', handleGroupSelectorViewportChange, true)
 })
 </script>
+
+<style scoped>
+.keys-page {
+  color: #1f2320;
+}
+
+.keys-hero {
+  position: relative;
+  background-image:
+    linear-gradient(90deg, rgba(250, 247, 239, 0.78), rgba(250, 247, 239, 0.42)),
+    linear-gradient(rgba(31, 35, 32, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 35, 32, 0.018) 1px, transparent 1px);
+  background-size: auto, 86px 86px, 86px 86px;
+}
+
+.keys-hero::after {
+  content: '';
+  position: absolute;
+  right: 1.75rem;
+  top: 1.75rem;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 999px;
+  background: #a73a2a;
+  opacity: 0.82;
+}
+
+.keys-ledger-item {
+  border-left: 1px solid rgba(216, 205, 185, 0.95);
+  padding-left: 1rem;
+}
+
+.keys-ledger-item span {
+  display: block;
+  font-size: 0.74rem;
+  color: #59645a;
+}
+
+.keys-ledger-item strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.35rem;
+  color: #1f2320;
+}
+
+.workbench-panel-title {
+  border-bottom: 1px solid rgba(216, 205, 185, 0.76);
+  padding-bottom: 0.72rem;
+}
+
+.workbench-panel-title span {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  color: #59645a;
+}
+
+.workbench-panel-title strong {
+  display: block;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1.05rem;
+  color: #1f2320;
+}
+
+.keys-rail-card {
+  display: grid;
+  gap: 0.9rem;
+  border: 1px solid rgba(216, 205, 185, 0.62);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(250, 247, 239, 0.62), rgba(255, 252, 246, 0.38));
+  padding: 0.9rem;
+  box-shadow: 0 18px 42px -36px rgba(31, 35, 32, 0.24);
+}
+
+.keys-rail-card + .keys-rail-card {
+  margin-top: 0.8rem;
+}
+
+.keys-rail-card-filters {
+  gap: 0.95rem;
+}
+
+.keys-rail-intro {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.keys-rail-intro span {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+}
+
+.keys-rail-intro p {
+  color: #59645a;
+  font-size: 0.82rem;
+  line-height: 1.72;
+}
+
+.keys-rail-card-endpoint {
+  padding: 0.75rem 0.9rem;
+}
+
+.keys-rail-card-actions {
+  gap: 0;
+}
+
+.keys-filters :deep(.input),
+.keys-filters :deep(.select-trigger) {
+  min-height: 2.9rem;
+  border-color: rgba(216, 205, 185, 0.76);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.42), rgba(250, 247, 239, 0.7));
+  color: #38413a;
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.72);
+}
+
+.keys-filters :deep(.input::placeholder) {
+  color: #9aa391;
+}
+
+.keys-filters :deep(.select-trigger) {
+  padding-inline: 0.95rem;
+}
+
+.keys-filters :deep(.select-value) {
+  color: #1f2320;
+  font-weight: 650;
+}
+
+.keys-filters :deep(.select-icon),
+.keys-filters :deep(svg) {
+  color: #8d978a;
+}
+
+.keys-filters :deep(.input:hover),
+.keys-filters :deep(.select-trigger:hover),
+.keys-filters :deep(.input:focus),
+.keys-filters :deep(.select-trigger:focus-visible),
+.keys-filters :deep(.select-trigger-open) {
+  border-color: rgba(167, 58, 42, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.58), rgba(250, 247, 239, 0.84));
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.08), inset 0 1px 0 rgba(255, 252, 246, 0.78);
+  outline: none;
+}
+
+.keys-toolbar-grid :deep(.select-trigger) {
+  min-height: 2.8rem;
+  border-color: rgba(216, 205, 185, 0.58);
+  border-radius: 12px;
+  background: rgba(255, 252, 246, 0.34);
+  color: #38413a;
+  box-shadow: none;
+}
+
+.keys-toolbar-grid :deep(.select-trigger:hover),
+.keys-toolbar-grid :deep(.select-trigger:focus-visible),
+.keys-toolbar-grid :deep(.select-trigger-open) {
+  border-color: rgba(167, 58, 42, 0.24);
+  background: rgba(255, 252, 246, 0.5);
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.05);
+}
+
+.keys-toolbar-grid :deep(.select-value) {
+  color: #1f2320;
+  font-weight: 650;
+}
+
+.keys-toolbar-grid :deep(.select-icon),
+.keys-toolbar-grid :deep(svg) {
+  color: #8d978a;
+}
+
+:global(.keys-filter-dropdown) {
+  border-color: rgba(216, 205, 185, 0.72) !important;
+  border-radius: 12px !important;
+  background: rgba(250, 247, 239, 0.98) !important;
+  box-shadow: 0 18px 42px -34px rgba(31, 35, 32, 0.34) !important;
+}
+
+:global(.keys-filter-dropdown .select-option) {
+  color: #38413a !important;
+}
+
+:global(.keys-filter-dropdown .select-option:hover),
+:global(.keys-filter-dropdown .select-option-focused) {
+  background: rgba(167, 58, 42, 0.075) !important;
+  color: #a73a2a !important;
+}
+
+:global(.keys-filter-dropdown .select-option-selected) {
+  background: rgba(167, 58, 42, 0.1) !important;
+  color: #a73a2a !important;
+}
+
+.keys-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.keys-toolbar-shell,
+.keys-data-shell,
+.keys-endpoint-popover-shell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.keys-toolbar-shell {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+}
+
+.keys-toolbar-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.keys-filter-field {
+  display: grid;
+  gap: 0;
+  min-width: 10rem;
+  flex: 1 1 11rem;
+}
+
+.keys-filter-field-key {
+  min-width: 14rem;
+  flex-basis: 16rem;
+}
+
+.keys-toolbar-actions {
+  display: inline-flex;
+  gap: 0.55rem;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-left: auto;
+  min-width: fit-content;
+}
+
+.keys-toolbar-actions .btn {
+  min-width: 8.4rem;
+}
+
+.keys-endpoint-popover-shell {
+  padding: 0;
+}
+
+.keys-data-shell {
+  padding: 0;
+}
+
+.keys-data-shell .keys-access-strip {
+  margin-bottom: 0.7rem;
+}
+
+.keys-data-shell :deep(.page-size-select) {
+  width: 5.5rem;
+  min-width: 5.5rem;
+}
+
+.keys-data-shell :deep(.page-size-select .select-trigger) {
+  min-height: 2.04rem;
+  border-color: rgba(216, 205, 185, 0.5);
+  border-radius: 999px;
+  background: rgba(250, 247, 239, 0.24);
+  color: #38413a;
+  box-shadow: none;
+}
+
+.keys-data-shell :deep(.page-size-select .select-trigger:hover),
+.keys-data-shell :deep(.page-size-select .select-trigger:focus-visible) {
+  border-color: rgba(167, 58, 42, 0.24);
+  background: rgba(250, 247, 239, 0.36);
+  box-shadow: 0 0 0 2px rgba(167, 58, 42, 0.06);
+}
+
+.keys-data-shell :deep(nav) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
+}
+
+.keys-access-strip {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+  padding: 0.18rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.keys-access-value {
+  display: flex;
+  align-items: baseline;
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 0.56rem;
+  padding: 0;
+}
+
+.keys-access-value > span {
+  flex: 0 0 auto;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.keys-access-value > strong {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  max-width: min(42vw, 28rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #38413a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.keys-access-strip-actions {
+  display: inline-flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  margin-left: 0.1rem;
+}
+
+.keys-access-strip-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid rgba(216, 205, 185, 0.5);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.32);
+  padding: 0.3rem 0.52rem;
+  color: #59645a;
+  font-size: 0.74rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.keys-access-strip-actions button:disabled {
+  opacity: 0.56;
+}
+
+.keys-access-strip-actions button:hover:not(:disabled),
+.keys-access-strip-actions button:focus-visible {
+  border-color: rgba(167, 58, 42, 0.28);
+  background: rgba(167, 58, 42, 0.06);
+  color: #a73a2a;
+  outline: none;
+}
+
+.keys-page :deep(.table-wrapper) {
+  overflow: auto;
+  min-height: 0;
+  max-height: min(34rem, calc(100vh - 19rem));
+  flex: 0 0 auto !important;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  isolation: auto;
+}
+
+.keys-page :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background: transparent;
+  table-layout: auto;
+}
+
+.keys-page :deep(thead) {
+  background: transparent;
+}
+
+.keys-page :deep(th) {
+  border-bottom: 1px solid rgba(167, 58, 42, 0.2);
+  background: rgba(237, 229, 212, 0.58) !important;
+  color: #7b6a53;
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  padding-top: 0.62rem;
+  padding-bottom: 0.62rem;
+}
+
+.keys-page :deep(td) {
+  border-bottom: 1px solid rgba(216, 205, 185, 0.46);
+  background: rgba(255, 252, 246, 0.24);
+  color: #38413a;
+  padding-top: 0.68rem;
+  padding-bottom: 0.68rem;
+  vertical-align: middle;
+  white-space: normal;
+}
+
+.keys-page :deep(tbody) {
+  background: transparent;
+}
+
+.keys-page :deep(tbody .sticky-col) {
+  background: rgba(250, 247, 239, 0.92) !important;
+}
+
+.keys-page :deep(tbody tr:hover) {
+  background: transparent;
+}
+
+.keys-page :deep(tbody tr:hover td),
+.keys-page :deep(tbody tr:hover .sticky-col) {
+  background: rgba(167, 58, 42, 0.04) !important;
+}
+
+.keys-page :deep(.code) {
+  border: 0;
+  border-bottom: 1px solid rgba(216, 205, 185, 0.88);
+  border-radius: 0;
+  background: transparent;
+  padding-inline: 0;
+  color: #38413a;
+  max-width: 8.2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpoint-cell {
+  display: inline-flex;
+  max-width: 18rem;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.endpoint-code {
+  overflow: hidden;
+  max-width: 14rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid rgba(167, 58, 42, 0.28);
+  color: #59645a;
+  font-size: 0.78rem;
+}
+
+.endpoint-copy {
+  display: inline-grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border-radius: 999px;
+  color: #8b6f5b;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.endpoint-copy:hover,
+.endpoint-copy:focus-visible {
+  background: rgba(167, 58, 42, 0.08);
+  color: #a73a2a;
+  outline: none;
+}
+
+.key-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  min-width: 0;
+}
+
+.key-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-name-flag {
+  color: #8b7d67;
+}
+
+.key-group-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 1.9rem;
+  min-width: 0;
+  max-width: min(100%, 13.5rem);
+  overflow: hidden;
+  padding: 0.24rem 0.48rem;
+  border: 1px solid rgba(216, 205, 185, 0.56);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.46);
+  color: #59645a;
+  white-space: nowrap;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.key-group-trigger:hover,
+.key-group-trigger:focus-visible {
+  border-color: rgba(167, 58, 42, 0.28);
+  background: rgba(167, 58, 42, 0.06);
+  color: #a73a2a;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.key-group-empty {
+  color: #7b6a53;
+  font-size: 0.76rem;
+}
+
+.key-group-helper {
+  color: #8b7d67;
+  display: none;
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.key-group-chevron {
+  width: 0.72rem;
+  height: 0.72rem;
+  color: #8b7d67;
+  opacity: 0.76;
+  transition: opacity 160ms ease, color 160ms ease;
+}
+
+.key-group-trigger:hover .key-group-chevron,
+.key-group-trigger:focus-visible .key-group-chevron {
+  color: #a73a2a;
+  opacity: 1;
+}
+
+.key-usage-cell,
+.key-expiry-cell {
+  display: grid;
+  gap: 0.38rem;
+  justify-items: start;
+  min-width: 0;
+}
+
+.key-usage-ledger {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(5rem, max-content));
+  justify-content: start;
+  gap: 0.42rem 1.25rem;
+}
+
+.key-usage-stat,
+.key-meter-card,
+.key-expiry-cell {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.key-usage-stat {
+  padding: 0;
+}
+
+.key-usage-stat span,
+.key-meter-label,
+.key-expiry-label {
+  display: block;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+}
+
+.key-usage-stat strong,
+.key-expiry-cell strong {
+  display: block;
+  margin-top: 0.12rem;
+  color: #1f2320;
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+}
+
+.key-meter-card {
+  padding: 0;
+}
+
+.key-meter-card-compact {
+  padding-block: 0;
+}
+
+.key-meter-head,
+.key-meter-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.key-meter-value {
+  color: #38413a;
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.key-meter-track {
+  height: 0.22rem;
+  margin-top: 0.18rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(216, 205, 185, 0.62);
+}
+
+.key-meter-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: #51624f;
+  transition: width 180ms ease, background-color 180ms ease;
+}
+
+.key-meter-foot {
+  margin-top: 0.2rem;
+  color: #7b6a53;
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.key-usage-meta {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.key-rate-inline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.22rem 0.52rem;
+}
+
+.key-rate-inline-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.34rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: #667066;
+  font-size: 0.64rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.key-rate-inline-chip + .key-rate-inline-chip::before {
+  content: '·';
+  color: rgba(123, 106, 83, 0.62);
+  margin-right: 0.18rem;
+}
+
+.key-rate-inline-chip strong {
+  color: #38413a;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.key-rate-inline-chip.tone-warning {
+  color: #8f7853;
+}
+
+.key-rate-inline-chip.tone-danger {
+  color: #a73a2a;
+}
+
+.key-meter-card.tone-safe .key-meter-fill,
+.key-expiry-cell.tone-safe::before {
+  background: #51624f;
+}
+
+.key-meter-card.tone-warning {
+  color: #8f7853;
+}
+
+.key-meter-card.tone-warning .key-meter-fill,
+.key-expiry-cell.tone-warning::before {
+  background: #9b8155;
+}
+
+.key-meter-card.tone-danger {
+  color: #a73a2a;
+}
+
+.key-meter-card.tone-danger .key-meter-fill,
+.key-expiry-cell.tone-danger::before {
+  background: #a73a2a;
+}
+
+.key-inline-note {
+  color: #8b7d67;
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+
+.key-meter-reset {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid rgba(216, 205, 185, 0.68);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.72);
+  padding: 0.34rem 0.58rem;
+  color: #59645a;
+  font-size: 0.7rem;
+  font-weight: 650;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.key-meter-reset:hover,
+.key-meter-reset:focus-visible {
+  border-color: rgba(167, 58, 42, 0.34);
+  background: rgba(167, 58, 42, 0.07);
+  color: #a73a2a;
+  outline: none;
+}
+
+.key-expiry-cell {
+  position: relative;
+  padding: 0.18rem 0 0 0.66rem;
+}
+
+.key-expiry-cell::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.12rem;
+  bottom: 0.12rem;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(81, 98, 79, 0.72);
+}
+
+.key-expiry-cell small {
+  display: block;
+  margin-top: 0.28rem;
+  color: #667066;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.connection-test-modal :deep(.modal-content) {
+  overflow: hidden;
+  border-color: rgba(198, 184, 157, 0.58);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(167, 58, 42, 0.055), transparent 18rem),
+    linear-gradient(180deg, rgba(250, 247, 239, 0.98), rgba(246, 241, 230, 0.96));
+  box-shadow: 0 34px 90px -58px rgba(31, 35, 32, 0.62);
+}
+
+.connection-test-modal :deep(.modal-header) {
+  border-bottom-color: rgba(216, 205, 185, 0.64);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.84), rgba(250, 247, 239, 0.68));
+}
+
+.connection-test-modal :deep(.modal-title) {
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.connection-test-modal :deep(.modal-body) {
+  padding-top: 1.25rem;
+  padding-bottom: 1.15rem;
+}
+
+.connection-test-modal :deep(.modal-footer) {
+  border-top-color: rgba(216, 205, 185, 0.64);
+  background: linear-gradient(180deg, rgba(250, 247, 239, 0.58), rgba(246, 241, 230, 0.8));
+}
+
+.connection-test-dialog {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.connection-test-intro {
+  display: grid;
+  gap: 0.36rem;
+  padding-bottom: 0.2rem;
+}
+
+.connection-test-intro span {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+}
+
+.connection-test-intro p {
+  color: #59645a;
+  font-size: 0.96rem;
+  line-height: 1.75;
+}
+
+.connection-test-dialog code {
+  color: #38413a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.connection-key-list {
+  display: grid;
+  gap: 0.58rem;
+  max-height: 14rem;
+  overflow: auto;
+  padding-right: 0.16rem;
+}
+
+.connection-key-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(216, 205, 185, 0.72);
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(167, 58, 42, 0.04), transparent 36%), rgba(255, 252, 246, 0.72);
+  padding: 0.9rem 1rem;
+  color: #38413a;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.connection-key-list button span {
+  min-width: 0;
+  color: #1f2320;
+  font-size: 1rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-key-list button.is-selected,
+.connection-key-list button:hover,
+.connection-key-list button:focus-visible {
+  border-color: rgba(167, 58, 42, 0.4);
+  background: linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 42%), rgba(250, 247, 239, 0.86);
+  box-shadow: inset 3px 0 0 rgba(167, 58, 42, 0.72), 0 18px 42px -36px rgba(31, 35, 32, 0.32);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.connection-key-list small {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.integration-kit {
+  display: grid;
+  gap: 0.82rem;
+  border-top: 1px solid rgba(216, 205, 185, 0.72);
+  padding-top: 0.95rem;
+}
+
+.connection-model-brief {
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid rgba(216, 205, 185, 0.72);
+  border-radius: 16px;
+  background: rgba(250, 247, 239, 0.68);
+  padding: 0.92rem 1rem;
+}
+
+.connection-model-brief-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.connection-model-brief-head span,
+.connection-model-samples > span {
+  display: block;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+}
+
+.connection-model-brief-head strong {
+  display: block;
+  margin-top: 0.24rem;
+  color: #38413a;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+
+.connection-model-brief-head button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(216, 205, 185, 0.82);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.76);
+  padding: 0.38rem 0.68rem;
+  color: #59645a;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.connection-model-brief-list {
+  display: grid;
+  gap: 0.36rem;
+  padding-left: 1rem;
+  color: #59645a;
+  font-size: 0.8rem;
+  line-height: 1.6;
+}
+
+.integration-kit-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.integration-kit-head span {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+}
+
+.integration-kit-head strong {
+  overflow: hidden;
+  color: #38413a;
+  font-size: 0.92rem;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.integration-kit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 0.58rem;
+}
+
+.integration-kit-actions button {
+  border: 1px solid rgba(216, 205, 185, 0.82);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.76);
+  padding: 0.46rem 0.76rem;
+  color: #59645a;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.integration-kit-actions button:hover,
+.integration-kit-actions button:focus-visible {
+  border-color: rgba(167, 58, 42, 0.38);
+  background: rgba(167, 58, 42, 0.075);
+  color: #a73a2a;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.connection-test-report {
+  display: grid;
+  gap: 0.78rem;
+  border: 1px solid rgba(216, 205, 185, 0.72);
+  border-left: 3px solid rgba(155, 129, 85, 0.68);
+  border-radius: 16px;
+  background: rgba(255, 252, 246, 0.72);
+  padding: 1rem 1rem 1.05rem;
+}
+
+.connection-report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.connection-report-head span,
+.connection-report-grid span {
+  display: block;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+}
+
+.connection-report-head strong {
+  display: block;
+  margin-top: 0.24rem;
+  color: #38413a;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1rem;
+}
+
+.connection-report-head button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(216, 205, 185, 0.82);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.76);
+  padding: 0.38rem 0.68rem;
+  color: #59645a;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.connection-test-report p,
+.connection-test-report small {
+  color: #59645a;
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.connection-report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.62rem;
+}
+
+.connection-report-grid div {
+  min-width: 0;
+  border-top: 1px solid rgba(216, 205, 185, 0.52);
+  padding-top: 0.52rem;
+}
+
+.connection-report-grid strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 0.18rem;
+  color: #38413a;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connection-model-samples {
+  display: grid;
+  gap: 0.45rem;
+  border-top: 1px solid rgba(216, 205, 185, 0.52);
+  padding-top: 0.52rem;
+}
+
+.connection-model-samples-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.connection-model-samples-head span {
+  display: block;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.14em;
+}
+
+.connection-model-samples-head strong {
+  color: #38413a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.connection-model-sample-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.connection-model-sample-list code {
+  border: 1px solid rgba(216, 205, 185, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.8);
+  padding: 0.22rem 0.56rem;
+  font-size: 0.74rem;
+}
+
+.connection-model-sample-more {
+  display: inline-flex;
+  align-items: center;
+  border: 1px dashed rgba(216, 205, 185, 0.82);
+  border-radius: 999px;
+  background: rgba(250, 247, 239, 0.72);
+  padding: 0.22rem 0.56rem;
+  color: #7b6a53;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.connection-model-sample-more:hover,
+.connection-model-sample-more:focus-visible {
+  border-color: rgba(167, 58, 42, 0.38);
+  background: rgba(167, 58, 42, 0.08);
+  color: #a73a2a;
+  outline: none;
+}
+
+.connection-test-report.is-success {
+  border-left-color: #51624f;
+  background: rgba(81, 98, 79, 0.055);
+}
+
+.connection-test-report.is-warning {
+  border-left-color: #9b8155;
+  background: rgba(155, 129, 85, 0.065);
+}
+
+.connection-test-report.is-danger {
+  border-left-color: #a73a2a;
+  background: rgba(167, 58, 42, 0.055);
+}
+
+.key-editor-modal :deep(.modal-content) {
+  overflow: hidden;
+  border-color: rgba(198, 184, 157, 0.58);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(167, 58, 42, 0.05), transparent 18rem),
+    linear-gradient(180deg, rgba(250, 247, 239, 0.98), rgba(246, 241, 230, 0.96));
+  box-shadow: 0 34px 90px -58px rgba(31, 35, 32, 0.62);
+}
+
+.key-editor-modal :deep(.modal-header) {
+  border-bottom-color: rgba(216, 205, 185, 0.64);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.84), rgba(250, 247, 239, 0.68));
+}
+
+.key-editor-modal :deep(.modal-title) {
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1.85rem;
+  font-weight: 600;
+}
+
+.key-editor-modal :deep(.modal-body) {
+  padding-top: 1.2rem;
+  padding-bottom: 1rem;
+}
+
+.key-editor-modal :deep(.modal-footer) {
+  border-top-color: rgba(216, 205, 185, 0.64);
+  background: linear-gradient(180deg, rgba(250, 247, 239, 0.58), rgba(246, 241, 230, 0.8));
+}
+
+.key-editor-form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.key-editor-form .input-label {
+  color: #59645a;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.key-editor-form :deep(.input),
+.key-editor-form :deep(.select-trigger),
+.key-editor-form textarea,
+.key-editor-form input[type='datetime-local'] {
+  border-color: rgba(216, 205, 185, 0.76);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.42), rgba(250, 247, 239, 0.7));
+  color: #38413a;
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.72);
+}
+
+.key-editor-form :deep(.input:focus),
+.key-editor-form :deep(.select-trigger:focus-visible),
+.key-editor-form :deep(.select-trigger-open),
+.key-editor-form textarea:focus,
+.key-editor-form input[type='datetime-local']:focus {
+  border-color: rgba(167, 58, 42, 0.34);
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.08), inset 0 1px 0 rgba(255, 252, 246, 0.78);
+  outline: none;
+}
+
+.key-editor-form :deep(.select-value),
+.key-editor-form :deep(.select-icon),
+.key-editor-form :deep(.select-clear),
+.key-editor-form input::placeholder,
+.key-editor-form textarea::placeholder {
+  color: #8d978a;
+}
+
+.key-editor-form .input-hint {
+  color: #7b6a53;
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.key-advanced-shell {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.key-advanced-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  border: 1px solid rgba(216, 205, 185, 0.72);
+  border-radius: 16px;
+  background: linear-gradient(90deg, rgba(167, 58, 42, 0.05), transparent 42%), rgba(255, 252, 246, 0.68);
+  padding: 0.95rem 1rem;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.key-advanced-toggle:hover,
+.key-advanced-toggle:focus-visible {
+  border-color: rgba(167, 58, 42, 0.36);
+  background: linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 46%), rgba(250, 247, 239, 0.82);
+  box-shadow: 0 18px 42px -36px rgba(31, 35, 32, 0.26);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.key-advanced-copy {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.key-advanced-copy span {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+}
+
+.key-advanced-copy strong {
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.key-advanced-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  color: #59645a;
+}
+
+.key-advanced-meta small {
+  color: #8b7d67;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.key-advanced-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.key-advanced-chips span {
+  border: 1px solid rgba(216, 205, 185, 0.68);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.7);
+  padding: 0.22rem 0.56rem;
+  color: #59645a;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.key-advanced-panel {
+  border: 1px solid rgba(216, 205, 185, 0.62);
+  border-radius: 16px;
+  background: rgba(255, 252, 246, 0.42);
+  padding: 1rem;
+}
+
+:global(.key-editor-dropdown) {
+  border-color: rgba(216, 205, 185, 0.72) !important;
+  border-radius: 12px !important;
+  background: rgba(250, 247, 239, 0.98) !important;
+  box-shadow: 0 18px 42px -34px rgba(31, 35, 32, 0.34) !important;
+}
+
+:global(.key-editor-dropdown .select-option) {
+  color: #38413a !important;
+}
+
+:global(.key-editor-dropdown .select-option:hover),
+:global(.key-editor-dropdown .select-option-focused) {
+  background: rgba(167, 58, 42, 0.075) !important;
+  color: #a73a2a !important;
+}
+
+:global(.key-editor-dropdown .select-option-selected) {
+  background: rgba(167, 58, 42, 0.1) !important;
+  color: #a73a2a !important;
+}
+
+.dark .key-editor-modal :deep(.modal-content) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(167, 58, 42, 0.09), transparent 18rem),
+    linear-gradient(180deg, rgba(24, 26, 21, 0.96), rgba(17, 19, 15, 0.94));
+  box-shadow: 0 42px 100px -60px rgba(0, 0, 0, 0.72);
+}
+
+.dark .key-editor-modal :deep(.modal-header) {
+  border-bottom-color: rgba(48, 52, 43, 0.78);
+  background: linear-gradient(180deg, rgba(24, 26, 21, 0.88), rgba(17, 19, 15, 0.72));
+}
+
+.dark .key-editor-modal :deep(.modal-title) {
+  color: #f4efe4;
+}
+
+.dark .key-editor-modal :deep(.modal-footer) {
+  border-top-color: rgba(48, 52, 43, 0.78);
+  background: linear-gradient(180deg, rgba(17, 19, 15, 0.62), rgba(24, 26, 21, 0.86));
+}
+
+.dark .key-editor-form .input-label,
+.dark .key-editor-form .input-hint,
+.dark .key-advanced-copy span,
+.dark .key-advanced-meta,
+.dark .key-advanced-meta small,
+.dark .key-advanced-chips span {
+  color: #879186;
+}
+
+.dark .key-editor-form :deep(.input),
+.dark .key-editor-form :deep(.select-trigger),
+.dark .key-editor-form textarea,
+.dark .key-editor-form input[type='datetime-local'] {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+  color: #d8cdb9;
+  box-shadow: none;
+}
+
+.dark .key-editor-form :deep(.input:focus),
+.dark .key-editor-form :deep(.select-trigger:focus-visible),
+.dark .key-editor-form :deep(.select-trigger-open),
+.dark .key-editor-form textarea:focus,
+.dark .key-editor-form input[type='datetime-local']:focus {
+  border-color: rgba(216, 205, 185, 0.28);
+  box-shadow: 0 0 0 3px rgba(184, 156, 116, 0.08);
+}
+
+.dark .key-editor-form :deep(.select-value),
+.dark .key-editor-form :deep(.select-icon),
+.dark .key-editor-form :deep(.select-clear),
+.dark .key-editor-form input::placeholder,
+.dark .key-editor-form textarea::placeholder {
+  color: #879186;
+}
+
+.dark .key-advanced-toggle {
+  border-color: rgba(48, 52, 43, 0.9);
+  background: linear-gradient(90deg, rgba(184, 156, 116, 0.08), transparent 44%), rgba(24, 26, 21, 0.72);
+}
+
+.dark .key-advanced-toggle:hover,
+.dark .key-advanced-toggle:focus-visible {
+  border-color: rgba(184, 156, 116, 0.42);
+  background: linear-gradient(90deg, rgba(184, 156, 116, 0.12), transparent 46%), rgba(24, 26, 21, 0.9);
+  box-shadow: 0 18px 42px -36px rgba(0, 0, 0, 0.48);
+}
+
+.dark .key-advanced-copy strong {
+  color: #f4efe4;
+}
+
+.dark .key-advanced-chips span {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(17, 19, 15, 0.52);
+}
+
+.dark .key-advanced-panel {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(17, 19, 15, 0.42);
+}
+
+:global(.dark .key-editor-dropdown) {
+  border-color: rgba(48, 52, 43, 0.95) !important;
+  background: rgba(24, 26, 21, 0.98) !important;
+}
+
+:global(.dark .key-editor-dropdown .select-option) {
+  color: #d8cdb9 !important;
+}
+
+:global(.dark .key-editor-dropdown .select-option:hover),
+:global(.dark .key-editor-dropdown .select-option-focused) {
+  background: rgba(216, 205, 185, 0.06) !important;
+  color: #f4efe4 !important;
+}
+
+:global(.dark .key-editor-dropdown .select-option-selected) {
+  background: rgba(184, 156, 116, 0.1) !important;
+  color: #f4efe4 !important;
+}
+
+.dark .connection-test-modal :deep(.modal-content) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background:
+    radial-gradient(circle at 16% 0%, rgba(167, 58, 42, 0.09), transparent 18rem),
+    linear-gradient(180deg, rgba(24, 26, 21, 0.96), rgba(17, 19, 15, 0.94));
+  box-shadow: 0 42px 100px -60px rgba(0, 0, 0, 0.72);
+}
+
+.dark .connection-test-modal :deep(.modal-header) {
+  border-bottom-color: rgba(48, 52, 43, 0.78);
+  background: linear-gradient(180deg, rgba(24, 26, 21, 0.88), rgba(17, 19, 15, 0.72));
+}
+
+.dark .connection-test-modal :deep(.modal-title) {
+  color: #f4efe4;
+}
+
+.dark .connection-test-modal :deep(.modal-footer) {
+  border-top-color: rgba(48, 52, 43, 0.78);
+  background: linear-gradient(180deg, rgba(17, 19, 15, 0.62), rgba(24, 26, 21, 0.86));
+}
+
+.dark .connection-test-intro p {
+  color: #879186;
+}
+
+.dark .connection-key-list button {
+  border-color: rgba(48, 52, 43, 0.9);
+  background: linear-gradient(90deg, rgba(184, 156, 116, 0.06), transparent 38%), rgba(24, 26, 21, 0.72);
+  color: #d8cdb9;
+}
+
+.dark .connection-key-list button span {
+  color: #f4efe4;
+}
+
+.dark .connection-key-list button.is-selected,
+.dark .connection-key-list button:hover,
+.dark .connection-key-list button:focus-visible {
+  border-color: rgba(184, 156, 116, 0.42);
+  background: linear-gradient(90deg, rgba(184, 156, 116, 0.12), transparent 44%), rgba(24, 26, 21, 0.9);
+  box-shadow: inset 3px 0 0 rgba(167, 58, 42, 0.82), 0 18px 42px -36px rgba(0, 0, 0, 0.5);
+}
+
+.dark .connection-key-list small,
+.dark .integration-kit-head span,
+.dark .connection-model-brief-head span,
+.dark .connection-report-head span,
+.dark .connection-report-grid span,
+.dark .connection-model-samples > span {
+  color: #b9aa91;
+}
+
+.dark .integration-kit {
+  border-top-color: rgba(48, 52, 43, 0.72);
+}
+
+.dark .connection-model-brief {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(24, 26, 21, 0.68);
+}
+
+.dark .integration-kit-head strong,
+.dark .connection-model-brief-head strong,
+.dark .connection-report-head strong,
+.dark .connection-report-grid strong {
+  color: #f4efe4;
+}
+
+.dark .integration-kit-actions button,
+.dark .connection-model-brief-head button,
+.dark .connection-report-head button {
+  border-color: rgba(48, 52, 43, 0.92);
+  background: rgba(17, 19, 15, 0.52);
+  color: #d8cdb9;
+}
+
+.dark .integration-kit-actions button:hover,
+.dark .integration-kit-actions button:focus-visible,
+.dark .connection-model-brief-head button:hover,
+.dark .connection-model-brief-head button:focus-visible,
+.dark .connection-report-head button:hover,
+.dark .connection-report-head button:focus-visible {
+  border-color: rgba(184, 156, 116, 0.38);
+  background: rgba(167, 58, 42, 0.14);
+  color: #f4efe4;
+}
+
+.dark .connection-test-report {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(24, 26, 21, 0.72);
+}
+
+.dark .connection-test-report p,
+.dark .connection-test-report small,
+.dark .connection-model-brief-list {
+  color: #bdb5a8;
+}
+
+.dark .connection-report-grid div {
+  border-top-color: rgba(48, 52, 43, 0.64);
+}
+
+.dark .connection-model-samples {
+  border-top-color: rgba(48, 52, 43, 0.64);
+}
+
+.dark .connection-model-samples-head span {
+  color: #b9aa91;
+}
+
+.dark .connection-model-samples-head strong {
+  color: #f4efe4;
+}
+
+.dark .connection-model-sample-list code {
+  border-color: rgba(48, 52, 43, 0.92);
+  background: rgba(17, 19, 15, 0.56);
+  color: #f4efe4;
+}
+
+.dark .connection-model-sample-more {
+  border-color: rgba(48, 52, 43, 0.92);
+  background: rgba(24, 26, 21, 0.58);
+  color: #b9aa91;
+}
+
+.dark .connection-model-sample-more:hover,
+.dark .connection-model-sample-more:focus-visible {
+  border-color: rgba(184, 156, 116, 0.38);
+  background: rgba(167, 58, 42, 0.14);
+  color: #f4efe4;
+}
+
+.dark .connection-test-report.is-success {
+  border-left-color: #6e8a67;
+  background: rgba(81, 98, 79, 0.12);
+}
+
+.dark .connection-test-report.is-warning {
+  border-left-color: #b89c74;
+  background: rgba(155, 129, 85, 0.14);
+}
+
+.dark .connection-test-report.is-danger {
+  border-left-color: #c06c5d;
+  background: rgba(167, 58, 42, 0.14);
+}
+
+@media (max-width: 640px) {
+  .connection-test-modal :deep(.modal-title) {
+    font-size: 1.55rem;
+  }
+
+  .integration-kit-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .connection-model-brief-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .connection-model-samples-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.28rem;
+  }
+
+  .integration-kit-head strong {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .connection-key-list button {
+    grid-template-columns: 1fr;
+    gap: 0.38rem;
+  }
+
+  .connection-report-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .connection-report-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.key-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.key-health-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.12rem 0.12rem 0.12rem 0;
+}
+
+.key-health-cell .badge {
+  width: fit-content;
+  flex: 0 0 auto;
+}
+
+.key-health-lines {
+  display: grid;
+  gap: 0.14rem;
+  padding-top: 0.04rem;
+  color: #667066;
+  font-size: 0.64rem;
+  line-height: 1.42;
+}
+
+.key-health-lines span {
+  overflow: hidden;
+  max-width: 9rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key-health-lines-alert {
+  color: #8f3b2f;
+}
+
+.key-health-model-hint {
+  max-width: 11rem;
+  color: #8f3b2f;
+  overflow: visible;
+  text-overflow: initial;
+  white-space: normal;
+}
+
+.key-health-link {
+  width: fit-content;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #8f3b2f;
+  font-size: 0.64rem;
+  line-height: 1.42;
+  text-decoration: underline;
+  text-underline-offset: 0.18rem;
+}
+
+.key-health-link:hover,
+.key-health-link:focus-visible {
+  color: #a73a2a;
+}
+
+.key-row-action {
+  display: inline-grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border: 1px solid rgba(216, 205, 185, 0.48);
+  border-radius: 999px;
+  background: rgba(255, 252, 246, 0.34);
+  color: #667066;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.key-row-action:hover,
+.key-row-action:focus-visible {
+  border-color: rgba(167, 58, 42, 0.22);
+  background: rgba(167, 58, 42, 0.07);
+  color: #a73a2a;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.key-row-action.is-danger:hover,
+.key-row-action.is-danger:focus-visible {
+  border-color: rgba(167, 58, 42, 0.26);
+  background: rgba(167, 58, 42, 0.1);
+}
+
+.keys-page :deep(.rounded-lg),
+.keys-page :deep(.rounded-xl),
+.keys-page :deep(.rounded-2xl) {
+  border-radius: 6px;
+}
+
+.keys-page :deep(.bg-blue-50),
+.keys-page :deep(.bg-blue-100),
+.keys-page :deep(.bg-green-50),
+.keys-page :deep(.bg-green-100),
+.keys-page :deep(.bg-yellow-50),
+.keys-page :deep(.bg-amber-100),
+.keys-page :deep(.bg-primary-50),
+.keys-page :deep(.bg-primary-100),
+.keys-page :deep(.bg-gray-50) {
+  background-color: rgba(216, 205, 185, 0.46);
+}
+
+.keys-page :deep(.text-blue-500),
+.keys-page :deep(.text-blue-600),
+.keys-page :deep(.text-green-500),
+.keys-page :deep(.text-green-600),
+.keys-page :deep(.text-yellow-500),
+.keys-page :deep(.text-amber-600),
+.keys-page :deep(.text-primary-500),
+.keys-page :deep(.text-primary-600) {
+  color: #59645a;
+}
+
+.keys-page :deep(button.text-primary-600),
+.keys-page :deep(a.text-primary-600),
+.keys-page :deep(.btn-primary) {
+  color: inherit;
+}
+
+.keys-page :deep(.btn-primary) {
+  background-color: #a73a2a;
+  border-color: #a73a2a;
+  color: #f4efe4;
+}
+
+.keys-page :deep(.btn-primary:hover) {
+  background-color: #8f3024;
+  border-color: #8f3024;
+}
+
+.keys-page :deep(.btn-secondary) {
+  border-color: rgba(216, 205, 185, 0.9);
+  background: rgba(255, 255, 255, 0.38);
+  color: #38413a;
+}
+
+.keys-page :deep(.btn-secondary:hover) {
+  border-color: rgba(167, 58, 42, 0.42);
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.dark .keys-page {
+  color: #f4efe4;
+}
+
+.dark .keys-ledger-item {
+  border-left-color: rgba(48, 52, 43, 0.95);
+}
+
+.dark .keys-ledger-item span {
+  color: #879186;
+}
+
+.dark .keys-ledger-item strong {
+  color: #f4efe4;
+}
+
+.dark .keys-page :deep(thead) {
+  background: transparent;
+}
+
+.dark .workbench-panel-title {
+  border-bottom-color: rgba(48, 52, 43, 0.95);
+}
+
+.dark .workbench-panel-title span {
+  color: #879186;
+}
+
+.dark .workbench-panel-title strong {
+  color: #f4efe4;
+}
+
+.dark .keys-rail-card {
+  border-color: rgba(48, 52, 43, 0.9);
+  background: linear-gradient(180deg, rgba(24, 26, 21, 0.72), rgba(17, 19, 15, 0.46));
+  box-shadow: 0 18px 42px -36px rgba(0, 0, 0, 0.42);
+}
+
+.dark .keys-rail-intro span,
+.dark .keys-rail-intro p {
+  color: #879186;
+}
+
+.dark .keys-filters :deep(.input),
+.dark .keys-filters :deep(.select-trigger) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+  color: #d8cdb9;
+}
+
+.dark .keys-filters :deep(.select-value) {
+  color: #f4efe4;
+}
+
+.dark .keys-filters :deep(.input::placeholder),
+.dark .keys-filters :deep(.select-icon),
+.dark .keys-filters :deep(svg) {
+  color: #879186;
+}
+
+:global(.dark .keys-filter-dropdown) {
+  border-color: rgba(48, 52, 43, 0.95) !important;
+  background: rgba(24, 26, 21, 0.98) !important;
+}
+
+:global(.dark .keys-filter-dropdown .select-option) {
+  color: #d8cdb9 !important;
+}
+
+.dark .keys-access-strip {
+  border-color: transparent;
+  background: transparent;
+}
+
+.dark .keys-access-value > span,
+.dark .keys-access-value > strong {
+  color: #d8cdb9;
+}
+
+.dark .keys-access-strip-actions button {
+  border-color: rgba(48, 52, 43, 0.7);
+  background: rgba(17, 19, 15, 0.24);
+  color: #d8cdb9;
+}
+
+.dark .keys-access-strip-actions button:hover:not(:disabled),
+.dark .keys-access-strip-actions button:focus-visible {
+  border-color: rgba(167, 58, 42, 0.4);
+  background: rgba(167, 58, 42, 0.14);
+  color: #f0b4a8;
+}
+
+.dark .keys-page :deep(.table-wrapper) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.dark .keys-page :deep(th) {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(24, 26, 21, 0.9) !important;
+  color: #b9aa91;
+}
+
+.dark .keys-page :deep(td) {
+  border-color: rgba(48, 52, 43, 0.82);
+  background: rgba(17, 19, 15, 0.34);
+  color: #d8cdb9;
+}
+
+.dark .keys-page :deep(tbody .sticky-col) {
+  background: rgba(17, 19, 15, 0.92) !important;
+}
+
+.dark .keys-page :deep(tbody tr:hover td),
+.dark .keys-page :deep(tbody tr:hover .sticky-col) {
+  background: rgba(167, 58, 42, 0.11) !important;
+}
+
+.dark .keys-toolbar-shell,
+.dark .keys-data-shell,
+.dark .keys-endpoint-popover-shell {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dark .keys-toolbar-grid :deep(.select-trigger),
+.dark .keys-data-shell :deep(.page-size-select .select-trigger) {
+  border-color: rgba(48, 52, 43, 0.72);
+  background: rgba(17, 19, 15, 0.26);
+  color: #d8cdb9;
+}
+
+.dark .keys-toolbar-grid :deep(.select-trigger:hover),
+.dark .keys-toolbar-grid :deep(.select-trigger:focus-visible),
+.dark .keys-toolbar-grid :deep(.select-trigger-open),
+.dark .keys-data-shell :deep(.page-size-select .select-trigger:hover),
+.dark .keys-data-shell :deep(.page-size-select .select-trigger:focus-visible) {
+  border-color: rgba(167, 58, 42, 0.34);
+  background: rgba(167, 58, 42, 0.06);
+  box-shadow: 0 0 0 2px rgba(167, 58, 42, 0.08);
+}
+
+.dark .keys-toolbar-grid :deep(.select-value) {
+  color: #f4efe4;
+}
+
+.dark .keys-toolbar-grid :deep(.select-icon),
+.dark .keys-toolbar-grid :deep(svg) {
+  color: #879186;
+}
+
+.dark .keys-data-shell :deep(nav) {
+  border-color: transparent;
+  background: transparent;
+}
+
+:global(.keys-page-size-dropdown) {
+  border-color: rgba(216, 205, 185, 0.72) !important;
+  border-radius: 12px !important;
+  background: rgba(250, 247, 239, 0.96) !important;
+  box-shadow: 0 18px 42px -34px rgba(31, 35, 32, 0.34) !important;
+}
+
+:global(.keys-page-size-dropdown .select-option) {
+  color: #38413a !important;
+}
+
+:global(.keys-page-size-dropdown .select-option:hover),
+:global(.keys-page-size-dropdown .select-option-focused) {
+  background: rgba(167, 58, 42, 0.075) !important;
+  color: #a73a2a !important;
+}
+
+:global(.keys-page-size-dropdown .select-option-selected) {
+  background: rgba(167, 58, 42, 0.1) !important;
+  color: #a73a2a !important;
+}
+
+:global(.dark .keys-page-size-dropdown) {
+  border-color: rgba(48, 52, 43, 0.95) !important;
+  background: rgba(24, 26, 21, 0.98) !important;
+}
+
+.dark .keys-page :deep(.code) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: transparent;
+  color: #d8cdb9;
+}
+
+.dark .key-row-action {
+  border-color: rgba(48, 52, 43, 0.76);
+  background: rgba(17, 19, 15, 0.38);
+  color: #879186;
+}
+
+.dark .key-usage-stat,
+.dark .key-meter-card,
+.dark .key-expiry-cell {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.dark .key-usage-stat span,
+.dark .key-meter-label,
+.dark .key-expiry-label,
+.dark .key-meter-foot,
+.dark .key-inline-note {
+  color: #879186;
+}
+
+.dark .key-rate-inline-chip {
+  color: #a4ada2;
+}
+
+.dark .key-rate-inline-chip + .key-rate-inline-chip::before {
+  color: rgba(135, 145, 134, 0.7);
+}
+
+.dark .key-rate-inline-chip strong {
+  color: #f4efe4;
+}
+
+.dark .key-usage-stat strong,
+.dark .key-meter-value,
+.dark .key-expiry-cell strong {
+  color: #f4efe4;
+}
+
+.dark .key-meter-track {
+  background: rgba(48, 52, 43, 0.9);
+}
+
+.dark .key-meter-card.tone-warning {
+  color: #c7ab73;
+}
+
+.dark .key-meter-card.tone-danger {
+  color: #f0b4a8;
+}
+
+.dark .key-expiry-cell small {
+  color: #a4ada2;
+}
+
+.dark .key-meter-reset {
+  border-color: rgba(48, 52, 43, 0.9);
+  background: rgba(17, 19, 15, 0.44);
+  color: #d8cdb9;
+}
+
+.dark .key-meter-reset:hover,
+.dark .key-meter-reset:focus-visible {
+  border-color: rgba(167, 58, 42, 0.4);
+  background: rgba(167, 58, 42, 0.14);
+  color: #f0b4a8;
+}
+
+.dark .key-health-lines {
+  color: #879186;
+}
+
+.dark .key-health-lines-alert,
+.dark .key-health-model-hint,
+.dark .key-health-link {
+  color: #d7988c;
+}
+
+.dark .key-health-link:hover,
+.dark .key-health-link:focus-visible {
+  color: #efb3a8;
+}
+
+.dark .key-name-flag,
+.dark .key-group-helper,
+.dark .key-group-chevron,
+.dark .key-group-empty {
+  color: #879186;
+}
+
+.dark .key-group-trigger {
+  border-color: rgba(48, 52, 43, 0.76);
+  background: rgba(17, 19, 15, 0.36);
+  color: #d8cdb9;
+}
+
+.dark .key-group-trigger:hover,
+.dark .key-group-trigger:focus-visible {
+  border-color: rgba(184, 156, 116, 0.34);
+  background: rgba(184, 156, 116, 0.08);
+  color: #f4efe4;
+}
+
+.dark .key-row-action:hover,
+.dark .key-row-action:focus-visible {
+  border-color: rgba(167, 58, 42, 0.38);
+  background: rgba(167, 58, 42, 0.14);
+  color: #f0b4a8;
+}
+
+.dark .keys-page :deep(.btn-secondary) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(17, 19, 15, 0.42);
+  color: #f4efe4;
+}
+
+@media (max-width: 768px) {
+  .keys-toolbar-actions {
+    justify-content: stretch;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .keys-toolbar-actions .btn {
+    width: 100%;
+  }
+
+  .keys-ledger {
+    grid-template-columns: 1fr;
+  }
+
+  .keys-ledger-item {
+    border-left: 0;
+    border-top: 1px solid rgba(216, 205, 185, 0.76);
+    padding-left: 0;
+    padding-top: 0.85rem;
+  }
+
+  .keys-actions .btn {
+    flex: 1 1 0;
+  }
+
+  .keys-access-strip {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.7rem;
+    border-radius: 12px;
+    padding: 0.7rem;
+  }
+
+  .keys-access-value {
+    width: 100%;
+  }
+
+  .keys-access-value > strong {
+    max-width: none;
+  }
+
+  .keys-access-strip-actions {
+    width: 100%;
+  }
+
+  .keys-access-strip-actions button {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .key-usage-ledger {
+    grid-template-columns: 1fr;
+  }
+
+  .key-meter-head,
+  .key-meter-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .key-meter-value {
+    text-align: left;
+  }
+}
+</style>
+
+

@@ -1,22 +1,6 @@
 <template>
-  <div class="card overflow-hidden">
-    <div
-      v-if="showIpGeoToolbar"
-      class="flex items-center justify-end gap-2 border-b border-gray-200 px-4 py-2 dark:border-dark-700"
-    >
-      <span v-if="pendingIpCount > 0" class="text-xs text-gray-500 dark:text-gray-400">
-        {{ t('usage.ipGeo.pending', { count: pendingIpCount }) }}
-      </span>
-      <button
-        type="button"
-        class="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/30"
-        :disabled="ipGeoBatchLoading || pendingIpCount === 0"
-        @click="handleBatchFetchIpGeo"
-      >
-        {{ ipGeoBatchLoading ? t('usage.ipGeo.batchFetching') : t('usage.ipGeo.batchFetch') }}
-      </button>
-    </div>
-    <div class="overflow-auto">
+  <div class="usage-table-shell flex min-h-0 min-w-0 flex-1 flex-col">
+    <div class="usage-table-scroll-x">
       <DataTable
         :columns="columns"
         :data="data"
@@ -84,7 +68,7 @@
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.inbound') }}:</span>
               <span class="ml-1">{{ row.inbound_endpoint?.trim() || '-' }}</span>
             </div>
-            <div v-if="showUpstreamEndpoint" class="break-all text-gray-700 dark:text-gray-300">
+            <div class="break-all text-gray-700 dark:text-gray-300">
               <span class="font-medium text-gray-500 dark:text-gray-400">{{ t('usage.upstream') }}:</span>
               <span class="ml-1">{{ row.upstream_endpoint?.trim() || '-' }}</span>
             </div>
@@ -179,7 +163,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="showAccountBilling && row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
+            <div v-if="row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
               A ${{ accountBilled(row).toFixed(6) }}
             </div>
           </div>
@@ -204,14 +188,17 @@
         </template>
 
         <template #cell-ip_address="{ row }">
-          <div v-if="row.ip_address">
-            <span class="text-sm font-mono text-gray-600 dark:text-gray-400">{{ row.ip_address }}</span>
-            <IpGeoCell :ip="row.ip_address" />
-          </div>
+          <span v-if="row.ip_address" class="text-sm font-mono text-gray-600 dark:text-gray-400">{{ row.ip_address }}</span>
           <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
         </template>
 
-        <template #empty><EmptyState :message="t('usage.noRecords')" /></template>
+        <template #empty>
+          <div class="usage-ledger-empty-state">
+            <span>账册暂无记录</span>
+            <strong>{{ t('usage.noRecords') }}</strong>
+            <p>{{ t('usage.noRecordsDesc', '当前筛选范围内还没有调用明细。可以切换时间范围、选择全部密钥，或重置筛选后再查看。') }}</p>
+          </div>
+        </template>
       </DataTable>
     </div>
   </div>
@@ -320,7 +307,7 @@
               <span class="font-medium text-pink-300">${{ tooltipData.image_output_cost.toFixed(6) }}</span>
             </div>
             <!-- Token billing: show unit prices per 1M tokens -->
-            <template v-if="tooltipData && !isImageUsage(tooltipData) && (!tooltipData.billing_mode || tooltipData.billing_mode === BILLING_MODE_TOKEN)">
+            <template v-if="!tooltipData?.billing_mode || tooltipData.billing_mode === BILLING_MODE_TOKEN">
               <div v-if="tooltipData && tooltipData.input_tokens > 0" class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.inputTokenPrice') }}</span>
                 <span class="font-medium text-sky-300">{{ formatTokenPricePerMillion(tooltipData.input_cost, tooltipData.input_tokens) }} {{ t('usage.perMillionTokens') }}</span>
@@ -334,7 +321,7 @@
                 <span class="font-medium text-pink-300">{{ formatTokenPricePerMillion(tooltipData.image_output_cost ?? 0, tooltipData.image_output_tokens) }} {{ t('usage.perMillionTokens') }}</span>
               </div>
             </template>
-            <template v-else-if="tooltipData && isImageUsage(tooltipData)">
+            <template v-else-if="isImageUsage(tooltipData)">
               <div class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.imageCount') }}</span>
                 <span class="font-medium text-white">{{ tooltipData.image_count }}{{ t('usage.imageUnit') }}</span>
@@ -399,22 +386,20 @@
             <span class="font-semibold text-green-400">${{ tooltipData?.actual_cost?.toFixed(6) || '0.000000' }}</span>
           </div>
           <!-- Account billing (separated from user billing) -->
-          <template v-if="showAccountBilling">
-            <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
-              <span class="text-gray-400">{{ t('usage.accountMultiplier') }}</span>
-              <span class="font-semibold text-blue-400">{{ formatMultiplier(tooltipData?.account_rate_multiplier ?? 1) }}x</span>
-            </div>
-            <div class="flex items-center justify-between gap-6">
-              <span class="text-gray-400">{{ t('usage.accountBilled') }}</span>
-              <span class="font-semibold text-green-400">
-                ${{ accountBilled({
-                  total_cost: tooltipData?.total_cost,
-                  account_stats_cost: tooltipData?.account_stats_cost,
-                  account_rate_multiplier: tooltipData?.account_rate_multiplier,
-                }).toFixed(6) }}
-              </span>
-            </div>
-          </template>
+          <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
+            <span class="text-gray-400">{{ t('usage.accountMultiplier') }}</span>
+            <span class="font-semibold text-blue-400">{{ formatMultiplier(tooltipData?.account_rate_multiplier ?? 1) }}x</span>
+          </div>
+          <div class="flex items-center justify-between gap-6">
+            <span class="text-gray-400">{{ t('usage.accountBilled') }}</span>
+            <span class="font-semibold text-green-400">
+              ${{ accountBilled({
+                total_cost: tooltipData?.total_cost,
+                account_stats_cost: tooltipData?.account_stats_cost,
+                account_rate_multiplier: tooltipData?.account_rate_multiplier,
+              }).toFixed(6) }}
+            </span>
+          </div>
         </div>
         <div class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"></div>
       </div>
@@ -423,7 +408,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
@@ -458,10 +443,8 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
 
 
 import DataTable from '@/components/common/DataTable.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
-import IpGeoCell from '@/components/common/IpGeoCell.vue'
+
 import Icon from '@/components/icons/Icon.vue'
-import { fetchBatch, getEntry } from '@/utils/ipGeoLookup'
 import type { AdminUsageLog } from '@/types'
 import type { Column } from '@/components/common/types'
 
@@ -472,51 +455,19 @@ interface Props {
   serverSideSort?: boolean
   defaultSortKey?: string
   defaultSortOrder?: 'asc' | 'desc'
-  showAccountBilling?: boolean
-  showUpstreamEndpoint?: boolean
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   loading: false,
   serverSideSort: false,
   defaultSortKey: '',
-  defaultSortOrder: 'asc',
-  showAccountBilling: true,
-  showUpstreamEndpoint: true
+  defaultSortOrder: 'asc'
 })
-const emit = defineEmits<{
+defineEmits<{
   userClick: [userID: number, email?: string]
   sort: [key: string, order: 'asc' | 'desc']
-  ipGeoBatchFailed: []
 }>()
 const { t } = useI18n()
-const showAccountBilling = props.showAccountBilling
-const showUpstreamEndpoint = props.showUpstreamEndpoint
-const ipGeoBatchLoading = ref(false)
-
-const showIpGeoToolbar = computed(() => props.columns.some((col) => col.key === 'ip_address'))
-
-const currentPageIps = computed(() =>
-  Array.from(new Set(props.data.map((row) => row.ip_address).filter((ip): ip is string => Boolean(ip))))
-)
-
-const pendingIpCount = computed(() => {
-  if (!showIpGeoToolbar.value) return 0
-  return currentPageIps.value.filter((ip) => {
-    const status = getEntry(ip).status
-    return status === 'idle' || status === 'error'
-  }).length
-})
-
-const handleBatchFetchIpGeo = async () => {
-  ipGeoBatchLoading.value = true
-  try {
-    const ok = await fetchBatch(currentPageIps.value)
-    if (!ok) emit('ipGeoBatchFailed')
-  } finally {
-    ipGeoBatchLoading.value = false
-  }
-}
 
 // Tooltip state - cost
 const tooltipVisible = ref(false)
@@ -588,3 +539,73 @@ const hideTokenTooltip = () => {
   tokenTooltipData.value = null
 }
 </script>
+<style scoped>
+.usage-table-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.usage-table-scroll-x {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.usage-table-scroll-x :deep(.table-wrapper) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.usage-table-scroll-x :deep(table) {
+  min-width: max-content;
+}
+
+.usage-ledger-empty-state {
+  display: grid;
+  place-items: center;
+  gap: 0.5rem;
+  min-height: 14rem;
+  padding: 1.6rem 1.5rem;
+  text-align: center;
+}
+
+.usage-ledger-empty-state span {
+  color: #a67c52;
+  font-size: 0.82rem;
+  letter-spacing: 0.2em;
+}
+
+.usage-ledger-empty-state strong {
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.usage-ledger-empty-state p {
+  max-width: 33rem;
+  color: #5f675d;
+  font-size: 0.88rem;
+  line-height: 1.9;
+}
+
+</style>
+<style>
+.dark .usage-ledger-empty-state span {
+  color: #b89c74;
+}
+
+.dark .usage-ledger-empty-state strong {
+  color: #f4efe4;
+}
+
+.dark .usage-ledger-empty-state p {
+  color: #bdb5a8;
+}
+</style>

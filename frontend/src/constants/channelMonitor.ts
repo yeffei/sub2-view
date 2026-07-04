@@ -40,4 +40,7 @@ export const MONITOR_STATUSES: readonly MonitorStatus[] = [
 ]
 
 /** Default polling interval (seconds) for new monitors. */
-export const DEFAULT_INTERVAL_SECONDS = 60
+export const DEFAULT_MONITOR_INTERVAL_SECONDS = 300
+
+/** Default auto-refresh interval (seconds) for the user-facing status page. */
+export const DEFAULT_STATUS_REFRESH_INTERVAL_SECONDS = 60

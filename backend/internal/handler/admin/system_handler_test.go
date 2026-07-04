@@ -17,16 +17,24 @@ import (
 )
 
 type systemHandlerUpdateServiceStub struct {
-	performErr  error
-	updateInfo  *service.UpdateInfo
-	checkErr    error
-	checkForces []bool
-	performCall int
+	performErr      error
+	updateInfo      *service.UpdateInfo
+	preflightInfo   *service.UpdatePreflightInfo
+	checkErr        error
+	preflightErr    error
+	checkForces     []bool
+	preflightForces []bool
+	performCall     int
 }
 
 func (s *systemHandlerUpdateServiceStub) CheckUpdate(_ context.Context, force bool) (*service.UpdateInfo, error) {
 	s.checkForces = append(s.checkForces, force)
 	return s.updateInfo, s.checkErr
+}
+
+func (s *systemHandlerUpdateServiceStub) CheckUpdatePreflight(_ context.Context, force bool) (*service.UpdatePreflightInfo, error) {
+	s.preflightForces = append(s.preflightForces, force)
+	return s.preflightInfo, s.preflightErr
 }
 
 func (s *systemHandlerUpdateServiceStub) PerformUpdate(context.Context) error {
@@ -70,6 +78,7 @@ func newSystemHandlerTestRouter(t *testing.T, updateSvc *systemHandlerUpdateServ
 	handler := NewSystemHandler(updateSvc, lockSvc)
 
 	router := gin.New()
+	router.GET("/api/v1/admin/system/update/preflight", handler.CheckUpdatePreflight)
 	router.POST("/api/v1/admin/system/update", handler.PerformUpdate)
 	return router
 }
@@ -141,4 +150,39 @@ func TestSystemHandlerPerformUpdateFailureStillReturnsInternalError(t *testing.T
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, http.StatusInternalServerError, body.Code)
 	require.Equal(t, "internal error", body.Message)
+}
+
+func TestSystemHandlerCheckUpdatePreflightReturnsInfo(t *testing.T) {
+	updateSvc := &systemHandlerUpdateServiceStub{
+		preflightInfo: &service.UpdatePreflightInfo{
+			CurrentVersion: "0.1.137",
+			LatestVersion:  "0.1.143",
+			HasUpdate:      true,
+			CanUpdate:      true,
+			BuildType:      "release",
+			ArchiveName:    "linux_amd64",
+			Checks: []service.UpdatePreflightCheck{
+				{Key: "build_type", Label: "Release build", Status: "pass", Message: "release build supports in-place update"},
+			},
+		},
+	}
+	repo := newMemoryIdempotencyRepoStub()
+	router := newSystemHandlerTestRouter(t, updateSvc, repo)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/system/update/preflight?force=true", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, []bool{true}, updateSvc.preflightForces)
+
+	var body struct {
+		Code int `json:"code"`
+		Data service.UpdatePreflightInfo `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Equal(t, 0, body.Code)
+	require.True(t, body.Data.CanUpdate)
+	require.Equal(t, "0.1.143", body.Data.LatestVersion)
+	require.Len(t, body.Data.Checks, 1)
 }

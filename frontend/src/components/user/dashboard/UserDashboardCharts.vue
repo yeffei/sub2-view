@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-6">
     <!-- Date Range Filter -->
     <div class="card p-4">
@@ -24,7 +24,10 @@
       <!-- Model Distribution Chart -->
       <div class="card relative overflow-hidden p-4">
         <div v-if="loading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm dark:bg-dark-800/50">
-          <LoadingSpinner size="md" />
+          <div class="chart-state">
+            <LoadingSpinner size="md" />
+            <p>正在校准图表...</p>
+          </div>
         </div>
         <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.modelDistribution') }}</h3>
         <div class="flex items-center gap-6">
@@ -84,7 +87,10 @@ const modelData = computed(() => !props.models?.length ? null : {
   labels: props.models.map((m: ModelStat) => m.model),
   datasets: [{
     data: props.models.map((m: ModelStat) => m.total_tokens),
-    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+    backgroundColor: ['#1f2320', '#2f6f5e', '#a73a2a', '#8f7d5f', '#59645a', '#d8cdb9', '#38413a', '#b7791f'],
+    borderColor: '#f4efe4',
+    borderWidth: 2,
+    hoverOffset: 3
   }]
 })
 
@@ -101,3 +107,19 @@ const doughnutOptions = {
   }
 }
 </script>
+
+<style scoped>
+.chart-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: #59645a;
+  font-size: 0.82rem;
+}
+
+.dark .chart-state {
+  color: #879186;
+}
+</style>
+

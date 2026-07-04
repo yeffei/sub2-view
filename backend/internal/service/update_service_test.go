@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -61,4 +62,38 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrNoUpdateAvailable))
 	require.ErrorIs(t, err, ErrNoUpdateAvailable)
+}
+
+func TestUpdateServicePreflightBlocksSourceBuild(t *testing.T) {
+	assetName := "sub2api_" + runtime.GOOS + "_" + runtime.GOARCH + ".tar.gz"
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		&updateServiceGitHubClientStub{
+			release: &GitHubRelease{
+				TagName: "v0.1.143",
+				Name:    "v0.1.143",
+				Assets: []GitHubAsset{
+					{
+						Name:               assetName,
+						BrowserDownloadURL: "https://github.com/Wei-Shaw/sub2api/releases/download/v0.1.143/" + assetName,
+						Size:               1024,
+					},
+					{
+						Name:               "checksums.txt",
+						BrowserDownloadURL: "https://github.com/Wei-Shaw/sub2api/releases/download/v0.1.143/checksums.txt",
+						Size:               256,
+					},
+				},
+			},
+		},
+		"0.1.137",
+		"source",
+	)
+
+	info, err := svc.CheckUpdatePreflight(context.Background(), true)
+
+	require.NoError(t, err)
+	require.True(t, info.HasUpdate)
+	require.False(t, info.CanUpdate)
+	require.Contains(t, info.BlockingReasons, "source build must be upgraded with git/worktree workflow")
 }

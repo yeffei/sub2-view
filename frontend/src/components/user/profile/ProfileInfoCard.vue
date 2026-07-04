@@ -1,13 +1,13 @@
 <template>
-  <div class="space-y-6">
+  <div class="profile-overview-shell space-y-6">
     <section
       data-testid="profile-overview-hero"
-      class="card overflow-hidden border border-primary-100/80 bg-gradient-to-br from-primary-50 via-white to-amber-50/70 dark:border-primary-900/40 dark:from-primary-950/40 dark:via-dark-900 dark:to-dark-950"
+      class="profile-overview-hero card overflow-hidden border border-zen-paperLine/70 bg-white/72 dark:border-zen-nightLine dark:bg-zen-nightPanel/72"
     >
       <div class="px-6 py-6 md:px-8">
         <div class="flex flex-col gap-6 lg:flex-row lg:items-start">
           <div
-            class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[1.75rem] bg-gradient-to-br from-primary-500 to-primary-600 text-2xl font-bold text-white shadow-lg shadow-primary-500/20"
+            class="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[1.75rem] bg-zen-seal text-2xl font-bold text-zen-paper shadow-paper-sm"
           >
             <img
               v-if="avatarUrl"
@@ -18,7 +18,7 @@
             <span v-else>{{ avatarInitial }}</span>
           </div>
 
-          <div class="min-w-0 flex-1 space-y-5">
+          <div class="profile-overview-copy min-w-0 flex-1 space-y-5">
             <div class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
                 <h2 class="truncate text-2xl font-semibold text-gray-900 dark:text-white">
@@ -39,17 +39,17 @@
               </div>
 
               <div class="space-y-1">
-                <p class="truncate text-sm text-gray-600 dark:text-gray-300">
+                <p class="truncate text-sm text-zen-mist dark:text-zen-stone">
                   {{ primaryEmailDisplay }}
                 </p>
                 <div
                   v-if="sourceHints.length"
-                  class="flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400"
+                  class="flex flex-wrap gap-2 text-xs text-zen-mist dark:text-zen-stone"
                 >
                   <span
                     v-for="hint in sourceHints"
                     :key="hint.key"
-                    class="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 ring-1 ring-primary-100 dark:bg-dark-900/70 dark:ring-primary-900/40"
+                    class="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-1 ring-1 ring-zen-paperLine dark:bg-zen-nightPanel/70 dark:ring-zen-nightLine"
                   >
                     <Icon name="link" size="sm" />
                     {{ hint.text }}
@@ -58,37 +58,37 @@
               </div>
             </div>
 
-            <div class="grid gap-3 sm:grid-cols-3">
+            <div class="profile-metrics-grid grid gap-3 sm:grid-cols-3">
               <div
                 data-testid="profile-overview-metric-balance"
-                class="rounded-2xl bg-white/85 px-4 py-3 shadow-sm ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
+                class="profile-metric-card rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-zen-paperLine/70 dark:bg-zen-nightPanel/60 dark:ring-zen-nightLine"
               >
-                <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                <p class="text-xs font-medium uppercase tracking-[0.16em] text-zen-mist dark:text-zen-stone">
                   {{ t('profile.accountBalance') }}
                 </p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                <p class="mt-1 text-lg font-semibold text-zen-ink dark:text-zen-paper">
                   {{ formatCurrency(user?.balance || 0) }}
                 </p>
               </div>
               <div
                 data-testid="profile-overview-metric-concurrency"
-                class="rounded-2xl bg-white/85 px-4 py-3 shadow-sm ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
+                class="profile-metric-card rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-zen-paperLine/70 dark:bg-zen-nightPanel/60 dark:ring-zen-nightLine"
               >
-                <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                <p class="text-xs font-medium uppercase tracking-[0.16em] text-zen-mist dark:text-zen-stone">
                   {{ t('profile.concurrencyLimit') }}
                 </p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                <p class="mt-1 text-lg font-semibold text-zen-ink dark:text-zen-paper">
                   {{ user?.concurrency || 0 }}
                 </p>
               </div>
               <div
                 data-testid="profile-overview-metric-member-since"
-                class="rounded-2xl bg-white/85 px-4 py-3 shadow-sm ring-1 ring-white/70 dark:bg-dark-900/60 dark:ring-dark-700"
+                class="profile-metric-card rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-zen-paperLine/70 dark:bg-zen-nightPanel/60 dark:ring-zen-nightLine"
               >
-                <p class="text-xs font-medium uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                <p class="text-xs font-medium uppercase tracking-[0.16em] text-zen-mist dark:text-zen-stone">
                   {{ t('profile.memberSince') }}
                 </p>
-                <p class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
+                <p class="mt-1 text-lg font-semibold text-zen-ink dark:text-zen-paper">
                   {{ memberSinceLabel }}
                 </p>
               </div>
@@ -98,7 +98,7 @@
       </div>
     </section>
 
-    <div class="space-y-6">
+    <div v-if="!compactOnly" class="space-y-6">
       <div data-testid="profile-main-column" class="space-y-6">
         <section
           data-testid="profile-basics-panel"
@@ -106,24 +106,25 @@
         >
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+              <span class="profile-section-kicker">基础资料</span>
+              <h3 class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t('profile.basicsTitle') }}
               </h3>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {{ t('profile.basicsDescription') }}
+                头像、称呼与基础身份资料会在这里整理更新。
               </p>
             </div>
           </div>
 
           <div class="grid gap-6 sm:grid-cols-1 md:grid-cols-2">
-            <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
+            <div class="rounded-3xl border border-zen-paperLine/70 bg-white/62 p-5 dark:border-zen-nightLine dark:bg-zen-nightPanel/40">
               <ProfileAvatarCard
                 :user="user"
                 embedded
               />
             </div>
 
-            <div class="rounded-3xl border border-gray-100 bg-gray-50/80 p-5 dark:border-dark-700 dark:bg-dark-900/30">
+            <div class="rounded-3xl border border-zen-paperLine/70 bg-white/62 p-5 dark:border-zen-nightLine dark:bg-zen-nightPanel/40">
               <ProfileEditForm
                 :initial-username="user?.username || ''"
                 embedded
@@ -134,8 +135,12 @@
 
         <section
           data-testid="profile-auth-bindings-panel"
-          class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
+          class="card border border-zen-paperLine/70 bg-white/78 p-6 dark:border-zen-nightLine dark:bg-zen-nightPanel/54"
         >
+          <div class="mb-5">
+            <span class="profile-section-kicker">绑定方式</span>
+            <h3 class="mt-2 text-lg font-semibold text-zen-ink dark:text-zen-paper">登录来源与身份凭引</h3>
+          </div>
           <ProfileIdentityBindingsSection
             :user="user"
             :linuxdo-enabled="linuxdoEnabled"
@@ -154,22 +159,20 @@
       <div data-testid="profile-side-column" class="space-y-6">
         <section
           v-if="sourceHints.length"
-          class="card border border-gray-100 bg-white/90 p-6 dark:border-dark-700 dark:bg-dark-900/50"
+          class="card border border-zen-paperLine/70 bg-white/78 p-6 dark:border-zen-nightLine dark:bg-zen-nightPanel/54"
         >
-          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+          <span class="profile-section-kicker">来源说明</span>
+          <h3 class="mt-2 text-lg font-semibold text-zen-ink dark:text-zen-paper">
             {{ t('profile.linkedProfileSources') }}
           </h3>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {{ t('profile.linkedProfileSourcesDescription') }}
-          </p>
 
           <div class="mt-5 grid gap-3">
             <div
               v-for="hint in sourceHints"
               :key="hint.key"
-              class="flex items-start gap-3 rounded-2xl border border-gray-100 bg-gray-50/80 px-4 py-3 text-sm text-gray-600 dark:border-dark-700 dark:bg-dark-900/30 dark:text-gray-300"
+              class="flex items-start gap-3 rounded-2xl border border-zen-paperLine/70 bg-white/70 px-4 py-3 text-sm text-zen-mist dark:border-zen-nightLine dark:bg-zen-nightPanel/40 dark:text-zen-stone"
             >
-              <Icon name="link" size="sm" class="mt-0.5 text-gray-400 dark:text-gray-500" />
+              <Icon name="link" size="sm" class="mt-0.5 text-zen-mist dark:text-zen-stone" />
               <span>{{ hint.text }}</span>
             </div>
           </div>
@@ -197,6 +200,7 @@ const props = withDefaults(defineProps<{
   wechatEnabled?: boolean
   wechatOpenEnabled?: boolean
   wechatMpEnabled?: boolean
+  compactOnly?: boolean
 }>(), {
   linuxdoEnabled: false,
   dingtalkEnabled: false,
@@ -205,6 +209,7 @@ const props = withDefaults(defineProps<{
   wechatEnabled: false,
   wechatOpenEnabled: undefined,
   wechatMpEnabled: undefined,
+  compactOnly: false,
 })
 
 const { t } = useI18n()
@@ -379,3 +384,93 @@ const sourceHints = computed(() => {
   return hints
 })
 </script>
+
+<style scoped>
+.profile-section-kicker {
+  color: #8c7a61;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.profile-overview-hero {
+  border-color: rgba(198, 184, 157, 0.44);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.84), rgba(246, 241, 231, 0.74)),
+    rgba(250, 247, 239, 0.56);
+}
+
+.profile-overview-copy h2 {
+  color: #1f2320;
+  letter-spacing: -0.01em;
+}
+
+.profile-overview-copy p,
+.profile-source-hints,
+.profile-metric-card p:first-child {
+  color: #6f6454;
+}
+
+.profile-metrics-grid {
+  margin-top: 0.15rem;
+}
+
+.profile-metric-card {
+  border: 1px solid rgba(198, 184, 157, 0.44);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.76), rgba(246, 241, 231, 0.64)),
+    rgba(250, 247, 239, 0.66);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.36), 0 16px 36px -32px rgba(31, 35, 32, 0.22);
+}
+
+.profile-metric-card p:last-child {
+  color: #1f2320;
+}
+
+.profile-source-hints {
+  color: #6f6454;
+}
+
+.profile-source-hints span {
+  border: 1px solid rgba(198, 184, 157, 0.58);
+  background: rgba(255, 252, 245, 0.7);
+  color: #6f6454;
+}
+
+.dark .profile-section-kicker {
+  color: #a89a80;
+}
+
+.dark .profile-overview-hero {
+  border-color: rgba(48, 52, 43, 0.95);
+  background:
+    linear-gradient(180deg, rgba(24, 26, 21, 0.9), rgba(17, 19, 15, 0.86)),
+    rgba(17, 19, 15, 0.74);
+}
+
+.dark .profile-overview-copy h2,
+.dark .profile-metric-card p:last-child {
+  color: #f4efe4;
+}
+
+.dark .profile-overview-copy p,
+.dark .profile-source-hints,
+.dark .profile-metric-card p:first-child,
+.dark .profile-source-hints span {
+  color: #9b8f79;
+}
+
+.dark .profile-metric-card {
+  border-color: rgba(48, 52, 43, 0.92);
+  background:
+    linear-gradient(180deg, rgba(24, 26, 21, 0.88), rgba(17, 19, 15, 0.82)),
+    rgba(17, 19, 15, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 247, 235, 0.04), 0 16px 34px -34px rgba(0, 0, 0, 0.56);
+}
+
+.dark .profile-source-hints span {
+  border-color: rgba(48, 52, 43, 0.9);
+  background: rgba(17, 19, 15, 0.7);
+}
+</style>

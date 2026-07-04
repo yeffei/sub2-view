@@ -215,7 +215,7 @@ import {
   PROVIDER_GEMINI,
   API_MODE_CHAT_COMPLETIONS,
   API_MODE_RESPONSES,
-  DEFAULT_INTERVAL_SECONDS,
+  DEFAULT_MONITOR_INTERVAL_SECONDS,
 } from '@/constants/channelMonitor'
 
 const props = defineProps<{
@@ -236,7 +236,7 @@ const { providerPickerClass } = useChannelMonitorFormat()
 // constant when public settings haven't loaded yet or store the legacy 0 value.
 const systemDefaultInterval = computed<number>(() => {
   const configured = appStore.cachedPublicSettings?.channel_monitor_default_interval_seconds
-  return configured && configured > 0 ? configured : DEFAULT_INTERVAL_SECONDS
+  return configured && configured > 0 ? configured : DEFAULT_MONITOR_INTERVAL_SECONDS
 })
 
 // editing is true when we have an existing monitor

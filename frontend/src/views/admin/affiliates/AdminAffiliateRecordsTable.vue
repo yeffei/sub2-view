@@ -1,21 +1,29 @@
 <template>
   <AppLayout>
-    <TablePageLayout>
-      <template #filters>
-        <div class="flex flex-wrap items-center gap-3">
-          <div class="relative w-full md:w-80">
-            <Icon name="search" size="md" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input v-model="filters.search" type="text" class="input pl-10" :placeholder="t('admin.affiliates.records.searchPlaceholder')" @input="debounceLoad" />
+    <div class="sst-admin-page">
+      <TablePageLayout>
+        <template #filters>
+          <div class="affiliate-record-filters">
+            <div class="affiliate-record-filters-copy">
+              <span class="affiliate-record-filters-label">筛选文书</span>
+              <p>{{ recordFilterSummary }}</p>
+            </div>
+            <div class="affiliate-record-filters-controls">
+              <div class="relative w-full md:w-80">
+                <Icon name="search" size="md" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input v-model="filters.search" type="text" class="input pl-10" :placeholder="t('admin.affiliates.records.searchPlaceholder')" @input="debounceLoad" />
+              </div>
+              <input v-model="filters.start_at" type="date" class="input w-full sm:w-44" :title="t('admin.affiliates.records.startAt')" @change="reloadFromFirstPage" />
+              <input v-model="filters.end_at" type="date" class="input w-full sm:w-44" :title="t('admin.affiliates.records.endAt')" @change="reloadFromFirstPage" />
+              <button class="btn btn-secondary inline-flex items-center gap-2 px-2 md:px-3" :disabled="loading" :title="t('common.refresh')" @click="loadRecords">
+                <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
+                <span class="hidden sm:inline">{{ t('common.refresh') }}</span>
+              </button>
+            </div>
           </div>
-          <input v-model="filters.start_at" type="date" class="input w-full sm:w-44" :title="t('admin.affiliates.records.startAt')" @change="reloadFromFirstPage" />
-          <input v-model="filters.end_at" type="date" class="input w-full sm:w-44" :title="t('admin.affiliates.records.endAt')" @change="reloadFromFirstPage" />
-          <button class="btn btn-secondary px-2 md:px-3" :disabled="loading" :title="t('common.refresh')" @click="loadRecords">
-            <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
-          </button>
-        </div>
-      </template>
+        </template>
 
-      <template #table>
+        <template #table>
         <DataTable
           :columns="columns"
           :data="records"
@@ -98,10 +106,16 @@
           <template #cell-created_at="{ row }">
             <span class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(row.created_at) }}</span>
           </template>
+          <template #empty>
+            <EmptyState
+              :title="t('empty.noData')"
+              :description="recordEmptyDescription"
+            />
+          </template>
         </DataTable>
-      </template>
+        </template>
 
-      <template #pagination>
+        <template #pagination>
         <Pagination
           v-if="pagination.total > 0"
           :page="pagination.page"
@@ -138,6 +152,7 @@
         </div>
       </div>
     </BaseDialog>
+    </div>
   </AppLayout>
 </template>
 
@@ -147,6 +162,7 @@ import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
+import EmptyState from '@/components/common/EmptyState.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -211,6 +227,21 @@ const columns = computed<Column[]>(() => {
 })
 
 const sortStorageKey = computed(() => `admin-affiliate-${props.type}-table-sort`)
+
+const recordEmptyDescription = computed(() => {
+  if (props.type === 'invites') return '当前筛选条件下暂无邀请关系记录，可调整时间范围或搜索条件后再查看。'
+  if (props.type === 'rebates') return '当前筛选条件下暂无返利结算记录，可放宽筛选后再查看订单往来。'
+  return '当前筛选条件下暂无转账流水记录，可调整筛选条件后再查看额度变化。'
+})
+
+const recordFilterSummary = computed(() => {
+  const currentCount = records.value.length
+  const totalCount = pagination.total
+  if (totalCount === 0) {
+    return '按用户、时间与关键词交叉筛查，快速定位需要复核的往来记录。'
+  }
+  return `当前页展示 ${currentCount} 条，累计 ${totalCount} 条记录；可按用户、时间与关键词继续缩小范围。`
+})
 
 function loadInitialSortState(): { sort_by: string; sort_order: 'asc' | 'desc' } {
   const fallback = { sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' }
@@ -405,3 +436,67 @@ onMounted(() => {
   void loadRecords()
 })
 </script>
+
+<style scoped>
+.affiliate-record-filters {
+  @apply flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between;
+}
+
+.affiliate-record-filters-copy {
+  @apply space-y-2;
+}
+
+.affiliate-record-filters-label {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium tracking-[0.18em] uppercase;
+  color: #8b5e3c;
+  background: rgba(167, 58, 42, 0.08);
+}
+
+.affiliate-record-filters-copy p {
+  @apply text-sm leading-6;
+  color: #5f6257;
+}
+
+.affiliate-record-filters-controls {
+  @apply flex w-full flex-wrap items-center gap-3 lg:w-auto lg:justify-end;
+}
+
+.affiliate-record-filters-controls .input {
+  min-height: 2.75rem;
+}
+
+:deep(.layout-section-fixed) {
+  background:
+    linear-gradient(135deg, rgba(167, 58, 42, 0.04), rgba(255, 255, 255, 0) 40%),
+    rgba(250, 247, 239, 0.62);
+}
+
+:deep(.layout-section-scrollable .table-scroll-container) {
+  box-shadow: 0 22px 42px -38px rgba(58, 48, 34, 0.38);
+}
+
+:deep(.layout-section-scrollable tbody tr:hover) {
+  background: rgba(167, 58, 42, 0.05);
+}
+
+</style>
+<style>
+.dark .affiliate-record-filters-label {
+  color: #e7b58e;
+  background: rgba(167, 58, 42, 0.22);
+}
+
+.dark .affiliate-record-filters-copy p {
+  color: #9ea49a;
+}
+
+.dark .layout-section-fixed {
+  background:
+    linear-gradient(180deg, rgba(24, 26, 21, 0.9), rgba(18, 20, 16, 0.94));
+}
+
+.dark .layout-section-scrollable tbody tr:hover {
+  background: rgba(167, 58, 42, 0.14);
+}
+</style>
+

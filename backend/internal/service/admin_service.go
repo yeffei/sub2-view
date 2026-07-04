@@ -25,7 +25,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/util/httputil"
 )
 
@@ -69,6 +68,21 @@ type AdminService interface {
 	BatchSetGroupRPMOverrides(ctx context.Context, groupID int64, entries []GroupRPMOverrideInput) error
 	UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 
+	// Upstream pool management
+	ListUpstreamPools(ctx context.Context) ([]UpstreamPool, error)
+	GetUpstreamPoolByID(ctx context.Context, id int64) (*UpstreamPool, error)
+	CreateUpstreamPool(ctx context.Context, input *CreateUpstreamPoolInput) (*UpstreamPool, error)
+	UpdateUpstreamPool(ctx context.Context, id int64, input *UpdateUpstreamPoolInput) (*UpstreamPool, error)
+	DeleteUpstreamPool(ctx context.Context, id int64) error
+	ListUpstreamPoolMembers(ctx context.Context, poolID int64) ([]UpstreamPoolMember, error)
+	CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberInput) (*UpstreamPoolMember, error)
+	UpdateUpstreamPoolMember(ctx context.Context, id int64, input *UpdateUpstreamPoolMemberInput) (*UpstreamPoolMember, error)
+	DeleteUpstreamPoolMember(ctx context.Context, id int64) error
+	ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error)
+	CreateUpstreamPoolBinding(ctx context.Context, input *CreateUpstreamPoolBindingInput) (*UpstreamPoolBinding, error)
+	UpdateUpstreamPoolBinding(ctx context.Context, id int64, input *UpdateUpstreamPoolBindingInput) (*UpstreamPoolBinding, error)
+	DeleteUpstreamPoolBinding(ctx context.Context, id int64) error
+
 	// API Key management (admin)
 	AdminUpdateAPIKeyGroupID(ctx context.Context, keyID int64, groupID *int64) (*AdminUpdateAPIKeyGroupIDResult, error)
 	AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error)
@@ -77,7 +91,7 @@ type AdminService interface {
 	ReplaceUserGroup(ctx context.Context, userID, oldGroupID, newGroupID int64) (*ReplaceUserGroupResult, error)
 
 	// Account management
-	ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error)
+	ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, anomalyReason, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error)
 	GetAccount(ctx context.Context, id int64) (*Account, error)
 	GetAccountsByIDs(ctx context.Context, ids []int64) ([]*Account, error)
 	CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error)
@@ -103,9 +117,6 @@ type AdminService interface {
 	// RevertAccountProxyFallback 将账号的 proxy_id 切回 proxy_fallback_origin_id，并清空 origin 字段。
 	// 若账号不存在返回 ErrAccountNotFound；若账号存在但不在 fallback 状态，返回 ErrAccountNotInFallback。
 	RevertAccountProxyFallback(ctx context.Context, id int64) error
-	// CreateShadow 为指定 OpenAI OAuth 母账号创建 spark 维度影子账号（一母一影）。
-	// 影子账号不持凭据（Credentials 恒为空），透传母账号凭据；继承母账号的 ProxyID。
-	CreateShadow(ctx context.Context, parentID int64, opts ShadowOptions) (*Account, error)
 
 	// Proxy management
 	ListProxies(ctx context.Context, page, pageSize int, protocol, status, search string, sortBy, sortOrder string) ([]Proxy, int64, error)
@@ -212,16 +223,11 @@ type CreateGroupInput struct {
 	AllowImageGeneration bool
 	ImageRateIndependent bool
 	ImageRateMultiplier  *float64
-	// 高峰时段倍率配置（PeakRateMultiplier 为 nil 时按 1.0 处理）
-	PeakRateEnabled    bool
-	PeakStart          string
-	PeakEnd            string
-	PeakRateMultiplier *float64
-	ImagePrice1K       *float64
-	ImagePrice2K       *float64
-	ImagePrice4K       *float64
-	ClaudeCodeOnly     bool   // 仅允许 Claude Code 客户端
-	FallbackGroupID    *int64 // 降级分组 ID
+	ImagePrice1K         *float64
+	ImagePrice2K         *float64
+	ImagePrice4K         *float64
+	ClaudeCodeOnly       bool   // 仅允许 Claude Code 客户端
+	FallbackGroupID      *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
 	// 模型路由配置（仅 anthropic 平台使用）
@@ -258,16 +264,11 @@ type UpdateGroupInput struct {
 	AllowImageGeneration *bool
 	ImageRateIndependent *bool
 	ImageRateMultiplier  *float64
-	// 高峰时段倍率配置（nil 表示不修改）
-	PeakRateEnabled    *bool
-	PeakStart          *string
-	PeakEnd            *string
-	PeakRateMultiplier *float64
-	ImagePrice1K       *float64
-	ImagePrice2K       *float64
-	ImagePrice4K       *float64
-	ClaudeCodeOnly     *bool  // 仅允许 Claude Code 客户端
-	FallbackGroupID    *int64 // 降级分组 ID
+	ImagePrice1K         *float64
+	ImagePrice2K         *float64
+	ImagePrice4K         *float64
+	ClaudeCodeOnly       *bool  // 仅允许 Claude Code 客户端
+	FallbackGroupID      *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
 	// 模型路由配置（仅 anthropic 平台使用）
@@ -309,15 +310,6 @@ type CreateAccountInput struct {
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
 	// This should only be set when the caller has explicitly confirmed the risk.
 	SkipMixedChannelCheck bool
-}
-
-// ShadowOptions is the input for CreateShadow.
-// The shadow holds no credentials — the scheduler transparently delegates to the parent account's tokens.
-type ShadowOptions struct {
-	Name        string
-	Priority    int
-	Concurrency int
-	GroupIDs    []int64
 }
 
 type UpdateAccountInput struct {
@@ -362,6 +354,7 @@ type BulkUpdateAccountFilters struct {
 	Platform    string
 	Type        string
 	Status      string
+	AnomalyReason string
 	Group       string
 	Search      string
 	PrivacyMode string
@@ -565,6 +558,7 @@ type adminServiceImpl struct {
 	userRepo             UserRepository
 	groupRepo            GroupRepository
 	accountRepo          AccountRepository
+	upstreamPoolRepo     UpstreamPoolRepository
 	proxyRepo            ProxyRepository
 	apiKeyRepo           APIKeyRepository
 	redeemCodeRepo       RedeemCodeRepository
@@ -579,6 +573,7 @@ type adminServiceImpl struct {
 	defaultSubAssigner   DefaultSubscriptionAssigner
 	userSubRepo          UserSubscriptionRepository
 	privacyClientFactory PrivacyClientFactory
+	openAIAccountRuntime OpenAIAccountRuntimeObserver
 	runtimeBlocker       AccountRuntimeBlocker
 }
 
@@ -591,6 +586,7 @@ func NewAdminService(
 	userRepo UserRepository,
 	groupRepo GroupRepository,
 	accountRepo AccountRepository,
+	upstreamPoolRepo UpstreamPoolRepository,
 	proxyRepo ProxyRepository,
 	apiKeyRepo APIKeyRepository,
 	redeemCodeRepo RedeemCodeRepository,
@@ -605,12 +601,14 @@ func NewAdminService(
 	defaultSubAssigner DefaultSubscriptionAssigner,
 	userSubRepo UserSubscriptionRepository,
 	privacyClientFactory PrivacyClientFactory,
+	openAIAccountRuntime OpenAIAccountRuntimeObserver,
 	runtimeBlocker AccountRuntimeBlocker,
 ) AdminService {
 	return &adminServiceImpl{
 		userRepo:             userRepo,
 		groupRepo:            groupRepo,
 		accountRepo:          accountRepo,
+		upstreamPoolRepo:     upstreamPoolRepo,
 		proxyRepo:            proxyRepo,
 		apiKeyRepo:           apiKeyRepo,
 		redeemCodeRepo:       redeemCodeRepo,
@@ -625,8 +623,512 @@ func NewAdminService(
 		defaultSubAssigner:   defaultSubAssigner,
 		userSubRepo:          userSubRepo,
 		privacyClientFactory: privacyClientFactory,
+		openAIAccountRuntime: openAIAccountRuntime,
 		runtimeBlocker:       runtimeBlocker,
 	}
+}
+
+func (s *adminServiceImpl) ListUpstreamPools(ctx context.Context) ([]UpstreamPool, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamPool{}, nil
+	}
+	pools, err := s.upstreamPoolRepo.ListUpstreamPools(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return pools, nil
+}
+
+func (s *adminServiceImpl) GetUpstreamPoolByID(ctx context.Context, id int64) (*UpstreamPool, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, id)
+}
+
+func (s *adminServiceImpl) CreateUpstreamPool(ctx context.Context, input *CreateUpstreamPoolInput) (*UpstreamPool, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+
+	pool := &UpstreamPool{
+		Name:                             strings.TrimSpace(input.Name),
+		Code:                             strings.TrimSpace(input.Code),
+		Platform:                         strings.TrimSpace(input.Platform),
+		Description:                      strings.TrimSpace(input.Description),
+		Enabled:                          input.Enabled,
+		SchedulerMode:                    strings.TrimSpace(input.SchedulerMode),
+		DefaultRequiredCapability:        strings.TrimSpace(input.DefaultRequiredCapability),
+		DefaultRequiredTransport:         strings.TrimSpace(input.DefaultRequiredTransport),
+		StickyEnabled:                    input.StickyEnabled,
+		StickyTTLSeconds:                 input.StickyTTLSeconds,
+		StickyEscapeEnabled:              input.StickyEscapeEnabled,
+		StickyEscapeErrorRateThreshold:    input.StickyEscapeErrorRateThreshold,
+		StickyEscapeTTFTMSThreshold:      input.StickyEscapeTTFTMSThreshold,
+		LoadBalanceEnabled:               input.LoadBalanceEnabled,
+		FailoverEnabled:                  input.FailoverEnabled,
+		TopK:                             input.TopK,
+		MaxFailoverHops:                  input.MaxFailoverHops,
+		WaitTimeoutMS:                    input.WaitTimeoutMS,
+		MaxWaiting:                       input.MaxWaiting,
+		PolicyJSON:                       input.PolicyJSON,
+	}
+	if err := normalizeUpstreamPoolForCreate(pool); err != nil {
+		return nil, err
+	}
+	created, err := s.upstreamPoolRepo.CreateUpstreamPool(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+	return created, nil
+}
+
+func (s *adminServiceImpl) UpdateUpstreamPool(ctx context.Context, id int64, input *UpdateUpstreamPoolInput) (*UpstreamPool, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if input.Name != nil {
+		pool.Name = strings.TrimSpace(*input.Name)
+	}
+	if input.Code != nil {
+		pool.Code = strings.TrimSpace(*input.Code)
+	}
+	if input.Platform != nil {
+		pool.Platform = strings.TrimSpace(*input.Platform)
+	}
+	if input.Description != nil {
+		pool.Description = strings.TrimSpace(*input.Description)
+	}
+	if input.Enabled != nil {
+		pool.Enabled = *input.Enabled
+	}
+	if input.SchedulerMode != nil {
+		pool.SchedulerMode = strings.TrimSpace(*input.SchedulerMode)
+	}
+	if input.DefaultRequiredCapability != nil {
+		pool.DefaultRequiredCapability = strings.TrimSpace(*input.DefaultRequiredCapability)
+	}
+	if input.DefaultRequiredTransport != nil {
+		pool.DefaultRequiredTransport = strings.TrimSpace(*input.DefaultRequiredTransport)
+	}
+	if input.StickyEnabled != nil {
+		pool.StickyEnabled = *input.StickyEnabled
+	}
+	if input.StickyTTLSeconds != nil {
+		pool.StickyTTLSeconds = *input.StickyTTLSeconds
+	}
+	if input.StickyEscapeEnabled != nil {
+		pool.StickyEscapeEnabled = *input.StickyEscapeEnabled
+	}
+	if input.StickyEscapeErrorRateThreshold != nil {
+		pool.StickyEscapeErrorRateThreshold = *input.StickyEscapeErrorRateThreshold
+	}
+	if input.StickyEscapeTTFTMSThreshold != nil {
+		pool.StickyEscapeTTFTMSThreshold = *input.StickyEscapeTTFTMSThreshold
+	}
+	if input.LoadBalanceEnabled != nil {
+		pool.LoadBalanceEnabled = *input.LoadBalanceEnabled
+	}
+	if input.FailoverEnabled != nil {
+		pool.FailoverEnabled = *input.FailoverEnabled
+	}
+	if input.TopK != nil {
+		pool.TopK = *input.TopK
+	}
+	if input.MaxFailoverHops != nil {
+		pool.MaxFailoverHops = *input.MaxFailoverHops
+	}
+	if input.WaitTimeoutMS != nil {
+		pool.WaitTimeoutMS = *input.WaitTimeoutMS
+	}
+	if input.MaxWaiting != nil {
+		pool.MaxWaiting = *input.MaxWaiting
+	}
+	if input.PolicyJSON != nil {
+		pool.PolicyJSON = input.PolicyJSON
+	}
+	if err := normalizeUpstreamPoolForCreate(pool); err != nil {
+		return nil, err
+	}
+	updated, err := s.upstreamPoolRepo.UpdateUpstreamPool(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func (s *adminServiceImpl) DeleteUpstreamPool(ctx context.Context, id int64) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.DeleteUpstreamPool(ctx, id)
+}
+
+func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID int64) ([]UpstreamPoolMember, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamPoolMember{}, nil
+	}
+	members, err := s.upstreamPoolRepo.ListUpstreamPoolMembers(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	if s.accountRepo == nil || len(members) == 0 {
+		return members, nil
+	}
+	accountIDs := make([]int64, 0, len(members))
+	for i := range members {
+		if members[i].AccountID > 0 {
+			accountIDs = append(accountIDs, members[i].AccountID)
+		}
+	}
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	accountMap := make(map[int64]*Account, len(accounts))
+	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+		accountMap[account.ID] = account
+	}
+	runtimeSnapshots := map[int64]OpenAIAccountRuntimeSnapshot{}
+	if s.openAIAccountRuntime != nil && len(accountIDs) > 0 {
+		runtimeSnapshots = s.openAIAccountRuntime.SnapshotOpenAIAccountRuntime(accountIDs)
+	}
+	for i := range members {
+		account := accountMap[members[i].AccountID]
+		if account == nil {
+			continue
+		}
+		members[i].AccountName = account.Name
+		members[i].AccountPlatform = account.Platform
+		members[i].AccountStatus = account.Status
+		members[i].AccountSchedulable = account.IsSchedulable()
+		members[i].RuntimeLastUsedAt = account.LastUsedAt
+		members[i].RuntimeRateLimitResetAt = account.RateLimitResetAt
+		members[i].RuntimeOverloadUntil = account.OverloadUntil
+		members[i].RuntimeTempUnschedulableUntil = account.TempUnschedulableUntil
+		members[i].RuntimeStatus, members[i].RuntimeReason = summarizeUpstreamPoolMemberRuntime(account)
+		if snapshot, ok := runtimeSnapshots[members[i].AccountID]; ok {
+			errorRate := snapshot.ErrorRate
+			members[i].RuntimeErrorRate = &errorRate
+			members[i].RuntimeTTFTMs = snapshot.TTFTMs
+		}
+	}
+	return members, nil
+}
+
+func summarizeUpstreamPoolMemberRuntime(account *Account) (string, string) {
+	if account == nil {
+		return "unknown", ""
+	}
+	now := time.Now()
+	if account.Status == StatusError {
+		reason := strings.TrimSpace(account.ErrorMessage)
+		if reason == "" {
+			reason = "账号错误，等待恢复探针"
+		}
+		return "error_recovering", reason
+	}
+	if account.RateLimitResetAt != nil && now.Before(*account.RateLimitResetAt) {
+		return "rate_limited", "限流中，等待窗口恢复"
+	}
+	if account.OverloadUntil != nil && now.Before(*account.OverloadUntil) {
+		return "overloaded", "高负载保护中"
+	}
+	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
+		reason := strings.TrimSpace(account.TempUnschedulableReason)
+		if reason == "" {
+			reason = "临时不可调度，等待恢复探针"
+		}
+		return "temp_unschedulable", reason
+	}
+	if !account.Schedulable {
+		return "disabled", "账号自身已关闭调度"
+	}
+	if account.IsSchedulable() {
+		return "healthy", "正常参与调度"
+	}
+	return "degraded", "当前未进入可调度状态"
+}
+
+func (s *adminServiceImpl) CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberInput) (*UpstreamPoolMember, error) {
+	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	account, err := s.accountRepo.GetByID(ctx, input.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(account.Platform), strings.TrimSpace(pool.Platform)) {
+		return nil, errors.New("account platform does not match pool platform")
+	}
+	member := &UpstreamPoolMember{
+		PoolID:                 pool.ID,
+		AccountID:              account.ID,
+		AccountName:            account.Name,
+		AccountPlatform:        account.Platform,
+		Enabled:                input.Enabled,
+		SchedulableOverride:    input.SchedulableOverride,
+		ManualDrained:          input.ManualDrained,
+		Weight:                 input.Weight,
+		PriorityOverride:       input.PriorityOverride,
+		MaxConcurrencyOverride: input.MaxConcurrencyOverride,
+		Notes:                  strings.TrimSpace(input.Notes),
+	}
+	if err := normalizeUpstreamPoolMemberForCreate(member); err != nil {
+		return nil, err
+	}
+	created, err := s.upstreamPoolRepo.CreateUpstreamPoolMember(ctx, member)
+	if err != nil {
+		return nil, err
+	}
+	created.AccountName = account.Name
+	created.AccountPlatform = account.Platform
+	return created, nil
+}
+
+func (s *adminServiceImpl) UpdateUpstreamPoolMember(ctx context.Context, id int64, input *UpdateUpstreamPoolMemberInput) (*UpstreamPoolMember, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	member, err := s.upstreamPoolRepo.GetUpstreamPoolMemberByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if input.Enabled != nil {
+		member.Enabled = *input.Enabled
+	}
+	if input.SchedulableOverride != nil {
+		member.SchedulableOverride = input.SchedulableOverride
+	}
+	if input.ManualDrained != nil {
+		member.ManualDrained = *input.ManualDrained
+	}
+	if input.Weight != nil {
+		member.Weight = *input.Weight
+	}
+	if input.PriorityOverride != nil {
+		member.PriorityOverride = input.PriorityOverride
+	}
+	if input.MaxConcurrencyOverride != nil {
+		member.MaxConcurrencyOverride = input.MaxConcurrencyOverride
+	}
+	if input.Notes != nil {
+		member.Notes = strings.TrimSpace(*input.Notes)
+	}
+	if err := normalizeUpstreamPoolMemberForCreate(member); err != nil {
+		return nil, err
+	}
+	updated, err := s.upstreamPoolRepo.UpdateUpstreamPoolMember(ctx, member)
+	if err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+func (s *adminServiceImpl) DeleteUpstreamPoolMember(ctx context.Context, id int64) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.DeleteUpstreamPoolMember(ctx, id)
+}
+
+func (s *adminServiceImpl) ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamPoolBinding{}, nil
+	}
+	bindings, err := s.upstreamPoolRepo.ListUpstreamPoolBindings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return bindings, nil
+}
+
+func (s *adminServiceImpl) CreateUpstreamPoolBinding(ctx context.Context, input *CreateUpstreamPoolBindingInput) (*UpstreamPoolBinding, error) {
+	if s == nil || s.upstreamPoolRepo == nil || s.groupRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	group, err := s.groupRepo.GetByIDLite(ctx, input.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, input.PoolID)
+	if err != nil {
+		return nil, err
+	}
+	binding := &UpstreamPoolBinding{
+		GroupID:          group.ID,
+		GroupName:        group.Name,
+		GroupPlatform:    group.Platform,
+		PoolID:           pool.ID,
+		Platform:         strings.TrimSpace(input.Platform),
+		Models:           append([]string{}, input.Models...),
+		RequestPathScope: append([]string{}, input.RequestPathScope...),
+		Priority:         input.Priority,
+		Enabled:          input.Enabled,
+	}
+	if err := normalizeUpstreamPoolBindingForCreate(binding); err != nil {
+		return nil, err
+	}
+	created, err := s.upstreamPoolRepo.CreateUpstreamPoolBinding(ctx, binding)
+	if err != nil {
+		return nil, err
+	}
+	created.GroupName = group.Name
+	created.GroupPlatform = group.Platform
+	return created, nil
+}
+
+func (s *adminServiceImpl) UpdateUpstreamPoolBinding(ctx context.Context, id int64, input *UpdateUpstreamPoolBindingInput) (*UpstreamPoolBinding, error) {
+	if s == nil || s.upstreamPoolRepo == nil || s.groupRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	binding, err := s.upstreamPoolRepo.GetUpstreamPoolBindingByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if input.GroupID != nil {
+		binding.GroupID = *input.GroupID
+	}
+	if input.PoolID != nil {
+		binding.PoolID = *input.PoolID
+	}
+	if input.Platform != nil {
+		binding.Platform = strings.TrimSpace(*input.Platform)
+	}
+	if input.Models != nil {
+		binding.Models = append([]string{}, input.Models...)
+	}
+	if input.RequestPathScope != nil {
+		binding.RequestPathScope = append([]string{}, input.RequestPathScope...)
+	}
+	if input.Priority != nil {
+		binding.Priority = *input.Priority
+	}
+	if input.Enabled != nil {
+		binding.Enabled = *input.Enabled
+	}
+	updated, err := s.upstreamPoolRepo.UpdateUpstreamPoolBinding(ctx, binding)
+	if err != nil {
+		return nil, err
+	}
+	if group, gerr := s.groupRepo.GetByIDLite(ctx, updated.GroupID); gerr == nil && group != nil {
+		updated.GroupName = group.Name
+		updated.GroupPlatform = group.Platform
+	}
+	return updated, nil
+}
+
+func (s *adminServiceImpl) DeleteUpstreamPoolBinding(ctx context.Context, id int64) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.DeleteUpstreamPoolBinding(ctx, id)
+}
+
+func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
+	if pool == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	pool.Name = strings.TrimSpace(pool.Name)
+	pool.Code = strings.TrimSpace(pool.Code)
+	pool.Platform = strings.TrimSpace(pool.Platform)
+	pool.Description = strings.TrimSpace(pool.Description)
+	pool.SchedulerMode = strings.TrimSpace(pool.SchedulerMode)
+	pool.DefaultRequiredCapability = strings.TrimSpace(pool.DefaultRequiredCapability)
+	pool.DefaultRequiredTransport = strings.TrimSpace(pool.DefaultRequiredTransport)
+	if pool.Name == "" {
+		return errors.New("name is required")
+	}
+	if pool.Code == "" {
+		return errors.New("code is required")
+	}
+	if pool.Platform == "" {
+		return errors.New("platform is required")
+	}
+	if pool.SchedulerMode == "" {
+		pool.SchedulerMode = UpstreamPoolSchedulerModeAdvanced
+	}
+	if pool.StickyTTLSeconds <= 0 {
+		pool.StickyTTLSeconds = 1800
+	}
+	if pool.StickyEscapeErrorRateThreshold <= 0 {
+		pool.StickyEscapeErrorRateThreshold = 0.3000
+	}
+	if pool.StickyEscapeTTFTMSThreshold <= 0 {
+		pool.StickyEscapeTTFTMSThreshold = 6000
+	}
+	if pool.TopK <= 0 {
+		pool.TopK = 2
+	}
+	if pool.MaxFailoverHops <= 0 {
+		pool.MaxFailoverHops = 3
+	}
+	if pool.WaitTimeoutMS <= 0 {
+		pool.WaitTimeoutMS = 30000
+	}
+	if pool.MaxWaiting <= 0 {
+		pool.MaxWaiting = 100
+	}
+	if pool.PolicyJSON == nil {
+		pool.PolicyJSON = map[string]any{}
+	}
+	return nil
+}
+
+func normalizeUpstreamPoolMemberForCreate(member *UpstreamPoolMember) error {
+	if member == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	if member.PoolID <= 0 {
+		return errors.New("pool_id is required")
+	}
+	if member.AccountID <= 0 {
+		return errors.New("account_id is required")
+	}
+	if member.Weight <= 0 {
+		member.Weight = 100
+	}
+	if member.Notes == "" {
+		member.Notes = ""
+	}
+	return nil
+}
+
+func normalizeUpstreamPoolBindingForCreate(binding *UpstreamPoolBinding) error {
+	if binding == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	binding.Platform = strings.TrimSpace(binding.Platform)
+	if binding.GroupID <= 0 {
+		return errors.New("group_id is required")
+	}
+	if binding.PoolID <= 0 {
+		return errors.New("pool_id is required")
+	}
+	if binding.Platform == "" {
+		return errors.New("platform is required")
+	}
+	if binding.Priority <= 0 {
+		binding.Priority = 100
+	}
+	if binding.Models == nil {
+		binding.Models = []string{}
+	}
+	if binding.RequestPathScope == nil {
+		binding.RequestPathScope = []string{}
+	}
+	return nil
 }
 
 // User management implementations
@@ -1803,8 +2305,6 @@ func defaultModelsListCandidateIDs(platform string) []string {
 			ids = append(ids, model.ID)
 		}
 		return ids
-	case PlatformGrok:
-		return xai.DefaultModelIDs()
 	default:
 		ids := make([]string, 0, len(claude.DefaultModels))
 		for _, model := range claude.DefaultModels {
@@ -1812,12 +2312,6 @@ func defaultModelsListCandidateIDs(platform string) []string {
 		}
 		return ids
 	}
-}
-
-func defaultAllowImageGenerationForPlatform(platform string) bool {
-	// Grok image and video generation routes share the legacy image-generation gate.
-	// Older clients send the false zero value, so Grok groups must default enabled.
-	return platform == PlatformGrok
 }
 
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
@@ -1852,16 +2346,6 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		imageRateMultiplier = *input.ImageRateMultiplier
 	}
 
-	peakRateMultiplier := 1.0
-	if input.PeakRateMultiplier != nil {
-		peakRateMultiplier = *input.PeakRateMultiplier
-	}
-	// 先归一化（非订阅分组清空高峰配置、清洗停用状态下的脏字段）再校验，与 UpdateGroup 同一收口。
-	peakRateEnabled, peakStart, peakEnd, peakRateMultiplier := NormalizePeakRateConfig(subscriptionType, input.PeakRateEnabled, input.PeakStart, input.PeakEnd, peakRateMultiplier)
-	if err := ValidatePeakRateConfig(subscriptionType, peakRateEnabled, peakStart, peakEnd, peakRateMultiplier); err != nil {
-		return nil, err
-	}
-
 	// 校验降级分组
 	if input.FallbackGroupID != nil {
 		if err := s.validateFallbackGroup(ctx, 0, *input.FallbackGroupID); err != nil {
@@ -1884,8 +2368,6 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if input.MCPXMLInject != nil {
 		mcpXMLInject = *input.MCPXMLInject
 	}
-
-	allowImageGeneration := input.AllowImageGeneration || defaultAllowImageGenerationForPlatform(platform)
 
 	// 如果指定了复制账号的源分组，先获取账号 ID 列表
 	var accountIDsToCopy []int64
@@ -1930,13 +2412,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DailyLimitUSD:                   dailyLimit,
 		WeeklyLimitUSD:                  weeklyLimit,
 		MonthlyLimitUSD:                 monthlyLimit,
-		AllowImageGeneration:            allowImageGeneration,
+		AllowImageGeneration:            input.AllowImageGeneration,
 		ImageRateIndependent:            input.ImageRateIndependent,
 		ImageRateMultiplier:             imageRateMultiplier,
-		PeakRateEnabled:                 peakRateEnabled,
-		PeakStart:                       peakStart,
-		PeakEnd:                         peakEnd,
-		PeakRateMultiplier:              peakRateMultiplier,
 		ImagePrice1K:                    imagePrice1K,
 		ImagePrice2K:                    imagePrice2K,
 		ImagePrice4K:                    imagePrice4K,
@@ -1960,7 +2438,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 
 	// require_oauth_only: 过滤掉 apikey 类型账号
-	if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok) && len(accountIDsToCopy) > 0 {
+	if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini) && len(accountIDsToCopy) > 0 {
 		accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch accounts for oauth filter: %w", err)
@@ -2126,25 +2604,6 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 		group.ImageRateMultiplier = *input.ImageRateMultiplier
 	}
-	if input.PeakRateEnabled != nil {
-		group.PeakRateEnabled = *input.PeakRateEnabled
-	}
-	if input.PeakStart != nil {
-		group.PeakStart = *input.PeakStart
-	}
-	if input.PeakEnd != nil {
-		group.PeakEnd = *input.PeakEnd
-	}
-	if input.PeakRateMultiplier != nil {
-		group.PeakRateMultiplier = *input.PeakRateMultiplier
-	}
-	// 先归一化（非订阅分组——含本次更新转为非订阅——静默清空高峰配置，清洗停用状态下的脏字段），
-	// 再收敛校验：Update 可能只传部分 peak 字段，需对合并后的最终配置统一校验，
-	// 防止单独修改 start/end 导致最终 start>=end 等非法配置入库。与 CreateGroup 同一收口。
-	group.PeakRateEnabled, group.PeakStart, group.PeakEnd, group.PeakRateMultiplier = NormalizePeakRateConfig(group.SubscriptionType, group.PeakRateEnabled, group.PeakStart, group.PeakEnd, group.PeakRateMultiplier)
-	if err := ValidatePeakRateConfig(group.SubscriptionType, group.PeakRateEnabled, group.PeakStart, group.PeakEnd, group.PeakRateMultiplier); err != nil {
-		return nil, err
-	}
 	if input.ImagePrice1K != nil {
 		group.ImagePrice1K = normalizePrice(input.ImagePrice1K)
 	}
@@ -2274,7 +2733,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 
 		// require_oauth_only: 过滤掉 apikey 类型账号
-		if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok) && len(accountIDsToCopy) > 0 {
+		if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini) && len(accountIDsToCopy) > 0 {
 			accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch accounts for oauth filter: %w", err)
@@ -2609,9 +3068,9 @@ func (s *adminServiceImpl) ReplaceUserGroup(ctx context.Context, userID, oldGrou
 }
 
 // Account management implementations
-func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error) {
+func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, anomalyReason, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
-	accounts, result, err := s.accountRepo.ListWithFilters(ctx, params, platform, accountType, status, search, groupID, privacyMode)
+	accounts, result, err := s.accountRepo.ListWithFilters(ctx, params, platform, accountType, status, anomalyReason, search, groupID, privacyMode)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -2633,15 +3092,6 @@ func (s *adminServiceImpl) GetAccountsByIDs(ctx context.Context, ids []int64) ([
 	}
 
 	return accounts, nil
-}
-
-func normalizeAccountConcurrency(platform, accountType string, concurrency int) int {
-	if platform == PlatformGrok && accountType == AccountTypeOAuth {
-		if concurrency <= 0 {
-			return 1
-		}
-	}
-	return concurrency
 }
 
 func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccountInput) (*Account, error) {
@@ -2676,7 +3126,7 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		Credentials: input.Credentials,
 		Extra:       input.Extra,
 		ProxyID:     input.ProxyID,
-		Concurrency: normalizeAccountConcurrency(input.Platform, input.Type, input.Concurrency),
+		Concurrency: input.Concurrency,
 		Priority:    input.Priority,
 		Status:      StatusActive,
 		Schedulable: true,
@@ -2721,6 +3171,10 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 	}
 
+	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, nil, account); err != nil {
+		return nil, err
+	}
+
 	// OAuth 账号：创建后异步设置隐私。
 	// 使用 Ensure（幂等）而非 Force：新建账号 Extra 为空时效果相同，但更安全。
 	if account.Type == AccountTypeOAuth {
@@ -2754,33 +3208,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if err != nil {
 		return nil, err
 	}
-	// 安全/身份不变量(影子账号):通用更新路径被 edit/re-auth/refresh/batch 共用,
-	// 必须在此守住,否则仅在创建时的保证可被这些路径绕过。
-	if account.IsCredentialShadow() {
-		// 影子绝不持有凭据(凭据只在母账号)——外审 F5。
-		if !isAllowedSparkShadowCredentialsUpdate(input.Credentials) {
-			return nil, infraerrors.Newf(http.StatusBadRequest, "SPARK_SHADOW_NO_CREDENTIALS",
-				"spark shadow accounts do not hold auth credentials; only model mapping can be configured on the shadow account")
-		}
-		// 影子 type 不可变——很多上游逻辑按 account.Type 分支(OAuth transform / ChatGPT
-		// header 注入 / WS OAuth 决策),改成 apikey 会让 spark 影子被选中后按错误协议转发(外审 G7)。
-		if input.Type != "" && input.Type != account.Type {
-			return nil, infraerrors.Newf(http.StatusBadRequest, "SPARK_SHADOW_IMMUTABLE_TYPE",
-				"spark shadow account type cannot be changed; it must remain an OpenAI OAuth shadow")
-		}
-	} else if input.Type != "" && input.Type != account.Type && input.Type != AccountTypeOAuth {
-		// 母账号守卫(外审 D/P1):有 spark 影子的账号不能把 type 改出 OpenAI OAuth——影子读透母
-		// 凭据,母变成 apikey/setup_token 会让影子被调度后按错协议失败(resolveCredentialAccount
-		// 必报错)。须先删影子再改 type。
-		shadows, serr := s.accountRepo.ListShadowsByParent(ctx, id)
-		if serr != nil {
-			return nil, serr
-		}
-		if len(shadows) > 0 {
-			return nil, infraerrors.New(http.StatusBadRequest, "SPARK_SHADOW_PARENT_IMMUTABLE_TYPE",
-				"cannot change account type while it has a spark shadow; delete the shadow first")
-		}
-	}
+	previousAccount := *account
 	wasOveragesEnabled := account.IsOveragesEnabled()
 
 	if input.Name != "" {
@@ -2792,9 +3220,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if input.Notes != nil {
 		account.Notes = normalizeAccountNotes(input.Notes)
 	}
-	if account.IsCredentialShadow() && input.Credentials != nil {
-		account.Credentials = sanitizeSparkShadowCredentials(input.Credentials)
-	} else if len(input.Credentials) > 0 {
+	if len(input.Credentials) > 0 {
 		// 敏感子键采用"incoming 没提供就保留"的合并语义：前端响应已脱敏，
 		// 全对象 PUT 编辑时不会再带回 token，避免覆盖时清空已有凭证。
 		account.Credentials = MergePreservingSensitiveCreds(account.Credentials, input.Credentials)
@@ -2827,9 +3253,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		ComputeQuotaResetAt(account.Extra)
 		NormalizeFixedQuotaWindows(account.Extra)
 	}
-	// 影子代理恒继承母账号(由 propagateProxyToShadows 同步),不接受独立编辑——外审 B/P1;
-	// 否则要等母账号下次改 proxy 才被覆盖,期间影子会出现"有时继承、有时独立"的漂移。
-	if input.ProxyID != nil && !account.IsCredentialShadow() {
+	if input.ProxyID != nil {
 		// 0 表示清除代理（前端发送 0 而不是 null 来表达清除意图）
 		if *input.ProxyID == 0 {
 			account.ProxyID = nil
@@ -2840,7 +3264,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	// 只在指针非 nil 时更新 Concurrency（支持设置为 0）
 	if input.Concurrency != nil {
-		account.Concurrency = normalizeAccountConcurrency(account.Platform, account.Type, *input.Concurrency)
+		account.Concurrency = *input.Concurrency
 	}
 	// 只在指针非 nil 时更新 Priority（支持设置为 0）
 	if input.Priority != nil {
@@ -2894,19 +3318,15 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		return nil, err
 	}
 
-	// 将 proxy 变更传播到 spark 影子账号（同步；Update 内部已触发调度快照）。
-	// 影子自身 proxy 不可独立编辑(见上),故对影子的更新不触发传播。
-	if input.ProxyID != nil && !account.IsCredentialShadow() {
-		if err := s.propagateProxyToShadows(ctx, id, account.ProxyID); err != nil {
-			return nil, err
-		}
-	}
-
 	// 绑定分组
 	if input.GroupIDs != nil {
 		if err := s.accountRepo.BindGroups(ctx, account.ID, *input.GroupIDs); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, &previousAccount, account); err != nil {
+		return nil, err
 	}
 
 	// 重新查询以确保返回完整数据（包括正确的 Proxy 关联对象）
@@ -2954,43 +3374,14 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	needMixedChannelCheck := input.GroupIDs != nil && !input.SkipMixedChannelCheck
 
-	// 预取所有目标账号，供凭据守卫/代理守卫/混合渠道检查共用，避免多次 DB 查询。
-	var cachedTargets []*Account
-	if len(input.Credentials) > 0 || input.ProxyID != nil || needMixedChannelCheck {
-		loaded, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
-		if err != nil {
-			return nil, err
-		}
-		cachedTargets = loaded
-	}
-
-	// 影子账号绝不持有凭据:批量更新携带凭据时,目标中不得含影子(外审 G5,与单账号
-	// UpdateAccount 守卫对齐)。覆盖显式 IDs 与 filter 解析出的 IDs(此处 AccountIDs 已解析完成)。
-	if len(input.Credentials) > 0 {
-		for _, acc := range cachedTargets {
-			if acc != nil && acc.IsCredentialShadow() {
-				return nil, infraerrors.Newf(http.StatusBadRequest, "SPARK_SHADOW_NO_CREDENTIALS",
-					"spark shadow account %d cannot hold credentials; manage credentials on the parent account", acc.ID)
-			}
-		}
-	}
-
-	// 影子账号 proxy 恒继承母账号(与单账号 UpdateAccount 守卫对齐——外审第4轮 P1):批量携带 proxy
-	// 时目标不得含影子,否则影子会获得独立 proxy、破坏继承不变量(网关按所选影子自身 proxy 出站,
-	// 要等母账号下次改 proxy 才覆盖→漂移)。含影子即整体拒绝,提示从选择中剔除影子。
-	if input.ProxyID != nil {
-		for _, acc := range cachedTargets {
-			if acc != nil && acc.IsCredentialShadow() {
-				return nil, infraerrors.Newf(http.StatusBadRequest, "SPARK_SHADOW_PROXY_INHERITED",
-					"spark shadow account %d proxy is inherited from its parent and cannot be set in bulk; manage it on the parent account", acc.ID)
-			}
-		}
-	}
-
 	// 预加载账号平台信息（混合渠道检查需要）。
 	platformByID := map[int64]string{}
 	if needMixedChannelCheck {
-		for _, account := range cachedTargets {
+		accounts, err := s.accountRepo.GetByIDs(ctx, input.AccountIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, account := range accounts {
 			if account != nil {
 				platformByID[account.ID] = account.Platform
 			}
@@ -3057,19 +3448,6 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 		return nil, err
 	}
 
-	// 将 proxy 变更传播到每个目标账号的 spark 影子账号
-	if repoUpdates.ProxyID != nil {
-		var effectiveProxyID *int64
-		if *repoUpdates.ProxyID != 0 {
-			effectiveProxyID = repoUpdates.ProxyID
-		}
-		for _, accountID := range input.AccountIDs {
-			if err := s.propagateProxyToShadows(ctx, accountID, effectiveProxyID); err != nil {
-				return nil, err
-			}
-		}
-	}
-
 	// Handle group bindings per account (requires individual operations).
 	for _, accountID := range input.AccountIDs {
 		entry := BulkUpdateAccountResult{AccountID: accountID}
@@ -3124,6 +3502,7 @@ func (s *adminServiceImpl) resolveBulkUpdateTargetIDs(ctx context.Context, filte
 			filters.Platform,
 			filters.Type,
 			filters.Status,
+			filters.AnomalyReason,
 			filters.Search,
 			groupID,
 			filters.PrivacyMode,
@@ -3144,17 +3523,14 @@ func (s *adminServiceImpl) resolveBulkUpdateTargetIDs(ctx context.Context, filte
 }
 
 func (s *adminServiceImpl) DeleteAccount(ctx context.Context, id int64) error {
-	// 级联删除 spark 影子账号（先删影子，再删母账号）
-	shadows, err := s.accountRepo.ListShadowsByParent(ctx, id)
+	account, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("list spark shadows for cascade delete: %w", err)
-	}
-	for _, shadow := range shadows {
-		if err := s.accountRepo.Delete(ctx, shadow.ID); err != nil {
-			return fmt.Errorf("cascade delete spark shadow %d: %w", shadow.ID, err)
-		}
+		return err
 	}
 	if err := s.accountRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, account, nil); err != nil {
 		return err
 	}
 	return nil
@@ -3203,163 +3579,148 @@ func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64, 
 	if err != nil {
 		return nil, err
 	}
+	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, updated, updated); err != nil {
+		return nil, err
+	}
 	return updated, nil
 }
 
-func (s *adminServiceImpl) RevertAccountProxyFallback(ctx context.Context, id int64) error {
-	if err := s.accountRepo.RevertProxyFallback(ctx, id); err != nil {
-		return err
-	}
-	// 加载回退后的账号以获取实际 ProxyID，再传播到影子账号
-	account, err := s.accountRepo.GetByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("get account after proxy revert: %w", err)
-	}
-	return s.propagateProxyToShadows(ctx, id, account.ProxyID)
-}
-
-// CreateShadow 为指定 OpenAI OAuth 母账号创建 spark 维度影子账号（一母一影）。
-// 安全不变量：Credentials 恒不含 auth token（仅 model_mapping，守卫 isAllowedSparkShadowCredentialsUpdate 放行）。
-func (s *adminServiceImpl) CreateShadow(ctx context.Context, parentID int64, opts ShadowOptions) (*Account, error) {
-	// 1. 加载母账号并校验平台/类型
-	parent, err := s.accountRepo.GetByID(ctx, parentID)
-	if err != nil {
-		return nil, fmt.Errorf("get parent account: %w", err)
-	}
-	if !parent.IsOpenAIOAuth() {
-		return nil, infraerrors.New(http.StatusBadRequest, "SPARK_SHADOW_INVALID_PARENT",
-			"spark shadow requires an OpenAI OAuth parent account")
-	}
-	// G6:母账号本身不能是影子,否则会建出二级影子——resolveCredentialAccount 只解一层,
-	// 会解析到无凭据的一级影子,进入坏调度/上游失败。
-	if parent.IsCredentialShadow() {
-		return nil, infraerrors.New(http.StatusBadRequest, "SPARK_SHADOW_PARENT_IS_SHADOW",
-			"spark shadow parent must be a real account, not another spark shadow")
+func (s *adminServiceImpl) syncOpenAIUpstreamPoolMembersForAccount(ctx context.Context, previousAccount, currentAccount *Account) error {
+	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil {
+		return nil
 	}
 
-	// 2. 一母一影校验
-	shadows, err := s.accountRepo.ListShadowsByParent(ctx, parentID)
-	if err != nil {
-		return nil, fmt.Errorf("check existing spark shadows: %w", err)
-	}
-	if len(shadows) > 0 {
-		return nil, infraerrors.New(http.StatusConflict, "SPARK_SHADOW_ALREADY_EXISTS",
-			"parent account already has a spark shadow account")
+	previousOpenAI := previousAccount != nil && previousAccount.Platform == PlatformOpenAI && previousAccount.Type == AccountTypeAPIKey
+	currentOpenAI := currentAccount != nil && currentAccount.Platform == PlatformOpenAI && currentAccount.Type == AccountTypeAPIKey
+
+	if !previousOpenAI && !currentOpenAI {
+		return nil
 	}
 
-	// 3. 解析分组。未指定 GroupIDs 时:优先**继承母账号当前分组**(影子与母同路由域,母在自定义
-	// 组时该组的 spark 请求也能选到影子;G1 决策);母无分组再回落 openai-default(F4)。
-	// 显式指定 GroupIDs 时,与 UpdateAccount 对齐先校验存在性(创建前),避免建出影子后再因无效组
-	// 失败而留下孤儿影子(一母一影唯一索引会挡住重试)——外审 C/P1。
-	groupIDs := opts.GroupIDs
-	if len(groupIDs) > 0 {
-		if s.groupRepo != nil {
-			if err := s.validateGroupIDsExist(ctx, groupIDs); err != nil {
-				return nil, err
+	var groupIDs []int64
+	var accountID int64
+	if currentOpenAI {
+		accountID = currentAccount.ID
+		if len(currentAccount.GroupIDs) > 0 {
+			groupIDs = append(groupIDs, currentAccount.GroupIDs...)
+		} else {
+			accountGroups, err := s.accountRepo.GetGroups(ctx, currentAccount.ID)
+			if err != nil {
+				return fmt.Errorf("get account groups: %w", err)
+			}
+			groupIDs = make([]int64, 0, len(accountGroups))
+			for _, group := range accountGroups {
+				if group.ID > 0 {
+					groupIDs = append(groupIDs, group.ID)
+				}
 			}
 		}
-	} else if len(parent.GroupIDs) > 0 {
-		groupIDs = append([]int64(nil), parent.GroupIDs...)
-	} else if s.groupRepo != nil {
-		defaultGroupName := PlatformOpenAI + "-default"
-		if groups, gerr := s.groupRepo.ListActiveByPlatform(ctx, PlatformOpenAI); gerr == nil {
-			for _, g := range groups {
-				if g.Name == defaultGroupName {
-					groupIDs = []int64{g.ID}
-					break
+	} else if previousOpenAI {
+		accountID = previousAccount.ID
+		if len(previousAccount.GroupIDs) > 0 {
+			groupIDs = append(groupIDs, previousAccount.GroupIDs...)
+		} else {
+			accountGroups, err := s.accountRepo.GetGroups(ctx, previousAccount.ID)
+			if err != nil {
+				return fmt.Errorf("get account groups: %w", err)
+			}
+			groupIDs = make([]int64, 0, len(accountGroups))
+			for _, group := range accountGroups {
+				if group.ID > 0 {
+					groupIDs = append(groupIDs, group.ID)
 				}
 			}
 		}
 	}
 
-	// 4. 构造影子账号（安全不变量：Credentials 恒不含 auth token，仅含 model_mapping）。
-	// name 为空时默认 "<母账号名> (Spark)"——否则空 name 会在 ent(name NotEmpty)处变成裸 500
-	// (外审 E/P2);并 rune 安全截断到 ent MaxLen(100)。
-	name := strings.TrimSpace(opts.Name)
-	if name == "" {
-		name = parent.Name + " (Spark)"
-	}
-	if runes := []rune(name); len(runes) > 100 {
-		name = string(runes[:100])
-	}
-	// 并发未指定(<=0)时继承母账号，避免 0 被限流器解读为"无限并发"（外审 F3）。
-	concurrency := opts.Concurrency
-	if concurrency <= 0 {
-		concurrency = parent.Concurrency
-	}
-	// 优先级未指定(<=0)时继承母账号——前端一键创建只传 name,opts.Priority 省略即 0,而调度
-	// 比较是「数值越小越优先」(openai_account_scheduler.isOpenAIAccountCandidateBetter),且 repo
-	// 显式 SetPriority 会绕过 ent 默认 50,直写 0 会让影子意外抢到最高优先级(外审第5轮 P1)。
-	// 与上方 Concurrency 一致采用「省略继承母账号」语义(影子的 proxy/分组/并发亦全部继承母账号)。
-	priority := opts.Priority
-	if priority <= 0 {
-		priority = parent.Priority
-	}
-	shadow := &Account{
-		Name:            name,
-		Platform:        PlatformOpenAI,
-		Type:            AccountTypeOAuth,
-		Status:          StatusActive,
-		Credentials:     map[string]any{"model_mapping": defaultSparkShadowModelMapping()},
-		ParentAccountID: &parentID,
-		QuotaDimension:  QuotaDimensionSpark,
-		ProxyID:         parent.ProxyID,
-		Priority:        priority,
-		Concurrency:     concurrency,
-		Schedulable:     true,
-	}
-
-	// 5. 持久化（Create 填充 shadow.ID）。并发竞态:预查(步骤2)放行后另一请求抢先建成,本次会撞
-	// 一母一影唯一索引。复查确认确为"已存在"竞态时返回结构化 409 而非裸 500——外审 A/P1。
-	if err := s.accountRepo.Create(ctx, shadow); err != nil {
-		if existing, qerr := s.accountRepo.ListShadowsByParent(ctx, parentID); qerr == nil && len(existing) > 0 {
-			return nil, infraerrors.New(http.StatusConflict, "SPARK_SHADOW_ALREADY_EXISTS",
-				"parent account already has a spark shadow account")
-		}
-		return nil, fmt.Errorf("create spark shadow: %w", err)
-	}
-
-	// 6. 绑定分组。注意:create+bind 非单一 DB 事务(通用 Create 走 r.client、outbox 走 r.sql,
-	// 无现成共享事务路径),故绑组失败时做 best-effort 补偿删除刚建的影子,避免半成品影子(否则
-	// 一母一影唯一索引会挡住重试)——外审 C/P1。补偿删除用 detached ctx,即便请求 ctx 已取消/超时
-	// 仍能完成清理(外审第4轮);进程崩溃这种极端仍可能残留,属已知权衡。
-	if len(groupIDs) > 0 {
-		if err := s.accountRepo.BindGroups(ctx, shadow.ID, groupIDs); err != nil {
-			if delErr := s.accountRepo.Delete(context.WithoutCancel(ctx), shadow.ID); delErr != nil {
-				slog.Error("spark_shadow_bind_groups_rollback_failed",
-					"shadow_id", shadow.ID, "parent_id", parentID, "delete_err", delErr)
-			}
-			return nil, fmt.Errorf("bind groups for spark shadow: %w", err)
-		}
-		shadow.GroupIDs = groupIDs
-	}
-
-	return shadow, nil
-}
-
-// propagateProxyToShadows syncs proxyID to all spark shadow accounts of parentID.
-// It is called synchronously so that proxy changes are immediately consistent;
-// accountRepo.Update triggers the scheduler outbox + cache propagation internally.
-// Calling this for a non-parent account is a harmless no-op.
-func (s *adminServiceImpl) propagateProxyToShadows(ctx context.Context, parentID int64, proxyID *int64) error {
-	return propagateAccountProxyToShadows(ctx, s.accountRepo, parentID, proxyID)
-}
-
-// propagateAccountProxyToShadows 把母账号的 proxy 同步到其所有 spark 影子(影子 proxy 恒继承母账号)。
-// 供 AdminService 编辑路径与 CRS 同步路径共用——后者改动母账号 proxy 后必须同样传播,否则影子保留
-// 旧 proxy 出现出站漂移(外审第8轮)。
-func propagateAccountProxyToShadows(ctx context.Context, repo AccountRepository, parentID int64, proxyID *int64) error {
-	shadows, err := repo.ListShadowsByParent(ctx, parentID)
+	bindings, err := s.upstreamPoolRepo.ListUpstreamPoolBindings(ctx)
 	if err != nil {
-		return fmt.Errorf("list spark shadows for proxy propagation: %w", err)
+		return fmt.Errorf("list upstream pool bindings: %w", err)
 	}
-	for _, shadow := range shadows {
-		shadow.ProxyID = proxyID
-		if err := repo.Update(ctx, shadow); err != nil {
-			return fmt.Errorf("update spark shadow %d proxy: %w", shadow.ID, err)
+
+	targetPoolIDs := make(map[int64]struct{})
+	openAIPoolIDs := make(map[int64]struct{})
+	for _, binding := range bindings {
+		if !binding.Enabled || binding.Platform != PlatformOpenAI {
+			continue
+		}
+		openAIPoolIDs[binding.PoolID] = struct{}{}
+		if currentOpenAI {
+			for _, groupID := range groupIDs {
+				if binding.GroupID == groupID {
+					targetPoolIDs[binding.PoolID] = struct{}{}
+				}
+			}
+		}
+	}
+
+	for poolID := range openAIPoolIDs {
+		members, err := s.upstreamPoolRepo.ListUpstreamPoolMembers(ctx, poolID)
+		if err != nil {
+			return fmt.Errorf("list upstream pool members: %w", err)
+		}
+
+		var existing *UpstreamPoolMember
+		for i := range members {
+			if members[i].AccountID == accountID {
+				existing = &members[i]
+				break
+			}
+		}
+
+		if !currentOpenAI {
+			if existing != nil {
+				if err := s.upstreamPoolRepo.DeleteUpstreamPoolMember(ctx, existing.ID); err != nil {
+					return fmt.Errorf("delete upstream pool member: %w", err)
+				}
+			}
+			continue
+		}
+
+		if _, ok := targetPoolIDs[poolID]; !ok {
+			if existing != nil {
+				if err := s.upstreamPoolRepo.DeleteUpstreamPoolMember(ctx, existing.ID); err != nil {
+					return fmt.Errorf("delete upstream pool member: %w", err)
+				}
+			}
+			continue
+		}
+
+		wantEnabled := currentAccount.IsSchedulable() && currentAccount.IsActive()
+		if existing == nil {
+			_, err = s.upstreamPoolRepo.CreateUpstreamPoolMember(ctx, &UpstreamPoolMember{
+				PoolID:                 poolID,
+				AccountID:              accountID,
+				AccountName:            currentAccount.Name,
+				AccountPlatform:        currentAccount.Platform,
+				Enabled:                wantEnabled,
+				SchedulableOverride:    nil,
+				ManualDrained:          !wantEnabled,
+				Weight:                 100,
+				PriorityOverride:       nil,
+				MaxConcurrencyOverride: nil,
+				Notes:                  "synced from account",
+			})
+			if err != nil {
+				return fmt.Errorf("create upstream pool member: %w", err)
+			}
+			continue
+		}
+
+		existing.AccountName = currentAccount.Name
+		existing.AccountPlatform = currentAccount.Platform
+		existing.Enabled = wantEnabled
+		existing.ManualDrained = !wantEnabled
+		existing.UpdatedAt = time.Now()
+		if _, err = s.upstreamPoolRepo.UpdateUpstreamPoolMember(ctx, existing); err != nil {
+			return fmt.Errorf("update upstream pool member: %w", err)
 		}
 	}
 	return nil
+}
+
+func (s *adminServiceImpl) RevertAccountProxyFallback(ctx context.Context, id int64) error {
+	return s.accountRepo.RevertProxyFallback(ctx, id)
 }
 
 // Proxy management implementations
@@ -4153,26 +4514,12 @@ func (e *MixedChannelError) Error() string {
 }
 
 func (s *adminServiceImpl) ResetAccountQuota(ctx context.Context, id int64) error {
-	account, err := s.accountRepo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	// spark 影子账号不持自有配额(凭据透传母账号、spark 用量走独立 codex_* 维度由 QueryUsage 维护),
-	// 通用 quota 重置对其无意义且语义不一致——明确 400 拒绝(与 OpenAI reset-credit 对影子一致)(外审第7轮 P2)。
-	if account.IsCredentialShadow() {
-		return infraerrors.New(http.StatusBadRequest, "SPARK_SHADOW_NO_QUOTA_RESET",
-			"cannot reset quota for a spark shadow account; manage it on the parent account")
-	}
 	return s.accountRepo.ResetQuotaUsed(ctx, id)
 }
 
 // EnsureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，
 // 未设置则调用 disableOpenAITraining 并持久化到 Extra，返回设置的 mode 值。
 func (s *adminServiceImpl) EnsureOpenAIPrivacy(ctx context.Context, account *Account) string {
-	// 影子账号不持凭据，隐私设置由母账号管理，直接跳过。
-	if account.IsCredentialShadow() {
-		return ""
-	}
 	if account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
 		return ""
 	}
@@ -4206,10 +4553,6 @@ func (s *adminServiceImpl) EnsureOpenAIPrivacy(ctx context.Context, account *Acc
 
 // ForceOpenAIPrivacy 强制重新设置 OpenAI OAuth 账号隐私，无论当前状态。
 func (s *adminServiceImpl) ForceOpenAIPrivacy(ctx context.Context, account *Account) string {
-	// 影子账号不持凭据,隐私由母账号管理,直接跳过(与 EnsureOpenAIPrivacy 一致——外审第4轮)。
-	if account.IsCredentialShadow() {
-		return ""
-	}
 	if account.Platform != PlatformOpenAI || account.Type != AccountTypeOAuth {
 		return ""
 	}

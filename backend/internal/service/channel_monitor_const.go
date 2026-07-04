@@ -85,8 +85,10 @@ const (
 
 	// monitorAnthropicAPIVersion Anthropic Messages API 版本头。
 	monitorAnthropicAPIVersion = "2023-06-01"
-	// monitorChallengeMaxTokens 单次 challenge 请求的 max_tokens（足够回答个位数算术）。
-	monitorChallengeMaxTokens = 50
+	// monitorChallengeMaxTokens 单次探测请求的输出上限。
+	// 监控只需要确认“上游能否最小单位地正常出字”，不需要真实推理；
+	// 因此把上限压到极低，减少对计费模型的消耗。
+	monitorChallengeMaxTokens = 8
 
 	// monitorRunOneBuffer runOne 的总超时缓冲（除请求超时与 ping 超时外的额外裕量）。
 	monitorRunOneBuffer = 10 * time.Second

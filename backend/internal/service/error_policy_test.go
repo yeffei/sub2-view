@@ -242,6 +242,62 @@ func TestHandleUpstreamError_PoolModeCustomErrorCodesOverride(t *testing.T) {
 		require.Equal(t, 0, repo.tempCalls)
 	})
 
+	t.Run("pool_mode_openai_5xx_temp_unschedules", func(t *testing.T) {
+		repo := &errorPolicyRepoStub{}
+		gateway := &OpenAIGatewayService{}
+		svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		svc.SetAccountRuntimeBlocker(gateway)
+		account := &Account{
+			ID:       32,
+			Type:     AccountTypeAPIKey,
+			Platform: PlatformOpenAI,
+			Credentials: map[string]any{
+				"pool_mode": true,
+			},
+		}
+
+		shouldDisable := svc.HandleUpstreamError(context.Background(), account, http.StatusServiceUnavailable, http.Header{}, []byte(`{"error":"bad gateway"}`))
+
+		require.True(t, shouldDisable)
+		require.Equal(t, 0, repo.setErrCalls)
+		require.Equal(t, 1, repo.tempCalls)
+		require.True(t, gateway.isOpenAIAccountRuntimeBlocked(account))
+		require.Contains(t, repo.lastTempReason, `"pool_mode_5xx"`)
+	})
+
+	t.Run("pool_mode_openai_5xx_uses_pool_policy_cooldown", func(t *testing.T) {
+		repo := &errorPolicyRepoStub{}
+		groupID := int64(11)
+		gateway := &OpenAIGatewayService{
+			upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+				memberIDs: map[int64]struct{}{33: {}},
+				policyJSON: map[string]any{
+					"circuit_breaker": map[string]any{
+						"openai_pool_mode_5xx_cooldown_minutes": 3,
+					},
+				},
+			},
+		}
+		svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+		svc.SetAccountRuntimeBlocker(gateway)
+		account := &Account{
+			ID:       33,
+			Type:     AccountTypeAPIKey,
+			Platform: PlatformOpenAI,
+			Credentials: map[string]any{
+				"pool_mode": true,
+			},
+		}
+		ctx := WithOpenAIRoutingGroupID(context.Background(), &groupID)
+		before := time.Now()
+
+		shouldDisable := svc.HandleUpstreamError(ctx, account, http.StatusBadGateway, http.Header{}, []byte(`bad gateway`))
+
+		require.True(t, shouldDisable)
+		require.Equal(t, 1, repo.tempCalls)
+		require.WithinDuration(t, before.Add(3*time.Minute), repo.lastTempUntil, 3*time.Second)
+	})
+
 	t.Run("pool_mode_with_custom_error_codes_uses_local_error_policy", func(t *testing.T) {
 		repo := &errorPolicyRepoStub{}
 		svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
@@ -449,13 +505,17 @@ func TestApplyErrorPolicy_GeminiRateLimitBypassesCustomSkip(t *testing.T) {
 
 type errorPolicyRepoStub struct {
 	mockAccountRepoForGemini
-	tempCalls    int
-	setErrCalls  int
-	lastErrorMsg string
+	tempCalls      int
+	setErrCalls    int
+	lastErrorMsg   string
+	lastTempReason string
+	lastTempUntil  time.Time
 }
 
 func (r *errorPolicyRepoStub) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.tempCalls++
+	r.lastTempReason = reason
+	r.lastTempUntil = until
 	return nil
 }
 

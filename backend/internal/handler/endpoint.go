@@ -21,8 +21,6 @@ const (
 	EndpointResponses         = "/v1/responses"
 	EndpointImagesGenerations = "/v1/images/generations"
 	EndpointImagesEdits       = "/v1/images/edits"
-	EndpointVideosGenerations = "/v1/videos/generations"
-	EndpointVideos            = "/v1/videos"
 	EndpointGeminiModels      = "/v1beta/models"
 )
 
@@ -55,10 +53,6 @@ func NormalizeInboundEndpoint(path string) string {
 		return EndpointImagesGenerations
 	case strings.Contains(path, EndpointImagesEdits) || strings.Contains(path, "/images/edits"):
 		return EndpointImagesEdits
-	case strings.Contains(path, EndpointVideosGenerations) || strings.Contains(path, "/videos/generations"):
-		return EndpointVideosGenerations
-	case strings.Contains(path, EndpointVideos) || strings.Contains(path, "/videos/"):
-		return EndpointVideos
 	case strings.Contains(path, EndpointResponses):
 		return EndpointResponses
 	case strings.Contains(path, EndpointGeminiModels):
@@ -83,8 +77,8 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	inbound = strings.TrimSpace(inbound)
 
 	switch platform {
-	case service.PlatformOpenAI, service.PlatformGrok:
-		if inbound == EndpointEmbeddings || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideos {
+	case service.PlatformOpenAI:
+		if inbound == EndpointEmbeddings || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits {
 			return inbound
 		}
 		// OpenAI forwards everything to the Responses API.

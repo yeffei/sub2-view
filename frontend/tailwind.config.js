@@ -5,6 +5,22 @@ export default {
   theme: {
     extend: {
       colors: {
+        // 山枢庭 SST - 新东方禅意品牌色
+        zen: {
+          paper: '#f4efe4',
+          paperDeep: '#ede5d4',
+          paperLine: '#d8cdb9',
+          ink: '#1f2320',
+          inkSoft: '#38413a',
+          mist: '#59645a',
+          stone: '#6f7a70',
+          seal: '#a73a2a',
+          sealLight: '#c24b35',
+          jade: '#2f6f5e',
+          night: '#11130f',
+          nightPanel: '#181a15',
+          nightLine: '#30342b'
+        },
         // 主色调 - Teal/Cyan 青色系
         primary: {
           50: '#f0fdfa',
@@ -49,6 +65,7 @@ export default {
         }
       },
       fontFamily: {
+        serif: ['Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'SimSun', 'serif'],
         sans: [
           'system-ui',
           '-apple-system',
@@ -62,9 +79,12 @@ export default {
           'Microsoft YaHei',
           'sans-serif'
         ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+        mono: ['Geist Mono', 'JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
       },
       boxShadow: {
+        paper: '0 24px 70px -42px rgba(31, 35, 32, 0.36), 0 1px 0 rgba(255, 255, 255, 0.5) inset',
+        'paper-sm': '0 16px 42px -32px rgba(31, 35, 32, 0.28)',
+        seal: '0 12px 26px -18px rgba(167, 58, 42, 0.65)',
         glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
         'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.06)',
         glow: '0 0 20px rgba(20, 184, 166, 0.25)',
@@ -126,6 +146,7 @@ export default {
         xs: '2px'
       },
       borderRadius: {
+        zen: '6px',
         '4xl': '2rem'
       }
     }

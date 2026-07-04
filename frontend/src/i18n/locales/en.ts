@@ -252,8 +252,6 @@ export default {
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',
-    peakRateTooltip: 'Peak rate: {window}',
-    peakRateImageNote: '; image tokens billed as tokens are also affected, per-image billing is unaffected',
     save: 'Save',
     saved: 'Saved successfully',
     deleted: 'Deleted successfully',
@@ -371,28 +369,13 @@ export default {
     updatedAt: 'Updated: {date}',
     empty: 'No content',
     loginAgreement: 'Login Agreement',
-    adminCompliance: 'Deployment and Operation Compliance Commitment',
-    loginAgreementPrompt: {
-      checkboxPrefix: 'I have read and agree to ',
-      documentSeparator: ', ',
-      noticeTitle: 'Accept the latest terms before continuing.',
-      noticeDescription: 'Account/password login and quick sign-in stay disabled until you accept.',
-      viewTerms: 'View terms',
-      dialogTitle: 'Terms Update Notice',
-      dialogDescription: 'Our service terms were updated on {date}. Please read and accept the following terms before continuing.',
-      recently: 'recently',
-      relatedDocuments: 'Related documents',
-      reject: 'Reject',
-      accept: 'Accept and continue',
-      loginRejectedWarning: 'Account/password login and quick sign-in are disabled until you accept the latest terms.',
-      loginRequiredWarning: 'Please read and accept the latest terms before logging in.',
-      registerRejectedWarning: 'Registration and quick sign-in are disabled until you accept the latest terms.',
-      registerRequiredWarning: 'Please read and accept the latest terms before registering.'
-    }
+    adminCompliance: 'Deployment and Operation Compliance Commitment'
   },
 
   // Navigation
   nav: {
+    home: 'Home',
+    pricing: 'Pricing',
     dashboard: 'Dashboard',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
@@ -422,8 +405,7 @@ export default {
     expand: 'Expand',
     logout: 'Logout',
     github: 'GitHub',
-    mySubscriptions: 'My Subscriptions',
-    buySubscription: 'Recharge / Subscription',
+    buySubscription: 'Recharge',
     docs: 'Docs',
     myOrders: 'My Orders',
     orderManagement: 'Orders',
@@ -432,6 +414,7 @@ export default {
     paymentPlans: 'Plans',
     channelManagement: 'Channels',
     channelPricing: 'Channel Pricing',
+    upstreamPools: 'Upstream Pools',
     channelMonitor: 'Channel Monitor',
     channelStatus: 'Channel Status',
     riskControl: 'Risk Control',
@@ -606,7 +589,6 @@ export default {
     },
     linuxdoCallbackPageTitle: 'LinuxDo Sign-In Callback',
     dingtalkCallbackPageTitle: 'DingTalk Sign-In Callback',
-    dingtalkProviderName: 'DingTalk',
     oidcCallbackPageTitle: 'OIDC Sign-In Callback',
     oauthCallbackPageTitle: 'OAuth Callback',
     wechatProviderName: 'WeChat',
@@ -737,8 +719,6 @@ export default {
     },
     allGroups: 'All Groups',
     allStatus: 'All Status',
-    columnSettings: 'Column Settings',
-    columnAlwaysVisible: 'This column is always visible',
     createKey: 'Create API Key',
     editKey: 'Edit API Key',
     deleteKey: 'Delete API Key',
@@ -997,38 +977,300 @@ export default {
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
     userAgent: 'User-Agent',
-    ipGeo: {
-      fetch: 'Fetch region',
-      fetching: 'Fetching...',
-      failed: 'Failed',
-      private: 'Private address',
-      refreshTitle: 'Refresh region info',
-      batchFetch: 'Batch fetch regions',
-      batchFetching: 'Fetching...',
-      pending: '{count} IPs pending',
-      batchFailed: 'Failed to batch fetch IP regions',
-      detailOrg: 'ISP',
-      detailTimezone: 'Timezone',
-      detailAccuracy: 'Accuracy',
-      detailCoordinates: 'Coordinates',
+    adminLedger: {
+      hero: {
+        kicker: 'SST · Usage Ledger',
+        title: 'Request and Exception Ledger',
+        description: 'Keep requests, groups, endpoints, anomalies, and billing in one ledger so the team can reconcile and trace quickly.',
+      },
+      briefing: {
+        kicker: 'Ledger Brief',
+        title: 'Window Desk Summary',
+        leadLoading: 'Preparing requests, billing, and anomaly entry points.',
+        leadPrefix: 'Start with request volume, billing position, anomaly entry points, and the next reconciliation action.',
+        primaryAction: 'Open Error Requests',
+        secondaryAction: 'Open Model Distribution',
+        requestsTitle: 'Request Volume',
+        requestsPending: 'Pending',
+        requestsNotePending: 'Aggregating request density in the current window.',
+        requestsValue: '{value} requests',
+        requestsNote: '{value} tokens in this window, average duration {duration}.',
+        costTitle: 'Billing Position',
+        costPending: 'Pending',
+        costNotePending: 'Preparing actual spend and account billing.',
+        costValue: '$' + '{value}',
+        costNote: 'Account billing $' + '{accountCost}, standard cost $' + '{standardCost}.',
+        anomalyTitle: 'Anomaly Entry',
+        anomalyPending: 'Pending',
+        anomalyFallback: 'Review Error Ledger',
+        anomalyEmpty: 'No Error Requests',
+        anomalyValue: '{value} error requests',
+        anomalyNotePending: 'Checking error requests and anomaly entry points.',
+        anomalyNoteEmpty: 'No error requests in this window. Continue with distributions and trends.',
+        anomalyNote: '{value} error requests, continue from the error ledger for trace-back.',
+        actionTitle: 'Reconciliation Action',
+        actionPending: 'Pending',
+        actionDefault: 'Keep Reconciling',
+        actionErrors: 'Review Error Ledger',
+        actionGroups: 'Review Groups and Endpoints',
+        actionNotePending: 'Preparing the next action.',
+        actionNoteDefault: 'This window is mainly a ledger check. Continue with model, group, and endpoint distribution.',
+        actionNoteErrors: 'Error requests exist. Start in the error ledger to review model, account, and group signals.',
+        actionNoteGroups: 'No error requests in this window. Compare group and endpoint structure first.',
+        summaryPending: 'Summary pending.',
+        summaryRequests: '{start} to {end}: {requests} requests recorded',
+        summaryCost: 'Actual spend $' + '{cost}',
+        summaryErrors: '{errors} error requests',
+        summaryNoErrors: 'No error requests in this window',
+        summaryActionErrors: 'Start trace-back from the error ledger',
+        summaryActionGroups: 'Compare model, group, and endpoint distributions first',
+        tagTokens: 'Tokens {value}',
+        tagErrors: 'Errors {value}',
+        tagGroups: 'Groups {value}',
+        tagEndpoints: 'Endpoints {value}',
+        tagObserve: 'Keep Reconciling'
+      }
     },
     tabs: { usage: 'Usage', errors: 'Error Requests' },
     errors: {
       time: 'Time', model: 'Model', endpoint: 'Endpoint', status: 'Status',
-      category: 'Category', platform: 'Platform', message: 'Message',
+      category: 'Category', platform: 'Platform', message: 'Message', hint: 'Hint',
       keyName: 'Key Name', keyDeleted: 'Deleted', allKeys: 'All keys',
-      modelPlaceholder: 'Search model', allCategories: 'All categories', allStatuses: 'All status codes',
+      modelPlaceholder: 'Search model', allCategories: 'All categories',
       empty: 'No error requests', failedToLoad: 'Failed to load error requests',
       categories: {
         auth: 'Auth failed', rate_limit: 'Rate limited', quota: 'Balance/Subscription',
         invalid_request: 'Invalid request', service_unavailable: 'Service unavailable',
         upstream: 'Upstream error', internal: 'Platform error', other: 'Other', cyber: 'Cyber policy',
       },
+      hints: {
+        auth: 'Check key or session state',
+        rate_limit: 'Requests are too fast right now',
+        quota: 'Balance or quota is exhausted',
+        invalid_request: 'Params do not match the model',
+        service_unavailable: 'No route was available',
+        upstream: 'Upstream service returned an error',
+        internal: 'Platform processing failed',
+        cyber: 'Request hit a security policy',
+        other: 'Open detail for explanation',
+      },
+      quickFilters: {
+        all: 'All issues',
+        rate_limit: 'Rate limit only',
+        quota: 'Quota only',
+        service_unavailable: 'Unavailable only',
+        upstream: 'Upstream only',
+      },
       detail: {
         title: 'Error Request Detail',
         responseBody: 'Response Body',
         upstreamStatus: 'Upstream Status',
         loadFailed: 'Failed to load detail, please try again',
+        explanationTitle: 'What happened',
+        copySummary: 'Copy diagnostic summary',
+        copySummarySuccess: 'Diagnostic summary copied',
+        copySummaryFailed: 'Failed to copy diagnostic summary',
+        thisRequest: 'this request',
+        summaryLabels: {
+          title: 'Error request diagnostic summary',
+          explanation: 'Explanation',
+          advice: 'Advice',
+          timeline: 'Timeline conclusion',
+          nextAction: 'Next action',
+        },
+        actions: {
+          auth: 'Check API keys',
+          quota: 'Review account and quota',
+          invalid_request: 'Review this request in usage',
+          rate_limit: 'Back to dashboard and retry later',
+          retry_later: 'Retry later and keep watching',
+          cyber: 'Review request content',
+        },
+        recoveryGuide: {
+          title: 'Self-service recovery guide',
+          badge: 'Three-step retest',
+          checksTitle: 'Confirm after recovery',
+          anchor: 'Related action: {label}',
+          anchorTimeline: 'Use the timeline above',
+          summaries: {
+            auth: 'For auth issues, verify the credential first and run a connection check before sending the full request again.',
+            quota: 'For quota issues, confirm balance or plan state has recovered before retrying the request.',
+            invalid_request: 'For request-shape issues, fix the payload first and then run a narrow retest.',
+            rate_limit: 'For rate limits, slow down first and watch the request window before retrying.',
+            service: 'For service-side issues, observe first and then retry with spacing instead of hammering the route.',
+            cyber: 'For policy-triggered issues, adjust the content first and only then retest.',
+          },
+          steps: {
+            auth: {
+              verifyKey: { title: 'Verify the current credential', detail: 'Check whether the key, session, or binding state has changed so you do not keep retrying on an already invalid credential.' },
+              testConnection: { title: 'Run one connection test', detail: 'Use the connection-test panel to verify the credential path before sending another full request.' },
+              retest: { title: 'Retest the original flow with a minimal input', detail: 'After the connection test passes, retry with a small input first and confirm the same auth error no longer repeats.' },
+            },
+            quota: {
+              checkBalance: { title: 'Confirm balance or plan state first', detail: 'Check whether your balance, plan, or subscription quota has already recovered to a usable state.' },
+              confirmRefresh: { title: 'Wait for state refresh to finish', detail: 'If you just recharged, renewed, or changed plans, wait for the new state to propagate before sending repeated attempts.' },
+              retest: { title: 'Run one low-volume retest', detail: 'Once the state is back, send one small request first and confirm the quota error has disappeared before restoring normal traffic.' },
+            },
+            invalid_request: {
+              reviewPayload: { title: 'Review the failing request first', detail: 'Go back to usage and check whether the model, endpoint, and request fields still belong together.' },
+              matchModel: { title: 'Confirm the model matches the request style', detail: 'If you recently switched models or endpoints, confirm the new route still supports the current payload, tool, or attachment shape.' },
+              retest: { title: 'Retry with the smallest payload', detail: 'Remove suspicious fields and retest with the smallest payload so you can isolate which parameter causes the failure.' },
+            },
+            rate_limit: {
+              slowDown: { title: 'Reduce request pace first', detail: 'Stop burst retries and lower concurrency or spread requests out so you do not keep saturating the same window.' },
+              observeWindow: { title: 'Watch whether the window cools down', detail: 'Use the dashboard request focus area to see whether peaks and related error rates are starting to fall.' },
+              retry: { title: 'Retry once after the window settles', detail: 'Once the window cools down, retry one request and only restore normal pace after success returns.' },
+            },
+            service: {
+              pauseRetry: { title: 'Stop repeated retries first', detail: 'These cases are usually short-lived routing or upstream fluctuations, and hammering the route normally makes the cluster noisier.' },
+              observeTimeline: { title: 'Use the timeline to check recovery', detail: 'Look for nearby successful requests in the same time window before deciding whether to retry again.' },
+              retryLater: { title: 'Retry later with spacing', detail: 'If the timeline shows recovery or the cluster is shrinking, retry with spacing; if failures keep clustering, ask an admin for help.' },
+            },
+            cyber: {
+              reviewContent: { title: 'Review the triggering content', detail: 'Check prompts, attachments, or request text for material that is likely to hit a security policy.' },
+              adjustRequest: { title: 'Adjust the content before sending', detail: 'Rewrite risky phrasing, split the request, or remove high-risk attachments instead of resubmitting the same payload.' },
+              retest: { title: 'Retest after the adjustment', detail: 'After changing the content, run one narrow retest and confirm the same cyber-policy category no longer appears.' },
+            },
+          },
+          checks: {
+            auth: { connectionPasses: 'The connection test passes successfully.', noRepeatedAuthErrors: 'The same credential no longer triggers repeated auth failures.' },
+            quota: { balanceVisible: 'Balance or quota state is visible again.', noNewQuotaErrors: 'The retry no longer returns quota or balance exhaustion.' },
+            invalid_request: { statusNormal: 'The retried request returns a normal status again.', noSameCategory: 'The request no longer lands in the invalid-request category.' },
+            rate_limit: { requestPaceDropped: 'The request pace has clearly dropped.', successReturned: 'Successful requests returned after the window cooled down.' },
+            service: { timelineRecovered: 'The timeline shows successful requests again.', errorClusterShrank: 'The nearby failure cluster is shrinking instead of expanding.' },
+            cyber: { contentAdjusted: 'The original content was adjusted.', categoryCleared: 'The retry no longer triggers the same cyber-policy category.' },
+          },
+        },
+        timeline: {
+          title: 'Error replay timeline',
+          windowLabel: 'Nearby events on the same day',
+          loading: 'Building the request timeline around this failure…',
+          loadFailed: 'Failed to build the timeline for now. Please try again later.',
+          empty: 'There are not enough nearby records to build a timeline yet.',
+          currentTitle: 'Current failed request',
+          successTitle: 'Nearby successful request',
+          errorTitle: 'Nearby failure: {category}',
+          badges: {
+            current: 'Current error',
+            success: 'Recovered',
+            error: 'Nearby failure',
+          },
+          summaries: {
+            recovered: 'A successful request appeared shortly after this failure, so this looks more like a transient spike or brief congestion.',
+            continuous: 'There are multiple nearby failures around this request, which looks more like a continuing issue than a one-off retry case.',
+            isolated: 'There were successful requests before this failure and no dense cluster of nearby failures, so this looks closer to an isolated event.',
+            sparse: 'Nearby records are sparse, so the timeline can only confirm this failure itself for now.',
+            observe: 'Some nearby events were found, but there is still not enough evidence to make a clear attribution yet.',
+          }
+        },
+        explanations: {
+          auth: {
+            summary: '{endpoint} was rejected during authentication, usually due to the key, session, or binding state.',
+            advice: ['Make sure the key you used is still valid.', 'If you just updated credentials or bindings, wait a moment and try again.']
+          },
+          rate_limit: {
+            summary: '{endpoint} hit a rate limit, which means too many requests were sent in the current window.',
+            advice: ['Wait a bit before retrying instead of sending repeated bursts.', 'If you are calling concurrently, reduce concurrency or slow the request pace.']
+          },
+          quota: {
+            summary: '{endpoint} could not continue because balance, plan, or subscription quota was exhausted.',
+            advice: ['Check your balance, plan status, or remaining subscription quota.', 'If you just recharged or changed plans, wait for the state to refresh and retry.']
+          },
+          invalid_request: {
+            summary: '{endpoint} received a parameter combination that the current model or endpoint does not accept.',
+            advice: ['Check whether the model, endpoint, and request fields match each other.', 'If you recently switched models, confirm the new model supports this request style.']
+          },
+          service_unavailable: {
+            summary: '{endpoint} had no available processing route at that moment, usually due to temporary routing or upstream availability issues.',
+            advice: ['Retry after a short wait, since transient routing issues often recover on their own.', 'If it keeps happening, ask an admin to inspect account pool or upstream health.']
+          },
+          upstream: {
+            summary: '{endpoint} was forwarded successfully, but the upstream service itself returned an error.',
+            advice: ['Retry first to see whether this was a short upstream fluctuation.', 'If the same model keeps failing, try another model or a different time window.']
+          },
+          internal: {
+            summary: '{endpoint} failed during an internal platform step, so this is usually not caused by your request content alone.',
+            advice: ['Keep the request time and model for easier follow-up.', 'If it repeats, contact an admin for investigation.']
+          },
+          cyber: {
+            summary: '{endpoint} was blocked by a security policy check.',
+            advice: ['Review your prompt, attachments, or request content for policy-triggering material.', 'Adjust the content before retrying instead of resubmitting the same request.']
+          },
+          other: {
+            summary: '{endpoint} failed without a clear category, so start with the error message below.',
+            advice: ['Review the error message and response body first.', 'If the cause is still unclear, ask an admin to investigate further.']
+          }
+        },
+        reasonExplanations: {
+          auth_key_deleted: {
+            summary: '{endpoint} failed in authentication because the key used for this request has already been deleted.',
+            advice: ['Check whether the client is still using an old key.', 'Go back to Keys, copy an active key again, and run a connection test before retrying.']
+          },
+          auth_invalid_credentials: {
+            summary: '{endpoint} did not accept the current credential, which usually means the key is incomplete, expired, or the binding state just changed.',
+            advice: ['Check whether the key was copied completely and is still enabled.', 'If you recently updated credentials or bindings, wait a moment and run one connection test again.']
+          },
+          quota_balance_exhausted: {
+            summary: '{endpoint} stopped because balance or quota was already exhausted, so this looks more like available-capacity exhaustion than a model-side outage.',
+            advice: ['Check whether your balance, plan quota, or platform quota has reached zero.', 'If you just recharged or topped up quota, wait for state refresh and retry with one small request first.']
+          },
+          quota_subscription_exhausted: {
+            summary: '{endpoint} looks more like an inactive subscription, plan, or package state than a short-lived balance dip.',
+            advice: ['Verify that the subscription, package, or plan is still active.', 'If you just renewed or switched plans, wait for the new state to propagate before retrying.']
+          },
+          rate_limit_window_exhausted: {
+            summary: '{endpoint} exhausted the rate-limit window, so this failure looks more like request pacing pressure than a credential problem.',
+            advice: ['Reduce concurrency or spread retries out instead of burst retrying.', 'Once the window cools down, retry one request first before restoring normal pace.']
+          },
+          request_model_not_supported: {
+            summary: '{endpoint} looks more like a model-name or model-access mismatch: the requested model is not actually usable on this route as configured now.',
+            advice: ['Call the models list first and verify which model IDs are really available for the current key and group.', 'Then check whether the client model name is outdated, misspelled, or not enabled for the current group.']
+          },
+          request_payload_too_large: {
+            summary: '{endpoint} rejected the current payload because it is too large, which often means the context, attachments, or token volume exceeded model limits.',
+            advice: ['Shorten the context, reduce attachments, or split the request into smaller retries.', 'Do not resend the exact same oversized payload repeatedly because it will likely fail again.']
+          },
+          request_invalid: {
+            summary: '{endpoint} rejected the request shape itself, so the issue looks more like an unsupported parameter combination than a transient outage.',
+            advice: ['Check whether the model, endpoint, tool parameters, and attachment shape still belong together.', 'Remove suspicious fields and retest with the smallest payload to isolate the trigger.']
+          },
+          service_model_not_available: {
+            summary: '{endpoint} currently has no usable account on this route for the requested model, so this looks more like group or routing coverage missing that model than a short-lived spike.',
+            advice: ['Call the models list first and verify which model IDs are actually open to the current key and group.', 'If you recently changed group, channel, or model name, confirm that this route truly includes that model.']
+          },
+          service_model_rate_limited: {
+            summary: '{endpoint} looks more like this model is temporarily capacity- or rate-limited across the current route, so the scheduler cannot place it right now.',
+            advice: ['Space retries out and wait for the model-specific rate-limit window to cool down.', 'If it keeps happening, switch models temporarily or ask an admin to inspect capacity for this model.']
+          },
+          service_no_route_available: {
+            summary: '{endpoint} had no available processing route at that moment, which usually means the scheduling layer temporarily had no usable upstream path.',
+            advice: ['Wait briefly before retrying so routing and recovery can settle.', 'If it keeps happening, ask an admin to inspect the account pool and upstream pool state.']
+          },
+          upstream_temporarily_unavailable: {
+            summary: '{endpoint} did reach upstream, but upstream was temporarily unavailable at that moment, which usually has a windowed pattern.',
+            advice: ['Retry with spacing instead of turning a short upstream fluctuation into a failure burst.', 'If the same model keeps failing for a long period, then consider another model or another time window.']
+          },
+          upstream_transport_error: {
+            summary: '{endpoint} entered the upstream path, but the path itself hit a network or transport-layer failure.',
+            advice: ['Treat it as a transient path issue first and retry after a short wait.', 'If it keeps repeating, ask an admin to inspect upstream connectivity and proxy paths.']
+          },
+          internal_gateway_error: {
+            summary: '{endpoint} looks more like an internal platform failure than a simple payload or balance issue.',
+            advice: ['Keep the time, model, and diagnostic summary for faster admin investigation.', 'If it repeats in a short window, contacting an admin is more useful than blind retries.']
+          },
+          cyber_policy_blocked: {
+            summary: '{endpoint} was explicitly blocked by a security policy, not by a generic upstream fluctuation.',
+            advice: ['Review the prompt, attachments, or request content for risky material first.', 'Adjust the content before retesting instead of resubmitting the same payload.']
+          }
+        },
+        modelTrace: {
+          title: 'Model path',
+          requested: 'Requested model',
+          upstream: 'Upstream model',
+          mapped: 'This request entered as {requested}, but the upstream call was sent as {upstream}. If that is not what you expected, check the current group mapping and client-side model name first.',
+          unavailable: 'This failure is centered on requested model {requested}, which suggests the issue is on that model route itself rather than on all requests globally.',
+          requestedOnly: 'This record only confirms requested model {requested}; if you expected another model path, check the client configuration and current group first.'
+        }
       },
     },
   },
@@ -1053,13 +1295,13 @@ export default {
     availabilityPrefix: 'Availability',
     dialogLatency: 'Dialog Latency',
     endpointPing: 'Endpoint PING',
-    history60pts: 'HISTORY ({n} PTS)',
-    nextUpdateIn: 'NEXT UPDATE IN {n}s',
-    past: 'PAST',
-    now: 'NOW',
+    history60pts: 'Recent {n} samples',
+    nextUpdateIn: 'Refresh in {n}s',
+    past: 'Earlier',
+    now: 'Now',
     maintenancePaused: 'Maintenance · timeline paused',
     extraModelsCount: '+ {n} models',
-    pollEvery: '{n}s polling',
+    pollEvery: 'Polling every {n}s',
     updatedAt: 'Updated {time}',
     relativeSecondsAgo: '{n}s ago',
     relativeMinutesAgo: '{n}m ago',
@@ -1082,10 +1324,18 @@ export default {
       '15d': '15 days',
       '30d': '30 days'
     },
+    summary: {
+      eyebrow: 'Status overview',
+      monitored: 'Monitored lines',
+      healthy: 'Healthy',
+      attention: 'Needs attention',
+      providers: 'Platforms',
+      latestFallback: 'Waiting for first sample'
+    },
     overall: {
-      operational: 'OPERATIONAL',
-      degraded: 'DEGRADED',
-      unavailable: 'UNAVAILABLE'
+      operational: 'Operational',
+      degraded: 'Needs attention',
+      unavailable: 'Unavailable'
     },
     columns: {
       name: 'Name',
@@ -1517,7 +1767,187 @@ export default {
       spendShort: 'Spend',
       requestsShort: 'Req',
       tokensShort: 'Tok',
-      failedToLoad: 'Failed to load dashboard statistics'
+      failedToLoad: 'Failed to load dashboard statistics',
+      hero: {
+        kicker: 'SST · Admin Overview',
+        title: 'Courtyard Control Desk',
+        description: 'Keep users, traffic, cost, and response quality on one desk: spot drift first, then drill into detail.',
+        statsRange: 'Coverage',
+        refreshStatus: 'Refresh Status',
+        updating: 'Updating',
+        synced: 'Synced'
+      },
+      briefing: {
+        dailyKicker: 'Branded Morning Brief',
+        weeklyKicker: 'Branded Weekly Brief',
+        dailyTitle: 'Today\'s Desk Brief',
+        weeklyTitle: 'This Period\'s Weekly Brief',
+        leadLoading: 'Preparing traffic, cost, and anomaly attribution for this window.',
+        leadPrefix: 'Compress traffic, cost, anomalies, and watch actions into a single summary page.',
+        leadDaily: 'Start with this morning\'s ramp, anomaly ownership, and watch actions.',
+        leadWeekly: 'Focus this period on structural change and risk migration.',
+        primaryAction: 'View Ops Detail',
+        secondaryAction: 'View Usage Ledger',
+        trafficTitle: 'Traffic Overview',
+        trafficPending: 'Pending',
+        trafficNotePending: 'Aggregating active and new users.',
+        trafficNote: '{active} active users, {newUsers} new.',
+        costTitle: 'Cost and Burn',
+        costPending: 'Pending',
+        costNotePending: 'Aggregating token and cost burn.',
+        costNote: '{tokens} tokens, account cost ${accountCost}.',
+        anomalyTitle: 'Anomaly Focus',
+        anomalyPending: 'Pending',
+        anomalyNotePending: 'Aggregating anomaly structure.',
+        anomalyError: 'Retry Attribution',
+        anomalyErrorNote: 'Attribution data is temporarily unavailable. Open Ops detail or refresh later.',
+        anomalyNone: 'No Concentrated Anomaly',
+        anomalyNoteNone: 'No obvious anomaly attribution formed in this window.',
+        anomalyNote: 'Error rate is about {rate}%, focused on {platform}, with status concentration at {status}.',
+        actionTitle: 'Watch Action',
+        actionPending: 'Pending',
+        actionObserve: 'Keep Watching',
+        actionRetry: 'Review Ranking Data',
+        actionNotePending: 'Aggregating high-risk users.',
+        actionNoteNone: 'No prominent high-risk users in this window. Keep watching platform and status-code drift.',
+        actionNoteError: 'Ranking data is temporarily unavailable. Review anomaly detail and usage trends first.',
+        summaryPending: 'Summary pending.',
+        summaryRequests: '{start} to {end}: {value} total requests',
+        summarySpend: 'Actual spend ${value}',
+        summaryOwner: 'Anomalies mainly lean toward {owner}',
+        summaryRisk: 'The main user to watch is {user}',
+        summaryAttributionPending: 'Attribution data pending',
+        summaryRankingPending: 'Ranking data pending',
+        tagNewUsers: '{value} new users',
+        tagErrorAccounts: '{value} unhealthy accounts',
+        tagRpm: 'RPM {value}',
+        tagPlatform: 'Platform {value}',
+        tagStatus: 'Status {value}',
+        tagObserve: 'Keep Watching'
+      },
+      attribution: {
+        kicker: 'Anomaly Attribution',
+        title: 'Anomaly Attribution Desk',
+        loading: 'Organizing anomaly structure for the current window…',
+        empty: 'No obvious anomaly attribution formed in this time window.',
+        error: 'Attribution data is temporarily unavailable. Open Ops detail and refresh later.',
+        headline: 'Current error rate is about {rate}%, mainly leaning toward {owner}. Start from the {source} path.',
+        primaryActionClient: 'Open User Error Detail',
+        primaryActionOps: 'Open Ops Error Detail',
+        secondaryActionPlatform: 'View Usage by Platform',
+        secondaryActionDefault: 'View Admin Usage',
+        ownerTitle: 'Main Owner',
+        sourceTitle: 'Main Source',
+        platformTitle: 'Focused Platform',
+        statusTitle: 'Focused Status',
+        ownerClient: 'Client Request',
+        ownerProvider: 'Upstream Service',
+        ownerPlatform: 'Platform Internal',
+        ownerNone: 'None',
+        sourceClientRequest: 'Ingress Request',
+        sourceUpstreamHttp: 'Upstream HTTP',
+        sourceGateway: 'Gateway Path',
+        sourceNone: 'None',
+        platformNone: 'None',
+        statusNone: 'None',
+        ownerInsightClient: 'Signals look more like request conditions, quota, or calling behavior. Review user ledger and error class first.',
+        ownerInsightProvider: 'Anomalies are mainly upstream-side. Check platform window, account pool, and upstream recovery first.',
+        ownerInsightPlatform: 'Signals lean platform-internal. Open Ops detail first to verify whether failures cluster in one stage.',
+        ownerInsightNone: 'No obvious ownership signal in this window yet.',
+        sourceInsightClientRequest: 'Issues surface more around request ingress. Check input, keys, quota, or parameter structure first.',
+        sourceInsightUpstreamHttp: 'Errors concentrate in upstream HTTP responses. Focus on platform and account availability drift.',
+        sourceInsightGateway: 'Gateway-path signal is stronger. Inspect internal handling stage and forwarding path first.',
+        sourceInsightNone: 'No obvious source bias yet.',
+        platformInsightNone: 'No obvious platform concentration right now.',
+        platformInsight: 'Recent anomalies are more concentrated on {platform}. Open that platform\'s error detail first.',
+        statusInsightNone: 'No obvious status concentration right now.',
+        statusInsight429: '429 still dominates, suggesting short-term rate limiting or congestion.',
+        statusInsight5xx: '5xx dominates, which is more consistent with platform or upstream internal failure.',
+        statusInsight4xx: '4xx dominates. Check request parameters, auth, and user quota path first.',
+        statusInsightOther: 'Status distribution is relatively scattered.'
+      },
+      risk: {
+        kicker: 'High-Risk Users',
+        title: 'High-Risk User Ranking',
+        loading: 'Aggregating failure count, failure rate, and request density for recent high-risk users.',
+        empty: 'No obvious high-risk users identified in this window yet. Keep watching attribution and ranking changes.',
+        errorRanking: 'Ranking data is temporarily unavailable. The list falls back to a conservative anomaly-based judgment.',
+        errorAttribution: 'Attribution data is temporarily unavailable. The list falls back to a conservative spend-based judgment.',
+        errorBoth: 'Data needed by the ranking is temporarily unavailable. Refresh later or inspect detail pages first.',
+        headline: '{user} needs the most attention right now, mainly signaled by {tag}. Review usage and anomaly detail together.',
+        primaryAction: 'View User Usage',
+        secondaryAction: 'View Error Detail',
+        metricFailedCount: 'Failures',
+        metricFailureRate: 'Failure Rate',
+        metricRequestDensity: 'Request Density',
+        viewUsage: 'View Usage',
+        viewErrors: 'View Errors',
+        displayNameFallback: 'User #{id}',
+        emailFallback: 'ID {id}',
+        tagFailedHigh: 'High Failure Count',
+        tagFailedElevated: 'Elevated Failures',
+        tagFailureRateHigh: 'High Failure Rate',
+        tagFailureRateRaised: 'Failure Rate Rising',
+        tagRequestDensityHigh: 'High Request Density',
+        tagWatch: 'Watch Needed',
+        summaryFailedCount: '{value} failures',
+        summaryFailureRate: '{value} failure rate',
+        summaryRequests: '{value} requests',
+        summaryDense: 'Short-window traffic is dense',
+        summarySupportHeavy: 'Recent support cost is elevated'
+      },
+      morningSheet: {
+        dailyKicker: 'Desk Memo',
+        weeklyKicker: 'Weekly Memo',
+        dailyTitle: 'One-Page Watch Brief',
+        weeklyTitle: 'One-Page Weekly Brief',
+        leadLoading: 'Preparing the current brief.',
+        leadDaily: 'A quick scan for on-call, ops, and management to understand traffic, anomalies, and the main user to watch.',
+        leadWeekly: 'A compact read on structural change, anomaly migration, and the main watch items this period.',
+        primaryAction: 'Continue in Ops',
+        secondaryAction: 'Continue in Usage Ledger',
+        copyAction: 'Copy Brief',
+        downloadAction: 'Download Markdown',
+        copySuccess: 'Brief copied',
+        copyFailed: 'Failed to copy brief',
+        downloadSuccess: 'Markdown brief downloaded',
+        downloadFailed: 'Failed to download markdown brief',
+        exportDailyTitle: 'SST / Admin One-Page Watch Brief',
+        exportWeeklyTitle: 'SST / Admin One-Page Weekly Brief',
+        pending: 'Pending',
+        summaryPending: 'Brief pending.',
+        summaryRiskNone: 'no main user yet',
+        summary: '{start} to {end}: {requests} requests, actual spend ${spend}; anomalies mainly lean toward {owner}, platform focus sits on {platform}, and the main user to watch is {risk}.',
+        windowsTitle: 'Window Snapshot',
+        windowDailyValue: '{value} requests today',
+        windowWeeklyValue: '{value} requests this period',
+        windowNotePending: 'Aggregating active users and unhealthy accounts in this window.',
+        windowNote: '{active} active users, {accounts} unhealthy accounts.',
+        anomalyTitle: 'Anomaly Position',
+        anomalyFallback: 'Attribution pending',
+        anomalyNone: 'No Concentrated Anomaly',
+        anomalyValue: '{owner} / {source}',
+        anomalyNotePending: 'Preparing anomaly attribution.',
+        anomalyNoteError: 'Attribution is unavailable for now. Open Ops detail first.',
+        anomalyNoteNone: 'No obvious anomaly ownership has formed yet.',
+        watchTitle: 'Watch Item',
+        watchNone: 'Keep Watching',
+        watchNotePending: 'Preparing the main user to watch.',
+        watchNoteNone: 'No prominent high-risk user right now. Continue watching platform and status-code drift.',
+        attributionSectionTitle: 'Attribution Notes',
+        riskSectionTitle: 'High-Risk User Details',
+        attributionPending: 'Attribution structure is still being prepared.',
+        attributionEmpty: 'No clear anomaly attribution has formed in this window.',
+        riskPending: 'High-risk users are still being prepared.',
+        riskEmpty: 'No high-risk user currently needs escalated attention.',
+        lineOwner: 'Main owner: {value}',
+        lineSource: 'Main source: {value}',
+        linePlatform: 'Focused platform: {value}',
+        lineStatus: 'Focused status: {value}',
+        lineRecommendation: 'Recommendation: {value}',
+        lineRiskTags: 'Risk tags: {value}',
+        lineSummary: 'Summary: {value}'
+      }
     },
 
     backup: {
@@ -2149,7 +2579,6 @@ export default {
       editGroup: 'Edit Group',
       deleteGroup: 'Delete Group',
       sortOrder: 'Sort',
-      columnSettings: 'Column Settings',
       sortOrderHint: 'Drag groups to adjust display order, groups at the top will be displayed first',
       sortOrderUpdated: 'Sort order updated',
       failedToUpdateSortOrder: 'Failed to update sort order',
@@ -2187,15 +2616,6 @@ export default {
       accountsUnit: '',
       rateAndAccounts: '{rate}x rate · {count} accounts',
       accountsCount: '{count} accounts',
-      rateLabel: 'rate',
-      accountFilters: {
-        title: 'Account Filter Controls',
-        oauthOnly: 'Only allow OAuth accounts',
-        oauthOnlyEnabled: 'Enabled — API Key accounts will be excluded',
-        privacySetOnly: 'Only allow accounts with privacy protection set',
-        privacySetOnlyEnabled: 'Enabled — accounts with unset Privacy will be excluded',
-        disabled: 'Disabled'
-      },
       form: {
         name: 'Name',
         description: 'Description',
@@ -2266,7 +2686,6 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -2297,21 +2716,11 @@ export default {
         finalPricePreview: 'Final per-image price preview',
         notConfigured: 'Not configured'
       },
-      peakRate: {
-        enable: 'Enable peak rate multiplier',
-        peakStart: 'Peak start',
-        peakEnd: 'Peak end',
-        peakMultiplier: 'Peak multiplier',
-        multiplierHint: 'Applies to token billing multiplier; image tokens in token billing are also affected. 0 means peak token requests are billed at 0x.'
-      },
       modelsList: {
         title: 'Custom /v1/models Model List',
         hint: 'Only changes the /v1/models response. Whitelist model calls and account routing are unchanged.',
         loading: 'Loading model list...',
-        empty: 'No displayable models',
-        selectedSummary: 'Selected {selected} / {total}',
-        selectAll: 'Select all',
-        invertSelection: 'Invert'
+        empty: 'No displayable models'
       },
       claudeCode: {
         title: 'Claude Code Client Restriction',
@@ -2465,23 +2874,8 @@ export default {
       deleteError: 'Failed to delete channel',
       nameRequired: 'Please enter a channel name',
       duplicateModels: 'Model "{0}" appears in multiple pricing entries',
-      modelConflict: "Model patterns '{model1}' and '{model2}' conflict: overlapping match range. Model names are matched case-insensitively, so an existing entry already covers all case variants — no need to add the variant separately.",
-      mappingConflict: "Mapping source patterns '{model1}' and '{model2}' conflict: overlapping match range. Source patterns are matched case-insensitively, so an existing entry already covers all case variants.",
-      intervalValidation: {
-        negativeMin: 'Interval #{index}: minimum token count ({value}) cannot be negative',
-        maxPositive: 'Interval #{index}: maximum token count ({value}) must be greater than 0',
-        maxGreaterThanMin: 'Interval #{index}: maximum token count ({max}) must be greater than minimum token count ({min})',
-        negativePrice: 'Interval #{index}: {field} cannot be negative',
-        unboundedLast: 'Interval #{index}: an unbounded interval (empty maximum token count) must be last',
-        overlap: 'Intervals #{previousIndex} and #{currentIndex} overlap: previous upper bound ({previousMax}) is greater than current lower bound ({currentMin})',
-        price: {
-          inputPrice: 'input price',
-          outputPrice: 'output price',
-          cacheWritePrice: 'cache write price',
-          cacheReadPrice: 'cache read price',
-          perRequestPrice: 'per-request price'
-        }
-      },
+      modelConflict: "Model patterns '{model1}' and '{model2}' conflict: overlapping match range",
+      mappingConflict: "Mapping source patterns '{model1}' and '{model2}' conflict: overlapping match range",
       deleteConfirm: 'Are you sure you want to delete channel "{name}"? This cannot be undone.',
       columns: {
         name: 'Name',
@@ -2516,15 +2910,10 @@ export default {
         outputPrice: 'Output',
         cacheWritePrice: 'Cache Write',
         cacheReadPrice: 'Cache Read',
-        cacheWritePriceShort: 'Cache W',
-        cacheReadPriceShort: 'Cache R',
         imageTokenPrice: 'Image Output',
         imageOutputPrice: 'Image Output Price',
         pricePlaceholder: 'Default',
         intervals: 'Context Intervals (optional)',
-        minTokens: 'Min',
-        maxTokens: 'Max',
-        inclusive: '(inclusive)',
         addInterval: 'Add Interval',
         requestTiers: 'Request Tiers',
         imageTiers: 'Image Tiers (Per Request)',
@@ -2706,7 +3095,6 @@ export default {
       queueSize: 'Async Queue Size',
       blockStatus: 'Block HTTP Status',
       blockMessage: 'Custom Block Message',
-      defaultBlockMessage: 'Content audit matched a risk rule. Please adjust your input and try again.',
       emailOnHit: 'Email on Hit',
       emailOnHitHint: 'When enabled, send a risk-control email on every hit; auto-ban notices are always sent.',
       autoBan: 'Auto Ban User',
@@ -2727,7 +3115,6 @@ export default {
       unbanFailed: 'Failed to unban user',
       inputDetailTitle: 'Input Summary Detail',
       inputDetailContent: 'Full Content',
-      matchedKeyword: 'Matched Keyword',
       queueDelay: 'Queued {ms} ms',
       allGroups: 'All Groups',
       allGroupsHint: 'Auditing all groups',
@@ -2923,7 +3310,7 @@ export default {
         groupName: 'Group Name',
         groupNamePlaceholder: 'Optional, used to group rows in user view',
         intervalSeconds: 'Interval (seconds)',
-        intervalSecondsHint: 'Range: 15 - 3600 seconds',
+        intervalSecondsHint: 'Range: 15 - 3600 seconds; 300s (5 minutes) is the recommended default',
         jitterSeconds: 'Random Jitter (± seconds)',
         jitterSecondsHint: 'Each check fires at interval ± a random offset within this value; 0 means fixed interval. Interval minus jitter must be ≥ 15s',
         enabled: 'Enable monitor',
@@ -2995,6 +3382,76 @@ export default {
       }
     },
 
+    upstreamPools: {
+      title: 'Upstream Pools',
+      description: 'Configure multi-upstream pools, group bindings, and automatic failover strategy',
+      summary: {
+        pools: 'Pools',
+        bindings: 'Bound groups',
+        healthyMembers: 'Healthy members',
+        failoverMode: 'Failover policy',
+        failoverModeValue: 'Tiered primary / backup with weighted members',
+      },
+      filters: {
+        search: 'Search pools, capabilities, or probe models...',
+        allCapabilities: 'All capabilities',
+        allStates: 'All states',
+      },
+      table: {
+        name: 'Pool',
+        capability: 'Capability',
+        probeModel: 'Probe model',
+        bindings: 'Bindings',
+        members: 'Members',
+        routing: 'Routing',
+        state: 'State',
+        actions: 'Actions',
+      },
+      actions: {
+        createPool: 'Create Pool',
+        refresh: 'Refresh View',
+        inspect: 'Inspect',
+        forceProbe: 'Force Probe',
+        clearCircuit: 'Clear Circuit',
+      },
+      states: {
+        healthy: 'Healthy',
+        warming: 'Warming',
+        open: 'Open Circuit',
+        mixed: 'Mixed',
+      },
+      capabilityLabels: {
+        responses: 'Responses',
+        chat_completions: 'Chat Completions',
+        embeddings: 'Embeddings',
+        images: 'Images',
+      },
+      detail: {
+        heading: 'Pool Topology',
+        bindingsTitle: 'Group Bindings',
+        bindingsHint: 'Map entry groups and capabilities to the selected pool.',
+        membersTitle: 'Member Runtime State',
+        membersHint: 'Review member tier, weight, and latest status.',
+        notesTitle: 'Routing Rules',
+        notesHint: 'Current pool constraints and handling rules.',
+        notes: [
+          'Probe failures automatically fall through to the next available tier.',
+          'Members in the same tier share traffic by weight, while warming nodes only take a small portion.',
+          'Manual actions are limited to probing and circuit recovery.'
+        ],
+        emptyTitle: 'No matching pools',
+        emptyDescription: 'Adjust the filters and try again.',
+      },
+      labels: {
+        tier: 'Tier',
+        weight: 'Weight',
+        warmupWeight: 'Warmup weight',
+        lastEvent: 'Last event',
+        strategyPrimary: 'Primary first',
+        strategyWeighted: 'Weighted within tier',
+      },
+    },
+
     // Subscriptions
     subscriptions: {
       title: 'Subscription Management',
@@ -3002,7 +3459,6 @@ export default {
       assignSubscription: 'Assign Subscription',
       adjustSubscription: 'Adjust Subscription',
       revokeSubscription: 'Revoke Subscription',
-      restoreSubscription: 'Restore Subscription',
       allStatus: 'All Status',
       allGroups: 'All Groups',
       allPlatforms: 'All Platforms',
@@ -3025,8 +3481,7 @@ export default {
       status: {
         active: 'Active',
         expired: 'Expired',
-        revoked: 'Revoked',
-        suspended: 'Suspended'
+        revoked: 'Revoked'
       },
       columns: {
         user: 'User',
@@ -3055,7 +3510,6 @@ export default {
       adjust: 'Adjust',
       adjusting: 'Adjusting...',
       revoke: 'Revoke',
-      restore: 'Restore',
       resetQuota: 'Reset Quota',
       resetQuotaTitle: 'Reset Usage Quota',
       resetQuotaConfirm: "Reset the daily, weekly, and monthly usage quota for '{user}'? Usage will be zeroed and windows restarted from today.",
@@ -3066,21 +3520,17 @@ export default {
       subscriptionAssigned: 'Subscription assigned successfully',
       subscriptionAdjusted: 'Subscription adjusted successfully',
       subscriptionRevoked: 'Subscription revoked successfully',
-      subscriptionRestored: 'Subscription restored successfully',
       failedToLoad: 'Failed to load subscriptions',
       failedToAssign: 'Failed to assign subscription',
       failedToAdjust: 'Failed to adjust subscription',
       failedToRevoke: 'Failed to revoke subscription',
-      failedToRestore: 'Failed to restore subscription',
       adjustWouldExpire: 'Remaining days after adjustment must be greater than 0',
       adjustOutOfRange: 'Adjustment days must be between -36500 and 36500',
       pleaseSelectUser: 'Please select a user',
       pleaseSelectGroup: 'Please select a group',
       validityDaysRequired: 'Please enter a valid number of days (at least 1)',
       revokeConfirm:
-        "Are you sure you want to revoke the subscription for '{user}'? You can restore it later from the revoked list.",
-      restoreConfirm:
-        "Restore the subscription for '{user}'? If the original subscription has expired, it will be restored as expired.",
+        "Are you sure you want to revoke the subscription for '{user}'? This action cannot be undone.",
       guide: {
         title: 'Subscription Management Guide',
         subtitle: 'Subscription mode lets you assign time-based usage quotas to users, with daily/weekly/monthly limits. Follow these steps to get started.',
@@ -3140,7 +3590,6 @@ export default {
       dataExportConfirmMessage: 'The exported data contains sensitive account and proxy information. Store it securely.',
       dataExportConfirm: 'Confirm Export',
       dataExported: 'Data exported successfully',
-      dataExportedSkippedShadows: 'Data exported. Skipped {count} spark shadow account(s): their scheduling config is not included in the backup; recreate and re-tune them after restore.',
       dataExportFailed: 'Failed to export data',
       dataImportTitle: 'Import Data',
       dataImportHint: 'Upload the exported JSON file to import accounts and proxies.',
@@ -3197,6 +3646,7 @@ export default {
       allPlatforms: 'All Platforms',
       allTypes: 'All Types',
       allStatus: 'All Status',
+      allAnomalyReasons: 'All Anomaly Reasons',
       allGroups: 'All Groups',
       ungroupedGroup: 'Ungrouped',
       oauthType: 'OAuth',
@@ -3208,14 +3658,58 @@ export default {
       schedulableEnabled: 'Scheduling enabled',
       schedulableDisabled: 'Scheduling disabled',
       failedToToggleSchedulable: 'Failed to toggle scheduling status',
+      anomalySummaryTitle: 'Current Page Anomalies',
+      anomalySummaryEmpty: 'No concentrated anomalies on this page',
+      clearAnomalyFilter: 'Clear anomaly filter',
       groupCountTotal: '{count} groups total',
+      anomalyReasons: {
+        healthy: {
+          label: 'Healthy',
+          action: 'Continue monitoring'
+        },
+        expired_pause: {
+          label: 'Expired Pause',
+          action: 'Refresh credentials or extend the expiry time'
+        },
+        temp_unschedulable: {
+          label: 'Temporary Cooldown',
+          action: 'Wait for cooldown to end or recover after confirmation'
+        },
+        rate_limited: {
+          label: 'Rate Limited',
+          action: 'Wait for the rate-limit window or add more accounts'
+        },
+        overloaded: {
+          label: 'Upstream Overloaded',
+          action: 'Wait for cooldown or reduce this account weight'
+        },
+        auth_failed: {
+          label: 'Authorization Failed',
+          action: 'Re-authorize or refresh credentials'
+        },
+        error_state: {
+          label: 'Error State',
+          action: 'Review the error and recover the account state'
+        },
+        quota_exhausted: {
+          label: 'Quota Exhausted',
+          action: 'Reset quota or raise the budget cap'
+        },
+        manual_pause: {
+          label: 'Scheduling Paused',
+          action: 'Re-enable scheduling after confirmation'
+        },
+        inactive: {
+          label: 'Inactive',
+          action: 'Enable the account before scheduling again'
+        }
+      },
       platforms: {
         anthropic: 'Anthropic',
         claude: 'Claude',
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
-        grok: 'Grok',
       },
       types: {
         oauth: 'OAuth',
@@ -3224,15 +3718,10 @@ export default {
         googleOauth: 'Google OAuth',
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
-        grokOauth: 'Grok OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
         upstream: 'Upstream',
         upstreamDesc: 'Connect via Base URL + API Key'
       },
-      antigravityProjectIdLabel: 'GCP Project ID (optional)',
-      antigravityProjectIdPlaceholder: 'your-gcp-project-id',
-      antigravityProjectIdHint:
-        'Antigravity standard-tier accounts that do not receive an automatic project_id need a user-owned GCP project.',
       status: {
         active: 'Active',
         inactive: 'Inactive',
@@ -3451,10 +3940,6 @@ export default {
       revertProxy: 'Revert proxy',
       revertProxySuccess: 'Successfully reverted to original proxy',
       revertProxyFailed: 'Failed to revert proxy',
-      createSparkShadow: 'Create Spark Shadow',
-      createSparkShadowConfirm: 'Create a spark shadow account linked to "{name}"? It shares the parent\'s credentials and serves only spark models.',
-      createSparkShadowSuccess: 'Spark shadow account created',
-      createSparkShadowFailed: 'Failed to create spark shadow account',
       resetStatus: 'Reset Status',
       statusReset: 'Account status reset successfully',
       failedToResetStatus: 'Failed to reset account status',
@@ -3515,7 +4000,6 @@ export default {
         wsModeOff: 'Off (off)',
         wsModeCtxPool: 'Context Pool (ctx_pool)',
         wsModePassthrough: 'Passthrough (passthrough)',
-        wsModeHttpBridge: 'HTTP Bridge (http_bridge)',
         wsModeShared: 'Shared (shared)',
         wsModeDedicated: 'Dedicated (dedicated)',
         wsModeConcurrencyHint:
@@ -3554,24 +4038,21 @@ export default {
         codexCLIOnly: 'Codex official clients only',
         codexCLIOnlyDesc:
           'Only applies to OpenAI OAuth. When enabled, only Codex official client families are allowed; when disabled, the gateway bypasses this restriction and keeps existing behavior.',
-        codexCLIOnlyAppServer: 'Allow Codex app-server clients',
-        codexCLIOnlyAppServerDesc:
-          "Effective only when the switch above is on. When enabled, this account also allows third-party clients that embed the Codex engine over the app-server protocol (e.g. Claude Code's codex plugin); they still pass the global engine-fingerprint gate. OR-combined with the global app-server toggle.",
-        codexImageTool: 'Codex image tool',
-        codexImageToolDesc:
-          'One policy for the image_generation tool on Codex /responses text requests: whether it is auto-injected, and whether client-provided tools pass through. Account policy takes precedence over channel and global settings; standalone image-generation endpoints are unaffected.',
-        codexImageToolInherit: 'Follow channel',
-        codexImageToolInheritDesc: 'No account override; injection follows the channel or global policy, and client-provided image tools pass through.',
-        codexImageToolEnabled: 'Force inject',
-        codexImageToolEnabledDesc: 'Always inject the image tool for Codex /responses requests.',
-        codexImageToolDisabled: 'No injection',
-        codexImageToolDisabledDesc: 'Never auto-inject; client-provided image tools still pass through.',
-        codexImageToolBlock: 'Block all',
-        codexImageToolBlockDesc: 'No injection, and client-provided image tools plus matching tool_choice are removed.',
-        codexImageToolBadgeInherit: 'Channel policy',
-        codexImageToolBadgeEnabled: 'Force inject',
-        codexImageToolBadgeDisabled: 'No injection',
-        codexImageToolBadgeBlock: 'Blocked',
+        codexCLIOnlyAllowClaudeCode: "Also allow Claude Code's Codex plugin",
+        codexCLIOnlyAllowClaudeCodeDesc:
+          'Only takes effect when the switch above is on. Additionally allows requests from the Claude Code Codex plugin (exact match on originator=Claude Code) without weakening blocking of other non-official clients.',
+        codexImageGenerationBridge: 'Codex image-generation bridge',
+        codexImageGenerationBridgeDesc:
+          'Account policy takes precedence over channel and global settings. Only controls whether Codex requests through the /responses text endpoint receive the image_generation tool; standalone image-generation endpoints are unaffected.',
+        codexImageGenerationBridgeInherit: 'Follow channel',
+        codexImageGenerationBridgeInheritDesc: 'Do not write an account override; use the channel or global policy.',
+        codexImageGenerationBridgeEnabled: 'Force on',
+        codexImageGenerationBridgeEnabledDesc: 'Allow image tool injection for Codex /responses requests.',
+        codexImageGenerationBridgeDisabled: 'Force off',
+        codexImageGenerationBridgeDisabledDesc: 'Block image tool injection for Codex /responses requests.',
+        codexImageGenerationBridgeBadgeInherit: 'Channel policy',
+        codexImageGenerationBridgeBadgeEnabled: 'Account on',
+        codexImageGenerationBridgeBadgeDisabled: 'Account off',
         compactMode: 'Compact mode',
         compactModeDesc:
           'Controls how this account participates in /responses/compact routing. Auto follows probe results, Force On always allows, Force Off always excludes.',
@@ -3591,18 +4072,10 @@ export default {
         testModeCompact: 'Compact probe',
         modelRestrictionDisabledByPassthrough: 'Automatic passthrough is enabled: model whitelist/mapping will not take effect.',
       },
-      grok: {
-        baseUrlHint: 'Grok OAuth accounts forward to the official xAI API base URL.',
-        apiKeyHint: 'Grok subscription support uses OAuth refresh tokens; API keys are out of scope for this account type.'
-      },
       anthropic: {
         apiKeyPassthrough: 'Auto passthrough (auth only)',
         apiKeyPassthroughDesc:
           'Only applies to Anthropic API Key accounts. When enabled, messages/count_tokens are forwarded in passthrough mode with auth replacement only, while billing/concurrency/audit and safety filtering are preserved. Disable to roll back immediately.',
-        apiKeyAuthScheme: 'Upstream auth scheme',
-        apiKeyAuthSchemeDesc: 'Choose the API key auth header used when forwarding to an Anthropic-compatible upstream. Ollama Cloud uses Authorization: Bearer.',
-        apiKeyAuthSchemeXApiKey: 'x-api-key',
-        apiKeyAuthSchemeBearer: 'Authorization: Bearer',
         webSearchEmulation: 'Web Search Emulation',
         webSearchEmulationDesc:
           'Enable web search emulation for this API Key account. When a pure web_search request is detected, the gateway calls a third-party search API and constructs the response locally. Default follows channel config.',
@@ -3912,14 +4385,6 @@ export default {
           codexSessionImportFailed: 'Failed to import Codex account',
           codexSessionImportSuccess: 'Import completed: created {created}, updated {updated}, skipped {skipped}',
           codexSessionImportPartial: 'Partial success: created {created}, updated {updated}, skipped {skipped}, failed {failed}',
-          codexPatAuth: 'Codex Personal Access Token',
-          codexPatDesc: 'Enter a Codex at- personal access token. The system validates it with OpenAI whoami before creating the account.',
-          codexPatInputLabel: 'Codex PAT',
-          codexPatPlaceholder: 'at-...',
-          codexPatHint: 'This is a separate auth mode. It does not save refresh_token or write an OAuth access_token expiration.',
-          codexPatImportAndCreate: 'Validate & Create Codex PAT Account',
-          codexPatEmpty: 'Please enter a Codex personal access token',
-          codexPatImportFailed: 'Failed to create Codex PAT account',
           sessionTokenAuth: 'Manual ST Input',
           sessionTokenDesc: 'Enter your existing Session Token(s). Supports batch input (one per line). The system will automatically validate and create accounts.',
           sessionTokenPlaceholder: 'Paste your Session Token...\nSupports multiple, one per line',
@@ -3936,31 +4401,6 @@ export default {
           validateAndCreate: 'Validate & Create Account',
           pleaseEnterRefreshToken: 'Please enter Refresh Token',
           pleaseEnterSessionToken: 'Please enter Session Token'
-        },
-        grok: {
-          title: 'Grok Account Authorization',
-          followSteps: 'Follow these steps to authorize your xAI/Grok account:',
-          step1GenerateUrl: 'Generate the xAI authorization URL',
-          generateAuthUrl: 'Generate Auth URL',
-          step2OpenUrl: 'Open the URL in your browser and complete authorization',
-          openUrlDesc: 'Open the authorization URL in a new tab, sign in to xAI, and authorize API access.',
-          importantNotice: 'When the browser reaches the local callback URL, copy the full URL or the code query parameter back here.',
-          step3EnterCode: 'Enter Authorization URL or Code',
-          authCodeDesc: 'After authorization, paste the callback URL, query string, or authorization code:',
-          authCode: 'Authorization URL or Code',
-          authCodePlaceholder: 'Paste the full callback URL, ?code=... query string, or code value',
-          authCodeHint: 'Full callback URLs, query strings, and bare codes are accepted.',
-          refreshTokenAuth: 'Manual RT Input',
-          refreshTokenDesc: 'Enter existing xAI refresh token(s). Supports batch input, one per line.',
-          refreshTokenPlaceholder: 'Paste your xAI refresh token...\nSupports multiple, one per line',
-          validating: 'Validating...',
-          validateAndCreate: 'Validate & Create Account',
-          pleaseEnterRefreshToken: 'Please enter Refresh Token',
-          failedToGenerateUrl: 'Failed to generate Grok auth URL',
-          missingExchangeParams: 'Missing authorization code, state, or OAuth session',
-          failedToExchangeCode: 'Failed to exchange Grok authorization code',
-          failedToValidateRT: 'Failed to validate Grok refresh token',
-          oauthOnlyHint: 'Initial Grok support is OAuth subscription-backed Responses API text and reasoning traffic only.'
         },
         // Gemini specific
 	        gemini: {
@@ -4085,11 +4525,6 @@ export default {
           builtInTitle: 'Built-in OAuth (Gemini CLI / Code Assist)',
           builtInDesc: 'Uses Google built-in client ID. No admin configuration required.',
           builtInRequirement: 'Requires a GCP project and Project ID.',
-          googleOneDesc: 'Personal account with Google One subscription quota',
-          codeAssistDesc: 'Enterprise-grade, requires a GCP project',
-          codeAssistRequirement: 'Requires an active GCP project with billing enabled',
-          showAdvanced: 'Show advanced options (custom OAuth Client)',
-          hideAdvanced: 'Hide advanced options (custom OAuth Client)',
           gcpProjectLink: 'Create project',
           customTitle: 'Custom OAuth (AI Studio OAuth)',
           customDesc: 'Uses admin-configured OAuth client for org management.',
@@ -4097,9 +4532,6 @@ export default {
           badges: {
             recommended: 'Recommended',
             highConcurrency: 'High concurrency',
-            individuals: 'Recommended for individuals',
-            noGcp: 'No GCP required',
-            enterprise: 'Enterprise users',
             noAdmin: 'No admin setup',
             orgManaged: 'Org managed',
             adminRequired: 'Admin required'
@@ -4119,7 +4551,6 @@ export default {
           },
           links: {
             countryCheck: 'Check country association',
-            countryChange: 'Change country association',
             geminiWebActivation: 'Activate Gemini Web',
             gcpProject: 'Open GCP Console'
           }
@@ -4192,7 +4623,6 @@ export default {
       openaiAccount: 'OpenAI Account',
       geminiAccount: 'Gemini Account',
       antigravityAccount: 'Antigravity Account',
-      grokAccount: 'Grok Account',
       inputMethod: 'Input Method',
       reAuthorizedSuccess: 'Account re-authorized successfully',
       // Test Modal
@@ -4267,18 +4697,6 @@ export default {
         gemini3Flash: 'G3F',
         gemini3Image: 'G31FI',
         claude: 'Claude',
-        grokRequests: 'Req',
-        grokTokens: 'Tok',
-        grokUnknown: 'Grok quota is unknown until the first upstream response includes xAI rate-limit headers.',
-        grokRetryAfter: 'Retry after {time}',
-        grokProbe: 'Probe',
-        grokProbeTooltip: 'Send a minimal xAI Responses probe and read quota headers',
-        grokResetUnsupported: 'Reset unsupported',
-        grokResetUnsupportedTooltip: 'xAI does not expose reset credits for Grok OAuth accounts',
-        grokNoHeaders: 'No quota headers observed',
-        grokLastStatus: 'Status {status}',
-        grokLastProbe: 'Probe {time}',
-        grokLastHeadersSeen: 'Headers {time}',
         passiveSampled: 'Passive',
         activeQuery: 'Query'
       },
@@ -4290,16 +4708,8 @@ export default {
         resetTooltipReady: 'Consume 1 reset credit to immediately restore the window',
         resetTooltipNeedQuery: 'Click Credits first to load the available count',
         resetTooltipNoCredits: 'No reset credits available',
-        resetTooltipShadow: 'Spark shadow accounts cannot reset credits; reset on the parent account',
-        expiresAt: 'Expires {time}',
-        expiresAtFull: 'Reset credit expires at {time}',
-        expandExpirations: 'Expand the other {count} reset credit expiration(s)',
-        collapseExpirations: 'Collapse reset credit expirations',
-        expirationDetails: 'Reset credit expiration details',
         noCreditsAvailable: 'No reset credits available',
-        resetSuccess: 'Reset {windows} window(s)',
-        confirmTitle: 'Confirm Weekly Limit Reset',
-        confirmMessage: 'This will consume 1 reset credit to immediately restore the current window ({count} remaining). This action cannot be undone. Continue?'
+        resetSuccess: 'Reset {windows} window(s)'
       },
       tier: {
         free: 'Free',
@@ -4870,52 +5280,6 @@ export default {
       noData: 'No data.',
       loadingText: 'loading',
       ready: 'ready',
-      autoRefreshRemaining: 'Remaining {seconds}s',
-      systemLogs: {
-        title: 'System Logs',
-        description: 'Newest logs are shown first. Filter, search, and clean up by condition.',
-        queue: 'Queue',
-        written: 'Written',
-        dropped: 'Dropped',
-        failed: 'Failed',
-        runtimeConfig: 'Runtime Log Configuration (applies immediately)',
-        all: 'All',
-        level: 'Level',
-        stacktraceThreshold: 'Stacktrace threshold',
-        samplingInitial: 'Sampling initial',
-        samplingThereafter: 'Sampling thereafter',
-        retentionDays: 'Retention days',
-        caller: 'caller',
-        sampling: 'sampling',
-        saveAndApply: 'Save and apply',
-        resetDefaults: 'Reset defaults',
-        latestWriteError: 'Latest write error:',
-        timeRange: 'Time range',
-        startTime: 'Start time (optional)',
-        endTime: 'End time (optional)',
-        component: 'Component',
-        componentPlaceholder: 'e.g. http.access',
-        keyId: 'KEY ID',
-        platform: 'Platform',
-        model: 'Model',
-        keyword: 'Keyword',
-        keywordPlaceholder: 'message/request_id',
-        search: 'Search',
-        cleanCurrentFilters: 'Clean current filters',
-        refreshHealth: 'Refresh health',
-        empty: 'No system logs',
-        time: 'Time',
-        logDetails: 'Log Details',
-        loadFailed: 'Failed to load system logs',
-        runtimeConfigActive: 'Runtime log configuration is active',
-        runtimeConfigSaveFailed: 'Failed to save log configuration',
-        resetRuntimeConfigConfirm: 'Reset to startup configuration (env/yaml) and apply immediately?',
-        runtimeConfigReset: 'Reset to startup log configuration',
-        runtimeConfigResetFailed: 'Failed to reset log configuration',
-        cleanupConfirm: 'Clean up system logs matching the current filters? This cannot be undone.',
-        cleanupSuccess: 'Cleanup complete. Deleted {count} log entries.',
-        cleanupFailed: 'Failed to clean up system logs'
-      },
       requestsTotal: 'Requests (total)',
       slaScope: 'SLA scope:',
       tokens: 'Tokens',
@@ -4971,6 +5335,34 @@ export default {
       errorTrend: 'Error Trend',
       errorDistribution: 'Error Distribution',
       switchRate: 'Avg switches',
+      compare: {
+        title: 'Anomaly Pattern Compare',
+        subtitle: 'Compare the current window against the previous equal-length window to spot structural anomaly shifts quickly.',
+        empty: 'No comparable anomaly summary for the current filters.',
+        failedToLoad: 'Failed to load anomaly pattern compare',
+        previousWindow: 'Previous window',
+        previousWindowAuto: 'Previous equal-length window',
+        compareWindow: 'Current {current}, compared with {previous}',
+        currentWindowDetails: 'View current window error details',
+        metrics: {
+          errorRate: 'Total error rate',
+          requestErrorShare: 'Request error share',
+          upstreamErrorShare: 'Upstream error share',
+          businessLimitedShare: 'Business-limited share'
+        },
+        delta: {
+          higher: 'Up {value} pts vs prev',
+          lower: 'Down {value} pts vs prev',
+          flat: 'Flat vs prev'
+        },
+        shifts: {
+          status: 'Status structure focus',
+          platform: 'Platform concentration focus',
+          changed: 'Shifted',
+          stable: 'Stable',
+          fromTo: '{from} -> {to}'
+        }
+      },
       // Health Score & Diagnosis
       health: 'Health',
       healthCondition: 'Health Condition',
@@ -5091,7 +5483,6 @@ export default {
         accountId: 'Account ID',
         status: 'Status',
         message: 'Message',
-        ip: 'IP',
         latency: 'Request Duration',
         action: 'Action',
         noErrors: 'No errors in this window.',
@@ -5666,7 +6057,7 @@ export default {
           enabled: 'Enable Channel Monitor',
           enabledHint: 'Disabling stops background checks; existing history is preserved.',
           defaultInterval: 'Default check interval (seconds)',
-          defaultIntervalHint: 'Pre-fills the interval when creating a new monitor; each monitor can override it. Range 15 – 3600.',
+          defaultIntervalHint: 'Pre-fills the interval when creating a new monitor; each monitor can override it. Range 15 – 3600, with 300 seconds recommended.',
         },
         availableChannels: {
           title: 'Available Channels',
@@ -5986,49 +6377,15 @@ export default {
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
         rewriteMessageCacheControl: 'Rewrite Message Cache Breakpoints',
         rewriteMessageCacheControlHint: 'Default off: preserve client cache_control on message content blocks. When enabled, client breakpoints are stripped and proxy breakpoints are injected for clients that do not manage caching themselves.',
-        clientDatelineNormalization: 'Client Dateline Normalization',
-        clientDatelineNormalizationHint: 'Default on. Rewrites the "Today\'s date is …" sentence in Anthropic OAuth/Setup Token requests back to a canonical ASCII apostrophe and hyphen date format, erasing steganographic fingerprint bits some clients inject when they detect a non-official base URL. Applies to system prompts and <system-reminder> blocks only; API-Key accounts are unaffected.',
         antigravityUserAgentVersion: 'Antigravity UA Version',
         antigravityUserAgentVersionPlaceholder: '1.23.2',
         antigravityUserAgentVersionHint: 'Leave empty to use ANTIGRAVITY_USER_AGENT_VERSION or the built-in default 1.23.2; when set, the admin setting takes precedence.',
         openaiCodexUserAgent: 'OpenAI Codex UA',
         openaiCodexUserAgentPlaceholder: 'codex-tui/0.125.0 (Ubuntu 22.4.0; x86_64) xterm-256color (codex-tui; 0.125.0)',
         openaiCodexUserAgentHint: 'Used to bypass Cloudflare browser-UA challenges on the OpenAI upstream. Only applies when the client User-Agent is detected as a browser (Mozilla/...). Leave empty to use the built-in default.',
-        codexHardeningTitle: "Codex Settings",
-        codexClientRestrictionTitle: "Codex client restriction",
-        codexHardeningDesc:
-          "Only affects OpenAI OAuth accounts with 'Codex official clients only' enabled (global). Beyond User-Agent/Originator, harden the decision with a version range, an engine-fingerprint gate, and black/whitelists.",
-        minCodexVersion: "Min Codex Version",
-        minCodexVersionPlaceholder: "e.g. 0.142.0",
-        maxCodexVersion: "Max Codex Version",
-        maxCodexVersionPlaceholder: "e.g. 0.200.0",
-        codexVersionHint:
-          "Official clients only: checks their version against the [min, max] range. Leave a side empty to not limit it.",
-        codexFingerprintSignals: "Codex engine fingerprint signals",
-        codexFingerprintSignalsDesc:
-          "Define engine-fingerprint signals: every Required signal must match (AND); within a row, '/'-separated variants are OR'd. None checked = not enforced. Default checks only the x-codex- prefix. Types: header exact / header prefix / body path.",
-        codexFpTypeHeaderExact: "Header exact",
-        codexFpTypeHeaderPrefix: "Header prefix",
-        codexFpTypeBodyPath: "Body path",
-        codexFpMatchPlaceholder: "match; '/'-separate variants (e.g. session-id / session_id or x-codex-)",
-        codexFpRequired: "Required",
-        codexFingerprintNoRequiredWarn: "No signal is marked Required — the engine-fingerprint gate is inactive, allowing every candidate that passes identity/version. Check at least one signal to enable it.",
-        codexAllowAppServer: "Codex app-server",
-        codexAllowAppServerDesc:
-          "Allow third-party clients that embed the Codex engine and connect over the app-server protocol (e.g. Claude Code's codex plugin). Off by default; when on, such clients are allowed once they pass the engine-fingerprint gate (the signal list below); off = only official clients and the whitelist are allowed.",
-        codexBlacklist: "User-Agent/Originator Blacklist",
-        codexBlacklistDesc:
-          "Deny if any field matches; takes precedence over any allow. originator is exact; User-Agent is a 'contains' match (comma-separated).",
-        codexWhitelist: "User-Agent/Originator Whitelist",
-        codexWhitelistDesc:
-          "Allow clients outside the official set: requires exact originator and every User-Agent marker present. Still subject to the fingerprint gate unless 'Skip engine fingerprint' is checked.",
-        codexWhitelistSkipFingerprint: "Skip engine fingerprint",
-        codexWhitelistSkipFingerprintTooltip:
-          "Risk: when checked this entry is allowed on originator + User-Agent alone (both forgeable), with no engine-fingerprint backstop. Use only for trusted third-party clients that genuinely do not send a codex engine fingerprint.",
-        codexOriginatorPlaceholder: "originator (exact, e.g. opencode)",
-        codexUaContainsPlaceholder: "User-Agent contains markers, comma-separated (e.g. opencode/)",
-        codexAddRow: "Add entry",
-        codexRemoveRow: "Remove",
+        openaiAllowClaudeCodeCodexPlugin: "Allow using the Codex plugin in Claude Code",
+        openaiAllowClaudeCodeCodexPluginDesc:
+          "Global switch; only affects OpenAI OAuth accounts that have 'Codex official clients only' enabled. When on, all such accounts additionally allow requests from the Claude Code Codex plugin (exact match on originator=Claude Code) without per-account config; upstream requests remain pass-through.",
       },
       webSearchEmulation: {
         title: 'Web Search Emulation',
@@ -6079,7 +6436,7 @@ export default {
         apiBaseUrl: 'API Base URL',
         apiBaseUrlPlaceholder: 'https://api.example.com',
         apiBaseUrlHint:
-          'Used for "Use Key", "Import to CC Switch", and callback URL suggestions. Leave empty to use current site URL.',
+          'Used for "Use Key" and "Import to CC Switch" features. Leave empty to use current site URL.',
         tablePreferencesTitle: 'Global Table Preferences',
         tablePreferencesDescription: 'Configure default pagination behavior for shared table components',
         tableDefaultPageSize: 'Default Rows Per Page',
@@ -6122,17 +6479,17 @@ export default {
         hideCcsImportButtonHint: 'When enabled, the "Import to CCS" button will be hidden on the API Keys page'
       },
       purchase: {
-        title: 'Recharge / Subscription Page',
-        description: 'Show a "Recharge / Subscription" entry in the sidebar and open the configured URL in an iframe',
+        title: 'External Purchase Entry',
+        description: 'Show a "Recharge / Subscription" entry in the sidebar so users can buy in the external shop, then return on-site to redeem the credit',
         enabled: 'Show Recharge / Subscription Entry',
-        enabledHint: 'Only shown in standard mode (not simple mode)',
-        url: 'Recharge / Subscription URL',
-        urlPlaceholder: 'https://example.com/purchase',
-        urlHint: 'Must be an absolute http(s) URL',
+        enabledHint: 'Only shown in standard mode (not simple mode); intended for the temporary external-shop flow',
+        url: 'External Purchase URL',
+        urlPlaceholder: 'https://catfk.com/shop/SST',
+        urlHint: 'Must be an absolute http(s) URL; the frontend opens it in a new tab',
         iframeWarning:
-          '⚠️ iframe note: Some websites block embedding via X-Frame-Options or CSP (frame-ancestors). If the page is blank, provide an "Open in new tab" alternative.',
-        integrationDoc: 'Payment Integration Docs',
-        integrationDocHint: 'Covers endpoint specs, idempotency semantics, and code samples'
+          '⚠️ Temporary-flow note: this link is currently used as an external purchase destination, not an iframe embed target. After checkout, direct users back on-site to redeem the code.',
+        integrationDoc: 'Redeem / Payment Integration Docs',
+        integrationDocHint: 'Covers post-purchase redeem flow, API crediting, and idempotency semantics'
       },
       soraClient: {
         title: 'Sora Client',
@@ -6179,6 +6536,14 @@ export default {
         rechargeFeeRate: 'Recharge Fee Rate',
         rechargeFeeRateHint: 'Percentage of service fee charged on top of recharge amount, 0 means no fee',
         rechargeFeePreview: 'Preview: Recharge 100, fee {fee}',
+        rechargeCampaign: 'Recharge Campaign',
+        rechargeCampaignHint: 'Configure it as a campaign: once the threshold is met, the system adds extra credit on top of the credited balance.',
+        rechargeCampaignAmount: 'Campaign Threshold',
+        rechargeCampaignAmountHint: 'Bonus starts when the recharge amount reaches or exceeds this value.',
+        rechargeCampaignBonusRate: 'Bonus Rate',
+        rechargeCampaignBonusRateHint: 'Calculated as a percentage of the credited balance, from 0 to 100.',
+        rechargeCampaignPreview: 'Campaign Preview',
+        rechargeCampaignPreviewText: 'Bonus when reaching {amount}: {rate}%',
         orderTimeout: 'Order Timeout',
         orderTimeoutHint: 'In minutes, minimum 1',
         maxPendingOrders: 'Max Pending Orders',
@@ -6914,22 +7279,29 @@ export default {
     updating: 'Updating...',
     updateComplete: 'Update Complete',
     updateFailed: 'Update Failed',
+    preflightFailed: 'Update preflight failed',
     restartRequired: 'Please restart the service to apply the update',
     restartNow: 'Restart Now',
     restarting: 'Restarting...',
-    retry: 'Retry'
+    rollbackNow: 'Rollback Previous Version',
+    rollingBack: 'Rolling back...',
+    rollbackConfirm: 'Rollback to the previous version? The service still needs a restart after rollback.',
+    rollbackComplete: 'Rollback Complete',
+    rollbackFailed: 'Rollback Failed',
+    retry: 'Retry',
+    retryLater: 'retry in {seconds}s'
   },
 
   // Recharge / Subscription Page
   purchase: {
-    title: 'Recharge / Subscription',
-    description: 'Recharge balance or purchase subscription via the embedded page',
+    title: 'Recharge',
+    description: 'Recharge balance, review orders, and redeem credit after purchase',
     openInNewTab: 'Open in new tab',
     notEnabledTitle: 'Feature not enabled',
-    notEnabledDesc: 'The administrator has not enabled the recharge/subscription entry. Please contact admin.',
-    notConfiguredTitle: 'Recharge / Subscription URL not configured',
+    notEnabledDesc: 'The administrator has not enabled the recharge entry. Please contact admin.',
+    notConfiguredTitle: 'Purchase URL not configured',
     notConfiguredDesc:
-      'The administrator enabled the entry but has not configured a recharge/subscription URL. Please contact admin.'
+      'The administrator enabled the entry but has not configured an external purchase URL. Please contact admin.'
   },
 
   // Custom Page (iframe embed)
@@ -6940,10 +7312,6 @@ export default {
     notFoundDesc: 'This custom page does not exist or has been removed.',
     notConfiguredTitle: 'Page URL not configured',
     notConfiguredDesc: 'The URL for this custom page has not been properly configured.',
-    tableOfContents: 'Contents',
-    copyCode: 'Copy',
-    copiedCode: 'Copied',
-    copyCodeFailed: 'Failed'
   },
 
   // Announcements Page
@@ -7146,7 +7514,7 @@ export default {
 
   // Payment System
   payment: {
-    title: 'Recharge / Subscription',
+    title: 'Recharge',
     amountLabel: 'Amount',
     paymentAmount: 'Payment Amount',
     creditedBalance: 'Credited Balance',
@@ -7178,7 +7546,6 @@ export default {
       failed: 'Failed',
       refund_requested: 'Refund Requested',
       refunding: 'Refunding',
-      refund_pending: 'Refund Pending',
       refunded: 'Refunded',
       partially_refunded: 'Partially Refunded',
       refund_failed: 'Refund Failed',
@@ -7232,18 +7599,23 @@ export default {
     currentBalance: 'Current Balance',
     groupFallback: 'Group #{id}',
     rechargeAccount: 'Recharge Account',
-    activeSubscription: 'Active Subscription',
-    noActiveSubscription: 'No active subscription',
-    tabTopUp: 'Top Up',
-    tabSubscribe: 'Subscribe',
-    noPlans: 'No subscription plans available',
     notAvailable: 'Top-up is currently unavailable',
-    confirmSubscription: 'Confirm Subscription',
+    unavailableTitle: 'On-site payment is not available yet',
+    unavailableWithExternalPurchase: 'The on-site payment instance has not been enabled yet. You can place an order in the external shop first, then return to this page to redeem the code, or check your existing orders.',
     confirmCancel: 'Are you sure you want to cancel this order?',
     amountTooLow: 'Minimum amount is {min}',
     amountTooHigh: 'Maximum amount is {max}',
     amountNoMethod: 'No payment method available for this amount',
+    externalPurchaseKicker: 'Purchase flow',
+    externalPurchaseTitle: 'Buy in the external shop first, then come back here to redeem',
+    externalPurchaseDescription: '',
+    externalPurchaseAction: 'Go to shop',
+    goToRedeem: 'Go to redeem',
+    useRedeemCode: 'Use redeem code',
     rechargeRatePreview: 'Current rate: 1 CNY = {usd} USD',
+    rechargeCampaignBonus: 'Campaign Bonus',
+    rechargeCampaignTotal: 'Campaign Total',
+    rechargeCampaignPreview: 'When recharging {amount}, bonus {rate}% (example bonus {bonus})',
     refundReason: 'Refund Reason',
     refundReasonPlaceholder: 'Please describe your refund reason',
     stripeLoadFailed: 'Failed to load payment component. Please refresh and try again.',
@@ -7311,7 +7683,6 @@ export default {
     planFeatures: 'Features',
     planCard: {
       rate: 'Rate',
-      peakRate: 'Peak Rate',
       dailyLimit: 'Daily',
       weeklyLimit: 'Weekly',
       monthlyLimit: 'Monthly',
@@ -7368,8 +7739,6 @@ export default {
       refundReasonPlaceholder: 'Please enter refund reason',
       confirmRefund: 'Confirm Refund',
       refundSuccess: 'Refund successful',
-      refundPending: 'Refund pending gateway confirmation',
-      queryRefundStatus: 'Query refund status',
       refundInfo: 'Refund Info',
       refundEnabled: 'Refund Enabled',
       allowUserRefund: 'Allow User Refund',
@@ -7466,3 +7835,7 @@ export default {
   },
 
 }
+
+
+
+

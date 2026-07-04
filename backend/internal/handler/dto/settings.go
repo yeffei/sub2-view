@@ -186,17 +186,9 @@ type SystemSettings struct {
 	ClaudeOAuthSystemPromptBlocks          string `json:"claude_oauth_system_prompt_blocks"`
 	EnableAnthropicCacheTTL1hInjection     bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
 	RewriteMessageCacheControl             bool   `json:"rewrite_message_cache_control"`
-	EnableClientDatelineNormalization      bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
-
-	// codex_cli_only 加固
-	MinCodexVersion                      string `json:"min_codex_version"`
-	MaxCodexVersion                      string `json:"max_codex_version"`
-	CodexCLIOnlyBlacklist                string `json:"codex_cli_only_blacklist"`
-	CodexCLIOnlyWhitelist                string `json:"codex_cli_only_whitelist"`
-	CodexCLIOnlyAllowAppServerClients    bool   `json:"codex_cli_only_allow_app_server_clients"`
-	CodexCLIOnlyEngineFingerprintSignals string `json:"codex_cli_only_engine_fingerprint_signals"`
+	OpenAIAllowClaudeCodeCodexPlugin       bool   `json:"openai_allow_claude_code_codex_plugin"`
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`
@@ -221,6 +213,9 @@ type SystemSettings struct {
 	PaymentBalanceDisabled           bool     `json:"payment_balance_disabled"`
 	PaymentBalanceRechargeMultiplier float64  `json:"payment_balance_recharge_multiplier"`
 	PaymentRechargeFeeRate           float64  `json:"payment_recharge_fee_rate"`
+	PaymentRechargeCampaignEnabled   bool     `json:"payment_recharge_campaign_enabled"`
+	PaymentRechargeCampaignAmount    float64  `json:"payment_recharge_campaign_amount"`
+	PaymentRechargeCampaignBonusRate float64  `json:"payment_recharge_campaign_bonus_rate"`
 	PaymentLoadBalanceStrat          string   `json:"payment_load_balance_strategy"`
 	PaymentProductNamePrefix         string   `json:"payment_product_name_prefix"`
 	PaymentProductNameSuffix         string   `json:"payment_product_name_suffix"`
@@ -321,14 +316,10 @@ type PublicSettings struct {
 	BackendModeEnabled               bool                     `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool                     `json:"payment_enabled"`
 	Version                          string                   `json:"version"`
-	// 服务器全局时区（IANA 名称与当前 UTC 偏移，如 "Asia/Shanghai" / "+08:00"）。
-	// 高峰时段等按服务器本地时间判定的窗口，前端展示时据此标注，避免用户按浏览器本地时间误读。
-	ServerTimezone              string  `json:"server_timezone"`
-	ServerUTCOffset             string  `json:"server_utc_offset"`
-	BalanceLowNotifyEnabled     bool    `json:"balance_low_notify_enabled"`
-	AccountQuotaNotifyEnabled   bool    `json:"account_quota_notify_enabled"`
-	BalanceLowNotifyThreshold   float64 `json:"balance_low_notify_threshold"`
-	BalanceLowNotifyRechargeURL string  `json:"balance_low_notify_recharge_url"`
+	BalanceLowNotifyEnabled          bool                     `json:"balance_low_notify_enabled"`
+	AccountQuotaNotifyEnabled        bool                     `json:"account_quota_notify_enabled"`
+	BalanceLowNotifyThreshold        float64                  `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL      string                   `json:"balance_low_notify_recharge_url"`
 
 	ChannelMonitorEnabled                bool `json:"channel_monitor_enabled"`
 	ChannelMonitorDefaultIntervalSeconds int  `json:"channel_monitor_default_interval_seconds"`

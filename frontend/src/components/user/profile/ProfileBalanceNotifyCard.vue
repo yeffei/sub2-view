@@ -1,12 +1,9 @@
 <template>
-  <div class="card">
+  <div class="balance-notify-card card">
     <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <h2 class="text-lg font-medium text-gray-900 dark:text-white">
         {{ t('profile.balanceNotify.title') }}
       </h2>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        {{ t('profile.balanceNotify.description') }}
-      </p>
     </div>
     <div class="px-6 py-6 space-y-6">
       <!-- Enable toggle -->
@@ -14,7 +11,7 @@
         <label class="input-label mb-0">{{ t('profile.balanceNotify.enabled') }}</label>
         <label class="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" v-model="notifyEnabled" @change="handleToggle" class="sr-only peer" />
-          <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-gray-600 peer-checked:bg-primary-600"></div>
+          <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#a73a2a]/20 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:after:border-gray-600 peer-checked:bg-[#a73a2a]"></div>
         </label>
       </div>
 
@@ -57,7 +54,7 @@
               <div class="flex items-center gap-2 min-w-0 flex-1">
                 <label class="relative inline-flex items-center cursor-pointer shrink-0">
                   <input type="checkbox" :checked="!entry.disabled" @change="handleEmailToggle(entry)" class="sr-only peer" />
-                  <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-primary-600"></div>
+                  <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-[#a73a2a]"></div>
                 </label>
                 <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ entry.email }}</span>
               </div>
@@ -72,7 +69,7 @@
                       class="w-20 rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700"
                       :placeholder="t('profile.balanceNotify.codePlaceholder')"
                     />
-                    <button @click="verifySavedEmail(entry.email)" :disabled="!verifyCode || verifyCode.length !== 6 || verifyingSaved" class="text-xs text-primary-600 hover:text-primary-700">
+                    <button @click="verifySavedEmail(entry.email)" :disabled="!verifyCode || verifyCode.length !== 6 || verifyingSaved" class="text-xs text-[#a73a2a] hover:text-[#8f2f23]">
                       {{ t('profile.balanceNotify.verify') }}
                     </button>
                     <span v-if="verifyCountdown > 0" class="text-xs text-gray-400">{{ verifyCountdown }}s</span>
@@ -84,13 +81,13 @@
                     </button>
                   </template>
                   <template v-else>
-                    <button @click="sendCodeForSaved(entry.email)" :disabled="sendingSavedCode" class="text-xs text-primary-600 hover:text-primary-700">
+                    <button @click="sendCodeForSaved(entry.email)" :disabled="sendingSavedCode" class="text-xs text-[#a73a2a] hover:text-[#8f2f23]">
                       {{ t('profile.balanceNotify.verify') }}
                     </button>
                     <span class="text-xs text-yellow-500">{{ t('profile.balanceNotify.unverified') }}</span>
                   </template>
                 </template>
-                <span v-else class="text-xs text-green-500">{{ t('profile.balanceNotify.verified') }}</span>
+                <span v-else class="text-xs text-[#51624f] dark:text-emerald-300">{{ t('profile.balanceNotify.verified') }}</span>
                 <button @click="handleRemoveEmail(entry.email)" class="text-red-500 hover:text-red-700 text-xs">
                   {{ t('profile.balanceNotify.removeEmail') }}
                 </button>
@@ -104,7 +101,7 @@
               class="flex items-center gap-2 px-3 py-2 bg-yellow-50 dark:bg-yellow-900/10 rounded-lg border border-yellow-200 dark:border-yellow-800">
               <span class="flex-1 text-sm text-gray-700 dark:text-gray-300">{{ pe.email }}</span>
               <div v-if="!pe.codeSent" class="flex items-center gap-1">
-                <button @click="sendCodeFor(idx)" :disabled="pe.sending" class="text-xs text-primary-600 hover:text-primary-700">
+                <button @click="sendCodeFor(idx)" :disabled="pe.sending" class="text-xs text-[#a73a2a] hover:text-[#8f2f23]">
                   {{ t('profile.balanceNotify.sendCode') }}
                 </button>
                 <button @click="pendingEmails.splice(idx, 1)" class="text-xs text-red-500 hover:text-red-700 ml-1">
@@ -119,7 +116,7 @@
                   class="w-20 rounded border border-gray-300 px-2 py-1 text-xs dark:border-dark-500 dark:bg-dark-700"
                   :placeholder="t('profile.balanceNotify.codePlaceholder')"
                 />
-                <button @click="verifyPending(idx)" :disabled="!pe.code || pe.code.length !== 6 || pe.verifying" class="text-xs text-primary-600 hover:text-primary-700">
+                <button @click="verifyPending(idx)" :disabled="!pe.code || pe.code.length !== 6 || pe.verifying" class="text-xs text-[#a73a2a] hover:text-[#8f2f23]">
                   {{ t('profile.balanceNotify.verify') }}
                 </button>
                 <span v-if="pe.countdown > 0" class="text-xs text-gray-400">{{ pe.countdown }}s</span>
@@ -372,3 +369,83 @@ async function verifySavedEmail(email: string) {
   }
 }
 </script>
+
+<style scoped>
+.balance-notify-card :deep(.rounded-lg),
+.balance-notify-card :deep(.rounded-full) {
+  border-radius: 6px;
+}
+
+.dark .balance-notify-card :deep(.border-b),
+.dark .balance-notify-card :deep(.border-gray-100),
+.dark .balance-notify-card :deep(.dark\:border-dark-700) {
+  border-color: rgba(48, 52, 43, 0.95) !important;
+}
+
+.dark .balance-notify-card :deep(.bg-gray-50),
+.dark .balance-notify-card :deep(.dark\:bg-dark-700) {
+  background: rgba(17, 19, 15, 0.28) !important;
+}
+
+.dark .balance-notify-card :deep(.bg-yellow-50),
+.dark .balance-notify-card :deep(.dark\:bg-yellow-900\/10) {
+  border-color: rgba(155, 129, 85, 0.28) !important;
+  background: rgba(155, 129, 85, 0.1) !important;
+}
+
+.dark .balance-notify-card :deep(.border-yellow-200),
+.dark .balance-notify-card :deep(.dark\:border-yellow-800),
+.dark .balance-notify-card :deep(.border-gray-300),
+.dark .balance-notify-card :deep(.dark\:border-dark-500),
+.dark .balance-notify-card :deep(.after\:border-gray-300),
+.dark .balance-notify-card :deep(.dark\:after\:border-gray-500) {
+  border-color: rgba(48, 52, 43, 0.95) !important;
+}
+
+.dark .balance-notify-card :deep(.text-gray-900),
+.dark .balance-notify-card :deep(.dark\:text-white),
+.dark .balance-notify-card :deep(.text-gray-700),
+.dark .balance-notify-card :deep(.dark\:text-gray-300) {
+  color: #f4efe4 !important;
+}
+
+.dark .balance-notify-card :deep(.text-gray-500),
+.dark .balance-notify-card :deep(.text-gray-400),
+.dark .balance-notify-card :deep(.dark\:text-gray-400),
+.dark .balance-notify-card :deep(.text-yellow-600),
+.dark .balance-notify-card :deep(.dark\:text-yellow-400) {
+  color: #879186 !important;
+}
+
+.dark .balance-notify-card :deep(.text-\[\#a73a2a\]),
+.dark .balance-notify-card :deep(.hover\:text-\[\#8f2f23\]:hover),
+.dark .balance-notify-card :deep(.text-\[\#51624f\]),
+.dark .balance-notify-card :deep(.dark\:text-emerald-300) {
+  color: #f0b4a8 !important;
+}
+
+.dark .balance-notify-card :deep(.input) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+  color: #f4efe4;
+}
+
+.dark .balance-notify-card :deep(.input:hover),
+.dark .balance-notify-card :deep(.input:focus) {
+  border-color: rgba(167, 58, 42, 0.55);
+  background: rgba(24, 26, 21, 0.92);
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.16);
+}
+
+.dark .balance-notify-card :deep(.btn-secondary) {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(24, 26, 21, 0.72);
+  color: #d8cdb9;
+}
+
+.dark .balance-notify-card :deep(.btn-secondary:hover) {
+  border-color: rgba(167, 58, 42, 0.34);
+  background: rgba(167, 58, 42, 0.06);
+  color: #f0b4a8;
+}
+</style>

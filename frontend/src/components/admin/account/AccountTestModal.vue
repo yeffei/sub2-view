@@ -9,11 +9,11 @@
       <!-- Account Info Card -->
       <div
         v-if="account"
-        class="flex items-center justify-between rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100 p-3 dark:border-dark-500 dark:from-dark-700 dark:to-dark-600"
+        class="flex items-center justify-between rounded-lg border border-stone-200 bg-stone-50/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] dark:border-dark-500 dark:bg-dark-700/80"
       >
         <div class="flex items-center gap-3">
           <div
-            class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-600"
+            class="flex h-10 w-10 items-center justify-center rounded-lg bg-[#8a1f12] shadow-sm"
           >
             <Icon name="play" size="md" class="text-white" :stroke-width="2" />
           </div>
@@ -70,39 +70,34 @@
       <div class="group relative">
         <div
           ref="terminalRef"
-          class="max-h-[240px] min-h-[120px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
+          class="max-h-[280px] min-h-[150px] overflow-y-auto rounded-lg border border-stone-200 bg-[#fffdf7] p-4 text-sm leading-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-dark-500 dark:bg-dark-800"
         >
           <!-- Status Line -->
-          <div v-if="status === 'idle'" class="flex items-center gap-2 text-gray-500">
+          <div v-if="status === 'idle'" class="flex items-center gap-2 text-stone-500 dark:text-gray-400">
             <Icon name="play" size="sm" :stroke-width="2" />
             <span>{{ t('admin.accounts.readyToTest') }}</span>
           </div>
-          <div v-else-if="status === 'connecting'" class="flex items-center gap-2 text-yellow-400">
+          <div v-else-if="status === 'connecting'" class="flex items-center gap-2 text-[#8a1f12] dark:text-amber-300">
             <Icon name="refresh" size="sm" class="animate-spin" :stroke-width="2" />
             <span>{{ t('admin.accounts.connectingToApi') }}</span>
           </div>
 
           <!-- Output Lines -->
           <div v-for="(line, index) in outputLines" :key="index" :class="line.class">
-            {{ line.text }}
-          </div>
-
-          <!-- Streaming Content -->
-          <div v-if="streamingContent" class="text-green-400">
-            {{ streamingContent }}<span class="animate-pulse">_</span>
+            {{ line.text }}<span v-if="status === 'connecting' && index === outputLines.length - 1 && line.class === outputContentClass" class="animate-pulse">_</span>
           </div>
 
           <!-- Result Status -->
           <div
             v-if="status === 'success'"
-            class="mt-3 flex items-center gap-2 border-t border-gray-700 pt-3 text-green-400"
+            class="mt-3 flex items-center gap-2 border-t border-stone-200 pt-3 text-emerald-700 dark:border-dark-500 dark:text-emerald-300"
           >
             <Icon name="check" size="sm" :stroke-width="2" />
             <span>{{ t('admin.accounts.testCompleted') }}</span>
           </div>
           <div
             v-else-if="status === 'error'"
-            class="mt-3 flex items-center gap-2 border-t border-gray-700 pt-3 text-red-400"
+            class="mt-3 flex items-center gap-2 border-t border-stone-200 pt-3 text-red-600 dark:border-dark-500 dark:text-red-300"
           >
             <Icon name="x" size="sm" :stroke-width="2" />
             <span>{{ errorMessage }}</span>
@@ -113,7 +108,7 @@
         <button
           v-if="outputLines.length > 0"
           @click="copyOutput"
-          class="absolute right-2 top-2 rounded-lg bg-gray-800/80 p-1.5 text-gray-400 opacity-0 transition-all hover:bg-gray-700 hover:text-white group-hover:opacity-100"
+          class="absolute right-2 top-2 rounded-lg border border-stone-200 bg-white/90 p-1.5 text-stone-500 opacity-0 shadow-sm transition-all hover:border-[#8a1f12]/30 hover:text-[#8a1f12] group-hover:opacity-100 dark:border-dark-500 dark:bg-dark-700/90 dark:text-gray-300"
           :title="t('admin.accounts.copyOutput')"
         >
           <Icon name="link" size="sm" :stroke-width="2" />
@@ -238,7 +233,6 @@ import Select from '@/components/common/Select.vue'
 import TextArea from '@/components/common/TextArea.vue'
 import { Icon } from '@/components/icons'
 import { useClipboard } from '@/composables/useClipboard'
-import { buildApiUrl } from '@/api/client'
 import { adminAPI } from '@/api/admin'
 import type { Account, ClaudeModel } from '@/types'
 
@@ -254,6 +248,8 @@ interface PreviewImage {
   url: string
   mimeType?: string
 }
+
+const outputContentClass = 'whitespace-pre-wrap break-words font-mono text-[13px] text-emerald-700 dark:text-emerald-300'
 
 const props = defineProps<{
   show: boolean
@@ -379,6 +375,18 @@ const addLine = (text: string, className: string = 'text-gray-300') => {
   scrollToBottom()
 }
 
+const appendContent = (text: string) => {
+  if (!text) return
+  const lastLine = outputLines.value[outputLines.value.length - 1]
+  if (lastLine?.class === outputContentClass) {
+    lastLine.text += text
+  } else {
+    outputLines.value.push({ text, class: outputContentClass })
+  }
+  streamingContent.value = outputLines.value[outputLines.value.length - 1]?.text || ''
+  scrollToBottom()
+}
+
 const scrollToBottom = async () => {
   await nextTick()
   if (terminalRef.value) {
@@ -400,8 +408,8 @@ const startTest = async () => {
   abortController = new AbortController()
 
   try {
-    // Use the configured API base; EventSource does not support POST.
-    const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
+    // Create EventSource for SSE
+    const url = `/api/v1/admin/accounts/${props.account.id}/test`
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
     const response = await fetch(url, {
@@ -474,24 +482,23 @@ const handleEvent = (event: {
 }) => {
   switch (event.type) {
     case 'test_start':
-      addLine(t('admin.accounts.connectedToApi'), 'text-green-400')
+      addLine(t('admin.accounts.connectedToApi'), 'text-emerald-700 dark:text-emerald-300')
       if (event.model) {
-        addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-cyan-400')
+        addLine(t('admin.accounts.usingModel', { model: event.model }), 'text-sky-700 dark:text-sky-300')
       }
       addLine(
         supportsImageTest.value
             ? t('admin.accounts.sendingImageRequest')
             : t('admin.accounts.sendingTestMessage'),
-        'text-gray-400'
+        'text-stone-500 dark:text-gray-400'
       )
-      addLine('', 'text-gray-300')
-      addLine(t('admin.accounts.response'), 'text-yellow-400')
+      addLine('', 'text-stone-400')
+      addLine(t('admin.accounts.response'), 'text-[#8a1f12] dark:text-amber-300')
       break
 
     case 'content':
       if (event.text) {
-        streamingContent.value += event.text
-        scrollToBottom()
+        appendContent(event.text)
       }
       break
 
@@ -506,11 +513,7 @@ const handleEvent = (event: {
       break
 
     case 'test_complete':
-      // Move streaming content to output lines
-      if (streamingContent.value) {
-        addLine(streamingContent.value, 'text-green-300')
-        streamingContent.value = ''
-      }
+      streamingContent.value = ''
       if (event.success) {
         status.value = 'success'
       } else {
@@ -522,10 +525,7 @@ const handleEvent = (event: {
     case 'error':
       status.value = 'error'
       errorMessage.value = event.error || 'Unknown error'
-      if (streamingContent.value) {
-        addLine(streamingContent.value, 'text-green-300')
-        streamingContent.value = ''
-      }
+      streamingContent.value = ''
       break
   }
 }

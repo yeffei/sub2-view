@@ -11,7 +11,6 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,7 +25,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -156,6 +154,7 @@ type BulkUpdateAccountFilters struct {
 	Platform    string `json:"platform"`
 	Type        string `json:"type"`
 	Status      string `json:"status"`
+	AnomalyReason string `json:"anomaly_reason"`
 	Group       string `json:"group"`
 	Search      string `json:"search"`
 	PrivacyMode string `json:"privacy_mode"`
@@ -172,10 +171,19 @@ type CheckMixedChannelRequest struct {
 type AccountWithConcurrency struct {
 	*dto.Account
 	CurrentConcurrency int `json:"current_concurrency"`
+	Health             *AccountHealthSummary `json:"health,omitempty"`
 	// 以下字段仅对 Anthropic OAuth/SetupToken 账号有效，且仅在启用相应功能时返回
 	CurrentWindowCost *float64 `json:"current_window_cost,omitempty"` // 当前窗口费用
 	ActiveSessions    *int     `json:"active_sessions,omitempty"`     // 当前活跃会话数
 	CurrentRPM        *int     `json:"current_rpm,omitempty"`         // 当前分钟 RPM 计数
+}
+
+type AccountHealthSummary struct {
+	Score      int      `json:"score"`
+	Level      string   `json:"level"`
+	Label      string   `json:"label"`
+	Reasons    []string `json:"reasons"`
+	NextAction string   `json:"next_action,omitempty"`
 }
 
 const accountListGroupUngroupedQueryValue = "ungrouped"
@@ -221,9 +229,140 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 		}
 	}
 
-	h.enrichShadowParents(ctx, []AccountWithConcurrency{item})
+	item.Health = buildAccountHealthSummary(account, item.CurrentConcurrency, item.CurrentWindowCost, item.ActiveSessions, item.CurrentRPM)
 
 	return item
+}
+
+func buildAccountHealthSummary(
+	account *service.Account,
+	currentConcurrency int,
+	currentWindowCost *float64,
+	activeSessions *int,
+	currentRPM *int,
+) *AccountHealthSummary {
+	if account == nil {
+		return nil
+	}
+
+	now := time.Now()
+	score := 100
+	reasons := make([]string, 0, 4)
+	nextAction := ""
+	addReason := func(points int, reason string, action string) {
+		score -= points
+		if reason != "" {
+			reasons = append(reasons, reason)
+		}
+		if nextAction == "" && action != "" {
+			nextAction = action
+		}
+	}
+
+	if account.Status == service.StatusError {
+		addReason(55, "账号处于错误状态", "查看错误信息并执行恢复状态或重新授权")
+	} else if account.Status != service.StatusActive {
+		addReason(40, "账号未启用", "启用账号后再参与调度")
+	}
+
+	if !account.Schedulable {
+		addReason(35, "已暂停调度", "确认后可重新开启调度")
+	}
+
+	if account.AutoPauseOnExpired && account.ExpiresAt != nil && !now.Before(*account.ExpiresAt) {
+		addReason(45, "账号已过期并自动暂停", "刷新凭证或更新过期时间")
+	}
+
+	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
+		reason := "临时冷却中"
+		if strings.TrimSpace(account.TempUnschedulableReason) != "" {
+			reason = "临时冷却中：" + strings.TrimSpace(account.TempUnschedulableReason)
+		}
+		addReason(35, reason, "等待冷却结束，或确认风险后恢复状态")
+	}
+
+	if account.RateLimitResetAt != nil && now.Before(*account.RateLimitResetAt) {
+		addReason(30, "上游限流中", "等待限流窗口结束，或切换/补充账号池")
+	}
+
+	if account.OverloadUntil != nil && now.Before(*account.OverloadUntil) {
+		addReason(30, "上游过载冷却中", "等待过载冷却结束，或降低该账号调度权重")
+	}
+
+	if account.IsAPIKeyOrBedrock() && account.IsQuotaExceeded() {
+		addReason(45, "账号配额已耗尽", "重置配额或调整预算上限")
+	}
+
+	if account.Concurrency > 0 && currentConcurrency >= account.Concurrency {
+		addReason(18, "并发已满", "等待请求完成，或提高并发上限")
+	} else if account.Concurrency > 0 && currentConcurrency >= int(float64(account.Concurrency)*0.8) {
+		addReason(8, "并发接近上限", "观察请求堆积情况")
+	}
+
+	if currentWindowCost != nil {
+		limit := account.GetWindowCostLimit()
+		if limit > 0 {
+			ratio := *currentWindowCost / limit
+			switch {
+			case ratio >= 1:
+				addReason(28, "5h 费用窗口已达阈值", "等待窗口重置或调整费用阈值")
+			case ratio >= 0.8:
+				addReason(12, "5h 费用窗口接近阈值", "关注成本水位")
+			}
+		}
+	}
+
+	if activeSessions != nil {
+		maxSessions := account.GetMaxSessions()
+		if maxSessions > 0 {
+			ratio := float64(*activeSessions) / float64(maxSessions)
+			switch {
+			case ratio >= 1:
+				addReason(20, "活跃会话已满", "等待会话空闲释放或提高会话上限")
+			case ratio >= 0.8:
+				addReason(8, "活跃会话接近上限", "观察会话占用")
+			}
+		}
+	}
+
+	if currentRPM != nil {
+		baseRPM := account.GetBaseRPM()
+		if baseRPM > 0 {
+			ratio := float64(*currentRPM) / float64(baseRPM)
+			switch {
+			case ratio >= 1:
+				addReason(20, "RPM 已达基础上限", "等待分钟窗口恢复或提高 RPM 上限")
+			case ratio >= 0.8:
+				addReason(8, "RPM 接近基础上限", "观察短时请求峰值")
+			}
+		}
+	}
+
+	if score < 0 {
+		score = 0
+	}
+
+	level := "good"
+	label := "安稳"
+	if score < 50 {
+		level = "critical"
+		label = "需处理"
+	} else if score < 75 {
+		level = "warning"
+		label = "需留意"
+	}
+
+	if len(reasons) == 0 {
+		reasons = append(reasons, "运行状态正常")
+	}
+
+	return &AccountHealthSummary{
+		Score:      score,
+		Level:      level,
+		Label:      label,
+		Reasons:    reasons,
+		NextAction: nextAction,
+	}
 }
 
 // List handles listing all accounts with pagination
@@ -233,6 +372,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 	platform := c.Query("platform")
 	accountType := c.Query("type")
 	status := c.Query("status")
+	anomalyReason := strings.TrimSpace(c.Query("anomaly_reason"))
 	search := c.Query("search")
 	privacyMode := strings.TrimSpace(c.Query("privacy_mode"))
 	sortBy := c.DefaultQuery("sort_by", "name")
@@ -262,7 +402,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 	}
 
-	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, search, groupID, privacyMode, sortBy, sortOrder)
+	accounts, total, err := h.adminService.ListAccounts(c.Request.Context(), page, pageSize, platform, accountType, status, anomalyReason, search, groupID, privacyMode, sortBy, sortOrder)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -381,10 +521,10 @@ func (h *AccountHandler) List(c *gin.Context) {
 			}
 		}
 
+		item.Health = buildAccountHealthSummary(acc, item.CurrentConcurrency, item.CurrentWindowCost, item.ActiveSessions, item.CurrentRPM)
+
 		result[i] = item
 	}
-
-	h.enrichShadowParents(c.Request.Context(), result)
 
 	etag := buildAccountsListETag(result, total, page, pageSize, platform, accountType, status, search, lite)
 	if etag != "" {
@@ -838,12 +978,6 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	if !account.IsOAuth() {
 		return nil, "", infraerrors.BadRequest("NOT_OAUTH", "cannot refresh non-OAuth account")
 	}
-	// spark 影子凭据由母账号管理、自身恒空,刷新无意义且会先打上游;在调用上游前早拒
-	// (覆盖单账号与批量两入口;批量侧将其计为 failed 并附说明)(外审第6轮)。
-	if account.IsCredentialShadow() {
-		return nil, "", infraerrors.BadRequest("SPARK_SHADOW_NO_REFRESH",
-			"cannot refresh spark shadow account; its credentials are managed by the parent account")
-	}
 
 	var newCredentials map[string]any
 
@@ -861,7 +995,6 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 				newCredentials[k] = v
 			}
 		}
-		newCredentials = service.NormalizeOpenAIPersonalAccessTokenCredentials(account, tokenInfo, newCredentials)
 	} else if account.Platform == service.PlatformGemini {
 		tokenInfo, err := h.geminiOAuthService.RefreshAccountToken(ctx, account)
 		if err != nil {
@@ -1614,6 +1747,7 @@ func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) *servi
 		Platform:    filters.Platform,
 		Type:        filters.Type,
 		Status:      filters.Status,
+		AnomalyReason: filters.AnomalyReason,
 		Group:       filters.Group,
 		Search:      filters.Search,
 		PrivacyMode: filters.PrivacyMode,
@@ -1824,7 +1958,7 @@ func (h *AccountHandler) ResetQuota(c *gin.Context) {
 	}
 
 	if err := h.adminService.ResetAccountQuota(c.Request.Context(), accountID); err != nil {
-		response.ErrorFrom(c, err)
+		response.InternalError(c, "Failed to reset account quota: "+err.Error())
 		return
 	}
 
@@ -2076,56 +2210,6 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
-	// Handle Grok accounts
-	if account.Platform == service.PlatformGrok {
-		defaultModels := xai.DefaultModels()
-
-		hasExplicitMapping := false
-		switch rawMapping := account.Credentials["model_mapping"].(type) {
-		case map[string]any:
-			hasExplicitMapping = len(rawMapping) > 0
-		case map[string]string:
-			hasExplicitMapping = len(rawMapping) > 0
-		}
-		if !hasExplicitMapping {
-			response.Success(c, defaultModels)
-			return
-		}
-
-		mapping := account.GetModelMapping()
-		if len(mapping) == 0 {
-			response.Success(c, defaultModels)
-			return
-		}
-
-		defaultByID := make(map[string]xai.Model, len(defaultModels))
-		for _, model := range defaultModels {
-			defaultByID[model.ID] = model
-		}
-
-		requestedModels := make([]string, 0, len(mapping))
-		for requestedModel := range mapping {
-			requestedModels = append(requestedModels, requestedModel)
-		}
-		sort.Strings(requestedModels)
-
-		var models []xai.Model
-		for _, requestedModel := range requestedModels {
-			if defaultModel, found := defaultByID[requestedModel]; found {
-				models = append(models, defaultModel)
-				continue
-			}
-			models = append(models, xai.Model{
-				ID:          requestedModel,
-				Object:      "model",
-				OwnedBy:     "xai",
-				DisplayName: requestedModel,
-			})
-		}
-		response.Success(c, models)
-		return
-	}
-
 	// Handle Claude/Anthropic accounts
 	// For OAuth and Setup-Token accounts: return default models
 	if account.IsOAuth() {
@@ -2372,7 +2456,7 @@ func (h *AccountHandler) BatchRefreshTier(c *gin.Context) {
 	accounts := make([]*service.Account, 0)
 
 	if len(req.AccountIDs) == 0 {
-		allAccounts, _, err := h.adminService.ListAccounts(ctx, 1, 10000, "gemini", "oauth", "", "", 0, "", "name", "asc")
+		allAccounts, _, err := h.adminService.ListAccounts(ctx, 1, 10000, "gemini", "oauth", "", "", "", 0, "", "name", "asc")
 		if err != nil {
 			response.ErrorFrom(c, err)
 			return

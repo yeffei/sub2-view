@@ -5,30 +5,71 @@
 
 import { i18n, getLocale } from '@/i18n'
 
+function resolveI18nText(
+  key: string,
+  params: Record<string, unknown> | undefined,
+  fallback: { zh: string, en: string }
+): string {
+  const translated = params ? i18n.global.t(key, params) : i18n.global.t(key)
+  if (translated && translated !== key) {
+    return translated
+  }
+
+  return getLocale() === 'zh' ? fallback.zh : fallback.en
+}
+
 /**
  * 格式化相对时间
  * @param date 日期字符串或 Date 对象
  * @returns 相对时间字符串，如 "5m ago", "2h ago", "3d ago"
  */
 export function formatRelativeTime(date: string | Date | null | undefined): string {
-  if (!date) return i18n.global.t('common.time.never')
+  if (!date) {
+    return resolveI18nText('common.time.never', undefined, {
+      zh: '从未',
+      en: 'Never',
+    })
+  }
 
   const now = new Date()
   const past = new Date(date)
   const diffMs = now.getTime() - past.getTime()
 
   // 处理未来时间或无效日期
-  if (diffMs < 0 || isNaN(diffMs)) return i18n.global.t('common.time.never')
+  if (diffMs < 0 || isNaN(diffMs)) {
+    return resolveI18nText('common.time.never', undefined, {
+      zh: '从未',
+      en: 'Never',
+    })
+  }
 
   const diffSecs = Math.floor(diffMs / 1000)
   const diffMins = Math.floor(diffSecs / 60)
   const diffHours = Math.floor(diffMins / 60)
   const diffDays = Math.floor(diffHours / 24)
 
-  if (diffDays > 0) return i18n.global.t('common.time.daysAgo', { n: diffDays })
-  if (diffHours > 0) return i18n.global.t('common.time.hoursAgo', { n: diffHours })
-  if (diffMins > 0) return i18n.global.t('common.time.minutesAgo', { n: diffMins })
-  return i18n.global.t('common.time.justNow')
+  if (diffDays > 0) {
+    return resolveI18nText('common.time.daysAgo', { n: diffDays }, {
+      zh: `${diffDays}天前`,
+      en: `${diffDays}d ago`,
+    })
+  }
+  if (diffHours > 0) {
+    return resolveI18nText('common.time.hoursAgo', { n: diffHours }, {
+      zh: `${diffHours}小时前`,
+      en: `${diffHours}h ago`,
+    })
+  }
+  if (diffMins > 0) {
+    return resolveI18nText('common.time.minutesAgo', { n: diffMins }, {
+      zh: `${diffMins}分钟前`,
+      en: `${diffMins}m ago`,
+    })
+  }
+  return resolveI18nText('common.time.justNow', undefined, {
+    zh: '刚刚',
+    en: 'Just now',
+  })
 }
 
 /**

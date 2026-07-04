@@ -25,6 +25,9 @@ const (
 	SettingBalancePayDisabled  = "BALANCE_PAYMENT_DISABLED"
 	SettingBalanceRechargeMult = "BALANCE_RECHARGE_MULTIPLIER"
 	SettingRechargeFeeRate     = "RECHARGE_FEE_RATE"
+	SettingRechargeCampaignEnabled   = SettingKeyPaymentRechargeCampaignEnabled
+	SettingRechargeCampaignAmount    = SettingKeyPaymentRechargeCampaignAmount
+	SettingRechargeCampaignBonusRate = SettingKeyPaymentRechargeCampaignBonusRate
 	SettingProductNamePrefix   = "PRODUCT_NAME_PREFIX"
 	SettingProductNameSuffix   = "PRODUCT_NAME_SUFFIX"
 	SettingHelpImageURL        = "PAYMENT_HELP_IMAGE_URL"
@@ -55,6 +58,9 @@ type PaymentConfig struct {
 	BalanceDisabled           bool     `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64  `json:"balance_recharge_multiplier"`
 	RechargeFeeRate           float64  `json:"recharge_fee_rate"`
+	RechargeCampaignEnabled   bool     `json:"recharge_campaign_enabled"`
+	RechargeCampaignAmount    float64  `json:"recharge_campaign_amount"`
+	RechargeCampaignBonusRate float64  `json:"recharge_campaign_bonus_rate"`
 	LoadBalanceStrategy       string   `json:"load_balance_strategy"`
 	ProductNamePrefix         string   `json:"product_name_prefix"`
 	ProductNameSuffix         string   `json:"product_name_suffix"`
@@ -85,6 +91,9 @@ type UpdatePaymentConfigRequest struct {
 	BalanceDisabled           *bool    `json:"balance_disabled"`
 	BalanceRechargeMultiplier *float64 `json:"balance_recharge_multiplier"`
 	RechargeFeeRate           *float64 `json:"recharge_fee_rate"`
+	RechargeCampaignEnabled   *bool    `json:"recharge_campaign_enabled"`
+	RechargeCampaignAmount    *float64 `json:"recharge_campaign_amount"`
+	RechargeCampaignBonusRate *float64 `json:"recharge_campaign_bonus_rate"`
 	LoadBalanceStrategy       *string  `json:"load_balance_strategy"`
 	ProductNamePrefix         *string  `json:"product_name_prefix"`
 	ProductNameSuffix         *string  `json:"product_name_suffix"`
@@ -205,6 +214,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 		SettingPaymentEnabled, SettingMinRechargeAmount, SettingMaxRechargeAmount,
 		SettingDailyRechargeLimit, SettingOrderTimeoutMinutes, SettingMaxPendingOrders,
 		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
+		SettingRechargeCampaignEnabled, SettingRechargeCampaignAmount, SettingRechargeCampaignBonusRate,
 		SettingProductNamePrefix, SettingProductNameSuffix,
 		SettingHelpImageURL, SettingHelpText,
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
@@ -234,6 +244,9 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		BalanceDisabled:           vals[SettingBalancePayDisabled] == "true",
 		BalanceRechargeMultiplier: normalizeBalanceRechargeMultiplier(pcParseFloat(vals[SettingBalanceRechargeMult], defaultBalanceRechargeMultiplier)),
 		RechargeFeeRate:           pcParseFloat(vals[SettingRechargeFeeRate], 0),
+		RechargeCampaignEnabled:   vals[SettingRechargeCampaignEnabled] == "true",
+		RechargeCampaignAmount:    pcParseFloat(vals[SettingRechargeCampaignAmount], 100),
+		RechargeCampaignBonusRate: pcParseFloat(vals[SettingRechargeCampaignBonusRate], 10),
 		LoadBalanceStrategy:       vals[SettingLoadBalanceStrategy],
 		ProductNamePrefix:         vals[SettingProductNamePrefix],
 		ProductNameSuffix:         vals[SettingProductNameSuffix],
@@ -304,6 +317,18 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate allows at most 2 decimal places")
 		}
 	}
+	if req.RechargeCampaignAmount != nil {
+		v := *req.RechargeCampaignAmount
+		if math.IsNaN(v) || math.IsInf(v, 0) || v <= 0 {
+			return infraerrors.BadRequest("INVALID_RECHARGE_CAMPAIGN_AMOUNT", "recharge campaign amount must be greater than 0")
+		}
+	}
+	if req.RechargeCampaignBonusRate != nil {
+		v := *req.RechargeCampaignBonusRate
+		if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 || v > 100 {
+			return infraerrors.BadRequest("INVALID_RECHARGE_CAMPAIGN_BONUS_RATE", "recharge campaign bonus rate must be between 0 and 100")
+		}
+	}
 	m := map[string]string{
 		SettingPaymentEnabled:                    formatBoolOrEmpty(req.Enabled),
 		SettingMinRechargeAmount:                 formatPositiveFloat(req.MinAmount),
@@ -314,6 +339,9 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		SettingBalancePayDisabled:                formatBoolOrEmpty(req.BalanceDisabled),
 		SettingBalanceRechargeMult:               formatPositiveFloat(req.BalanceRechargeMultiplier),
 		SettingRechargeFeeRate:                   formatNonNegativeFloat(req.RechargeFeeRate),
+		SettingRechargeCampaignEnabled:           formatBoolOrEmpty(req.RechargeCampaignEnabled),
+		SettingRechargeCampaignAmount:            formatPositiveFloat(req.RechargeCampaignAmount),
+		SettingRechargeCampaignBonusRate:          formatNonNegativeFloat(req.RechargeCampaignBonusRate),
 		SettingLoadBalanceStrategy:               derefStr(req.LoadBalanceStrategy),
 		SettingProductNamePrefix:                 derefStr(req.ProductNamePrefix),
 		SettingProductNameSuffix:                 derefStr(req.ProductNameSuffix),

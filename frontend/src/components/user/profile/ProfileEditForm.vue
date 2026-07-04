@@ -11,7 +11,8 @@
     <div :class="props.embedded ? '' : 'px-6 py-6'">
       <form @submit.prevent="handleUpdateProfile" class="space-y-4">
         <div v-if="props.embedded">
-          <p class="text-sm font-semibold text-gray-900 dark:text-white">
+          <span class="profile-form-kicker">资料更新</span>
+          <p class="text-sm font-semibold text-zen-ink dark:text-zen-paper">
             {{ t('profile.editProfile') }}
           </p>
         </div>
@@ -83,3 +84,19 @@ const handleUpdateProfile = async () => {
   }
 }
 </script>
+
+<style scoped>
+.profile-form-kicker {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dark .profile-form-kicker {
+  color: #879186;
+}
+</style>

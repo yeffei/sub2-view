@@ -5,44 +5,40 @@
     width="wide"
     @close="emit('close')"
   >
-    <div class="space-y-4">
+    <div class="use-key-scroll">
       <!-- No Group Assigned Warning -->
-      <div v-if="!platform" class="flex items-start gap-3 p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800">
-        <svg class="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+      <div v-if="!platform" class="use-key-warning">
+        <svg class="use-key-warning-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
         </svg>
         <div>
-          <p class="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+          <p>
             {{ t('keys.useKeyModal.noGroupTitle') }}
           </p>
-          <p class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+          <small>
             {{ t('keys.useKeyModal.noGroupDescription') }}
-          </p>
+          </small>
         </div>
       </div>
 
       <!-- Platform-specific content -->
       <template v-else>
         <!-- Description -->
-        <p class="text-sm text-gray-600 dark:text-gray-400">
+        <p class="use-key-intro">
           {{ platformDescription }}
         </p>
 
         <!-- Client Tabs -->
-        <div v-if="clientTabs.length" class="border-b border-gray-200 dark:border-dark-700">
-          <nav class="-mb-px flex space-x-6" aria-label="Client">
+        <div v-if="clientTabs.length" class="use-key-tabs">
+          <span>客户端</span>
+          <nav aria-label="Client">
             <button
               v-for="tab in clientTabs"
               :key="tab.id"
               @click="activeClientTab = tab.id"
-              :class="[
-                'whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors',
-                activeClientTab === tab.id
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              ]"
+              :class="{ 'is-active': activeClientTab === tab.id }"
             >
-              <span class="flex items-center gap-2">
+              <span>
                 <component :is="tab.icon" class="w-4 h-4" />
                 {{ tab.label }}
               </span>
@@ -51,20 +47,16 @@
         </div>
 
         <!-- OS/Shell Tabs -->
-        <div v-if="showShellTabs" class="border-b border-gray-200 dark:border-dark-700">
-          <nav class="-mb-px flex space-x-4" aria-label="Tabs">
+        <div v-if="showShellTabs" class="use-key-tabs use-key-tabs-secondary">
+          <span>环境</span>
+          <nav aria-label="Tabs">
             <button
               v-for="tab in currentTabs"
               :key="tab.id"
               @click="activeTab = tab.id"
-              :class="[
-                'whitespace-nowrap py-2.5 px-1 border-b-2 font-medium text-sm transition-colors',
-                activeTab === tab.id
-                  ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-              ]"
+              :class="{ 'is-active': activeTab === tab.id }"
             >
-              <span class="flex items-center gap-2">
+              <span>
                 <component :is="tab.icon" class="w-4 h-4" />
                 {{ tab.label }}
               </span>
@@ -73,27 +65,24 @@
         </div>
 
         <!-- Code Blocks (Stacked for multi-file platforms) -->
-        <div class="space-y-4">
+        <div class="use-key-files">
           <div
             v-for="(file, index) in currentFiles"
             :key="index"
-            class="relative"
+            class="use-key-file"
           >
             <!-- File Hint (if exists) -->
-            <p v-if="file.hint" class="text-xs text-amber-600 dark:text-amber-400 mb-1.5 flex items-center gap-1">
-              <Icon name="exclamationCircle" size="sm" class="flex-shrink-0" />
+            <p v-if="file.hint" class="use-key-file-hint">
+              <Icon name="exclamationCircle" size="sm" />
               {{ file.hint }}
             </p>
-            <div class="bg-gray-900 dark:bg-dark-900 rounded-xl overflow-hidden">
+            <div class="use-key-code-card">
               <!-- Code Header -->
-              <div class="flex items-center justify-between px-4 py-2 bg-gray-800 dark:bg-dark-800 border-b border-gray-700 dark:border-dark-700">
-                <span class="text-xs text-gray-400 font-mono">{{ file.path }}</span>
+              <div class="use-key-code-head">
+                <span>{{ file.path }}</span>
                 <button
                   @click="copyContent(file.content, index)"
-                  class="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-colors"
-                  :class="copiedIndex === index
-                    ? 'bg-green-500/20 text-green-400'
-                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white'"
+                  :class="{ 'is-copied': copiedIndex === index }"
                 >
                   <svg v-if="copiedIndex === index" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
@@ -105,15 +94,15 @@
                 </button>
               </div>
               <!-- Code Content -->
-              <pre class="p-4 text-sm font-mono text-gray-100 overflow-x-auto"><code v-if="file.highlighted" v-html="file.highlighted"></code><code v-else v-text="file.content"></code></pre>
+              <pre><code v-if="file.highlighted" v-html="file.highlighted"></code><code v-else v-text="file.content"></code></pre>
             </div>
           </div>
         </div>
 
         <!-- Usage Note -->
-        <div v-if="showPlatformNote" class="flex items-start gap-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-          <Icon name="infoCircle" size="md" class="text-blue-500 flex-shrink-0 mt-0.5" />
-          <p class="text-sm text-blue-700 dark:text-blue-300">
+        <div v-if="showPlatformNote" class="use-key-note">
+          <Icon name="infoCircle" size="md" />
+          <p>
             {{ platformNote }}
           </p>
         </div>
@@ -442,22 +431,19 @@ function generateAnthropicFiles(baseUrl: string, apiKey: string): FileConfig[] {
       path = 'Terminal'
       content = `export ANTHROPIC_BASE_URL="${baseUrl}"
 export ANTHROPIC_AUTH_TOKEN="${apiKey}"
-export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-export CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'cmd':
       path = 'Command Prompt'
       content = `set ANTHROPIC_BASE_URL=${baseUrl}
 set ANTHROPIC_AUTH_TOKEN=${apiKey}
-set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-set CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+set CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     case 'powershell':
       path = 'PowerShell'
       content = `$env:ANTHROPIC_BASE_URL="${baseUrl}"
 $env:ANTHROPIC_AUTH_TOKEN="${apiKey}"
-$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-$env:CLAUDE_CODE_ATTRIBUTION_HEADER=0`
+$env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
       break
     default:
       path = 'Terminal'
@@ -689,6 +675,22 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       limit: {
         context: 128000,
         output: 32000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {}
+      }
+    },
+    'gpt-5.3-codex': {
+      name: 'GPT-5.3 Codex',
+      limit: {
+        context: 400000,
+        output: 128000
       },
       options: {
         store: false
@@ -1065,3 +1067,234 @@ const copyContent = async (content: string, index: number) => {
   }
 }
 </script>
+
+<style scoped>
+.use-key-scroll {
+  display: grid;
+  gap: 1rem;
+  color: #1f2320;
+}
+
+.use-key-warning,
+.use-key-note {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.72rem;
+  border-left: 2px solid #9b8155;
+  background: rgba(250, 247, 239, 0.58);
+  padding: 0.78rem 0.86rem;
+}
+
+.use-key-warning-icon,
+.use-key-note :deep(svg) {
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #a73a2a;
+}
+
+.use-key-warning p,
+.use-key-note p {
+  color: #38413a;
+  font-size: 0.86rem;
+  line-height: 1.7;
+}
+
+.use-key-warning small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #59645a;
+  font-size: 0.78rem;
+  line-height: 1.65;
+}
+
+.use-key-intro {
+  border-bottom: 1px solid rgba(216, 205, 185, 0.68);
+  padding-bottom: 0.78rem;
+  color: #59645a;
+  font-size: 0.88rem;
+  line-height: 1.8;
+}
+
+.use-key-tabs {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.use-key-tabs > span {
+  color: #7b6a53;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+}
+
+.use-key-tabs nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.use-key-tabs button {
+  border: 1px solid rgba(216, 205, 185, 0.74);
+  border-radius: 999px;
+  background: rgba(250, 247, 239, 0.52);
+  padding: 0.42rem 0.66rem;
+  color: #59645a;
+  font-size: 0.78rem;
+  font-weight: 650;
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.use-key-tabs button span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.use-key-tabs button:hover,
+.use-key-tabs button:focus-visible,
+.use-key-tabs button.is-active {
+  border-color: rgba(167, 58, 42, 0.36);
+  background: rgba(167, 58, 42, 0.08);
+  color: #a73a2a;
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.use-key-tabs-secondary button {
+  padding-block: 0.34rem;
+  font-size: 0.74rem;
+}
+
+.use-key-files {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.use-key-file {
+  min-width: 0;
+}
+
+.use-key-file-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  margin-bottom: 0.45rem;
+  color: #8f6e2d;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.use-key-code-card {
+  overflow: hidden;
+  border: 1px solid rgba(31, 35, 32, 0.28);
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.08), transparent 30%),
+    #181b17;
+  box-shadow: 0 18px 42px -34px rgba(31, 35, 32, 0.55);
+}
+
+.use-key-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid rgba(244, 239, 228, 0.12);
+  background: rgba(244, 239, 228, 0.045);
+  padding: 0.58rem 0.76rem;
+}
+
+.use-key-code-head > span {
+  overflow: hidden;
+  color: #d8cdb9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.use-key-code-head button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.34rem;
+  border: 1px solid rgba(216, 205, 185, 0.18);
+  border-radius: 999px;
+  background: rgba(244, 239, 228, 0.08);
+  padding: 0.26rem 0.52rem;
+  color: #d8cdb9;
+  font-size: 0.72rem;
+  font-weight: 650;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.use-key-code-head button:hover,
+.use-key-code-head button:focus-visible,
+.use-key-code-head button.is-copied {
+  border-color: rgba(240, 180, 168, 0.42);
+  background: rgba(167, 58, 42, 0.22);
+  color: #f4efe4;
+  outline: none;
+}
+
+.use-key-code-card pre {
+  max-height: min(42vh, 30rem);
+  overflow: auto;
+  margin: 0;
+  padding: 0.95rem;
+  color: #f4efe4;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  line-height: 1.72;
+  scrollbar-width: thin;
+}
+
+.use-key-code-card code {
+  white-space: pre;
+}
+
+.dark .use-key-scroll {
+  color: #f4efe4;
+}
+
+.dark .use-key-warning,
+.dark .use-key-note {
+  background: rgba(24, 26, 21, 0.72);
+}
+
+.dark .use-key-warning p,
+.dark .use-key-note p {
+  color: #d8cdb9;
+}
+
+.dark .use-key-warning small,
+.dark .use-key-intro {
+  color: #879186;
+}
+
+.dark .use-key-tabs button {
+  border-color: rgba(48, 52, 43, 0.95);
+  background: rgba(17, 19, 15, 0.44);
+  color: #d8cdb9;
+}
+
+.dark .use-key-tabs button:hover,
+.dark .use-key-tabs button:focus-visible,
+.dark .use-key-tabs button.is-active {
+  border-color: rgba(167, 58, 42, 0.42);
+  background: rgba(167, 58, 42, 0.16);
+  color: #f0b4a8;
+}
+
+@media (max-width: 640px) {
+  .use-key-code-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .use-key-code-card pre {
+    max-height: 24rem;
+    font-size: 0.76rem;
+  }
+}
+</style>

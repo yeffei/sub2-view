@@ -29,6 +29,10 @@ func (r *runtimeBlockRecorder) ClearAccountSchedulingBlock(accountID int64) {
 	r.clearedIDs = append(r.clearedIDs, accountID)
 }
 
+func (r *runtimeBlockRecorder) OpenAIRoutingPoolMode5xxCooldown(ctx context.Context, groupID *int64, defaultCooldown time.Duration) time.Duration {
+	return defaultCooldown
+}
+
 func TestRateLimitService_HandleUpstreamError_OpenAI403FirstHitTempUnschedulable(t *testing.T) {
 	repo := &rateLimitAccountRepoStub{}
 	counter := &openAI403CounterCacheStub{counts: []int64{1}}

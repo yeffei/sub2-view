@@ -24,6 +24,7 @@ type SystemHandler struct {
 
 type systemUpdateService interface {
 	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
+	CheckUpdatePreflight(ctx context.Context, force bool) (*service.UpdatePreflightInfo, error)
 	PerformUpdate(ctx context.Context) error
 	Rollback() error
 }
@@ -50,6 +51,18 @@ func (h *SystemHandler) GetVersion(c *gin.Context) {
 func (h *SystemHandler) CheckUpdates(c *gin.Context) {
 	force := c.Query("force") == "true"
 	info, err := h.updateSvc.CheckUpdate(c.Request.Context(), force)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, info)
+}
+
+// CheckUpdatePreflight checks whether the current deployment can safely apply a release update.
+// GET /api/v1/admin/system/update/preflight
+func (h *SystemHandler) CheckUpdatePreflight(c *gin.Context) {
+	force := c.Query("force") == "true"
+	info, err := h.updateSvc.CheckUpdatePreflight(c.Request.Context(), force)
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return

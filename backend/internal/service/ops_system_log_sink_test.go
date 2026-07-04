@@ -51,11 +51,25 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "routing explanation component",
+			event: &logger.LogEvent{Level: "info", Component: "routing.explanation"},
+			want:  true,
+		},
+		{
 			name: "audit component from fields (real zap path)",
 			event: &logger.LogEvent{
 				Level:     "info",
 				Component: "",
 				Fields:    map[string]any{"component": "audit.log_config_change"},
+			},
+			want: true,
+		},
+		{
+			name: "routing explanation from fields (real zap path)",
+			event: &logger.LogEvent{
+				Level:     "info",
+				Component: "",
+				Fields:    map[string]any{"component": "routing.explanation"},
 			},
 			want: true,
 		},
@@ -155,7 +169,6 @@ func TestOpsSystemLogSink_StartStopAndFlushSuccess(t *testing.T) {
 			"request_id":        "req-1",
 			"client_request_id": "creq-1",
 			"user_id":           "12",
-			"api_key_id":        int64(56),
 			"account_id":        json.Number("34"),
 			"platform":          "openai",
 			"model":             "gpt-5",
@@ -177,9 +190,6 @@ func TestOpsSystemLogSink_StartStopAndFlushSuccess(t *testing.T) {
 	}
 	if item.UserID == nil || *item.UserID != 12 {
 		t.Fatalf("unexpected user_id: %+v", item.UserID)
-	}
-	if item.APIKeyID == nil || *item.APIKeyID != 56 {
-		t.Fatalf("unexpected api_key_id: %+v", item.APIKeyID)
 	}
 	if item.AccountID == nil || *item.AccountID != 34 {
 		t.Fatalf("unexpected account_id: %+v", item.AccountID)

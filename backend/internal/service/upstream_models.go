@@ -154,7 +154,6 @@ func (s *AccountTestService) buildAnthropicUpstreamModelsRequest(ctx context.Con
 	baseURL := "https://api.anthropic.com"
 	authHeaderName := ""
 	authHeaderValue := ""
-	apiKeyAuthToken := ""
 	betaHeader := ""
 
 	if account.IsOAuth() {
@@ -181,7 +180,8 @@ func (s *AccountTestService) buildAnthropicUpstreamModelsRequest(ctx context.Con
 		if strings.TrimSpace(baseURL) == "" {
 			baseURL = "https://api.anthropic.com"
 		}
-		apiKeyAuthToken = apiKey
+		authHeaderName = "x-api-key"
+		authHeaderValue = apiKey
 		betaHeader = claude.APIKeyBetaHeader
 	} else {
 		return nil, newUpstreamModelSyncUnsupportedError(
@@ -203,11 +203,7 @@ func (s *AccountTestService) buildAnthropicUpstreamModelsRequest(ctx context.Con
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
 	req.Header.Set("anthropic-beta", betaHeader)
-	if authHeaderName != "" {
-		req.Header.Set(authHeaderName, authHeaderValue)
-	} else {
-		setAnthropicAPIKeyAuthHeader(req.Header, account, apiKeyAuthToken)
-	}
+	req.Header.Set(authHeaderName, authHeaderValue)
 	return req, nil
 }
 

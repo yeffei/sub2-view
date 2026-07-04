@@ -1,9 +1,10 @@
 <template>
-  <div class="card">
+  <div class="sst-email-template-editor">
     <div
-      class="flex flex-col gap-3 border-b border-gray-100 px-6 py-4 dark:border-dark-700 lg:flex-row lg:items-start lg:justify-between"
+      class="sst-email-template-header"
     >
-      <div>
+      <div class="sst-email-template-header-copy">
+        <span class="sst-email-template-kicker">山枢庭 · 通知文书</span>
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
           {{ t("admin.settings.emailTemplates.title") }}
         </h2>
@@ -11,7 +12,7 @@
           {{ t("admin.settings.emailTemplates.description") }}
         </p>
       </div>
-      <div class="flex flex-wrap gap-2">
+      <div class="sst-email-template-header-actions">
         <button
           type="button"
           class="btn btn-secondary btn-sm"
@@ -42,7 +43,7 @@
     <div class="space-y-6 p-6">
       <div
         v-if="loadingList"
-        class="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+        class="sst-email-template-loading"
       >
         <span
           class="h-4 w-4 animate-spin rounded-full border-b-2 border-primary-600"
@@ -51,8 +52,13 @@
       </div>
 
       <template v-else>
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
+        <div class="sst-email-template-toolbar">
+          <div class="sst-email-template-toolbar-copy">
+            <span class="sst-email-template-toolbar-label">编排范围</span>
+            <p>{{ selectionSummary }}</p>
+          </div>
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:min-w-[32rem]">
+            <div>
             <label class="input-label" for="email-template-event">
               {{ t("admin.settings.emailTemplates.event") }}
             </label>
@@ -70,8 +76,8 @@
                 {{ formatEventOptionLabel(option) }}
               </option>
             </select>
-          </div>
-          <div>
+            </div>
+            <div>
             <label class="input-label" for="email-template-locale">
               {{ t("admin.settings.emailTemplates.locale") }}
             </label>
@@ -89,12 +95,13 @@
                 {{ formatLocale(localeOption) }}
               </option>
             </select>
+            </div>
           </div>
         </div>
 
         <div
           v-if="selectedEventMeta"
-          class="rounded-lg border border-primary-100 bg-primary-50/70 p-4 dark:border-primary-900/50 dark:bg-primary-950/20"
+          class="sst-email-template-meta"
         >
           <div class="flex flex-wrap items-center gap-2">
             <div class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -128,6 +135,27 @@
         </div>
 
         <div
+          v-if="eventOptions.length && localeOptions.length"
+          class="sst-email-template-status-grid"
+        >
+          <section class="sst-email-template-status-card">
+            <span class="sst-email-template-status-label">当前版本</span>
+            <strong>{{ currentTemplateStateLabel }}</strong>
+            <p>{{ currentTemplateStateHint }}</p>
+          </section>
+          <section class="sst-email-template-status-card">
+            <span class="sst-email-template-status-label">最近改动</span>
+            <strong>{{ currentTemplateUpdatedAtText }}</strong>
+            <p>{{ templateInventorySummary }}</p>
+          </section>
+          <section class="sst-email-template-status-card">
+            <span class="sst-email-template-status-label">变量目录</span>
+            <strong>{{ placeholderList.length }}</strong>
+            <p>{{ placeholderSummary }}</p>
+          </section>
+        </div>
+
+        <div
           v-if="!eventOptions.length || !localeOptions.length"
           class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
         >
@@ -136,7 +164,14 @@
 
         <div v-else class="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div class="space-y-4">
-            <div>
+            <section class="sst-email-template-panel">
+              <div class="sst-email-template-panel-heading">
+                <h3>主题与正文</h3>
+                <p>按事件与语言维护主题及 HTML 内容，保留占位符即可复用系统变量。</p>
+              </div>
+
+              <div class="space-y-4">
+                <div>
               <label class="input-label" for="email-template-subject">
                 {{ t("admin.settings.emailTemplates.subject") }}
               </label>
@@ -148,9 +183,9 @@
                 :disabled="loadingTemplate"
                 :placeholder="t('admin.settings.emailTemplates.subjectPlaceholder')"
               />
-            </div>
+                </div>
 
-            <div>
+                <div>
               <label class="input-label" for="email-template-html">
                 {{ t("admin.settings.emailTemplates.html") }}
               </label>
@@ -162,17 +197,20 @@
                 :disabled="loadingTemplate"
                 :placeholder="t('admin.settings.emailTemplates.htmlPlaceholder')"
               ></textarea>
-            </div>
+                </div>
+              </div>
+            </section>
 
             <div
-              class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60"
+              class="sst-email-template-panel sst-email-template-placeholder-panel"
             >
-              <div class="text-sm font-medium text-gray-900 dark:text-white">
+              <div class="sst-email-template-panel-heading">
+                <h3>{{ t("admin.settings.emailTemplates.placeholders") }}</h3>
+                <p>{{ t("admin.settings.emailTemplates.placeholdersHelp") }}</p>
+              </div>
+              <div class="sr-only text-sm font-medium text-gray-900 dark:text-white">
                 {{ t("admin.settings.emailTemplates.placeholders") }}
               </div>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {{ t("admin.settings.emailTemplates.placeholdersHelp") }}
-              </p>
               <div class="mt-3 flex flex-wrap gap-2">
                 <button
                   v-for="placeholder in placeholderList"
@@ -188,12 +226,8 @@
           </div>
 
           <div class="space-y-4">
-            <div
-              class="rounded-lg border border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800"
-            >
-              <div
-                class="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-dark-700"
-              >
+            <div class="sst-email-template-preview-shell">
+              <div class="sst-email-template-preview-header">
                 <div>
                   <div class="text-sm font-medium text-gray-900 dark:text-white">
                     {{ t("admin.settings.emailTemplates.livePreview") }}
@@ -209,7 +243,7 @@
                   {{ t("admin.settings.emailTemplates.customized") }}
                 </span>
               </div>
-              <div class="bg-gray-100 p-3 dark:bg-dark-900">
+              <div class="sst-email-template-preview-frame">
                 <iframe
                   class="h-[36rem] w-full rounded-md border border-gray-200 bg-white dark:border-dark-700"
                   sandbox=""
@@ -236,6 +270,7 @@ import { adminAPI } from "@/api";
 import type {
   EmailTemplateEventOption,
   EmailTemplateOption,
+  EmailTemplateSummary,
 } from "@/api/admin/settings";
 import { useAppStore } from "@/stores";
 import { extractApiErrorMessage } from "@/utils/apiError";
@@ -287,6 +322,8 @@ const fallbackPlaceholders = [
   "{{report_start_time}}",
   "{{report_end_time}}",
   "{{report_html}}",
+  "{{model}}",
+  "{{upstream_message}}",
 ];
 
 const loadingList = ref(true);
@@ -296,6 +333,7 @@ const previewing = ref(false);
 const restoring = ref(false);
 const eventOptions = ref<EmailTemplateOption[]>([]);
 const localeOptions = ref<string[]>([]);
+const templateSummaries = ref<EmailTemplateSummary[]>([]);
 const selectedEvent = ref("");
 const selectedLocale = ref("");
 const subject = ref("");
@@ -367,6 +405,11 @@ const eventDisplayMeta: Record<string, EventDisplayMeta> = {
     timing: "内容审计违规次数达到封禁阈值并自动禁用用户账号时发送。",
     categoryLabel: "风控",
   },
+  "content_moderation.cyber_policy_notice": {
+    label: "网络安全策略拦截提醒",
+    timing: "请求被上游网络安全策略拦截时发送，便于说明触发时间、分组、模型与上游提示。",
+    categoryLabel: "风控",
+  },
   "ops.alert": {
     label: "运维告警",
     timing: "运维监控规则触发告警并满足邮件通知配置时发送给运维收件人。",
@@ -428,6 +471,11 @@ const eventDisplayMetaEn: Record<string, EventDisplayMeta> = {
   "content_moderation.account_disabled": {
     label: "Risk Control Account Disabled",
     timing: "Sent when content moderation reaches the ban threshold and automatically disables the user account.",
+    categoryLabel: "Risk Control",
+  },
+  "content_moderation.cyber_policy_notice": {
+    label: "Cyber Policy Notice",
+    timing: "Sent when an upstream cyber-security policy blocks a request, with the trigger time, group, model, and upstream explanation.",
     categoryLabel: "Risk Control",
   },
   "ops.alert": {
@@ -504,6 +552,68 @@ const selectedEventDescription = computed(() => {
   );
 });
 
+const totalTemplateCount = computed(() => templateSummaries.value.length);
+
+const customTemplateCount = computed(
+  () => templateSummaries.value.filter((template) => template.is_custom).length,
+);
+
+const currentTemplateSummary = computed(() => {
+  return (
+    templateSummaries.value.find(
+      (template) =>
+        template.event === selectedEvent.value &&
+        template.locale === selectedLocale.value,
+    ) || null
+  );
+});
+
+const currentTemplateStateLabel = computed(() => {
+  return isCustomTemplate.value
+    ? localText("已自定义", "Customized")
+    : localText("官方默认", "Official");
+});
+
+const currentTemplateStateHint = computed(() => {
+  return isCustomTemplate.value
+    ? localText("当前事件与语言正在使用覆盖版本。", "This event and locale currently use an overridden template.")
+    : localText("当前事件与语言正在使用系统内置模板。", "This event and locale currently use the built-in template.");
+});
+
+const currentTemplateUpdatedAtText = computed(() => {
+  const updatedAt = currentTemplateSummary.value?.updated_at;
+  if (!updatedAt) {
+    return localText("未单独修改", "No custom update yet");
+  }
+  return formatTimestamp(updatedAt);
+});
+
+const templateInventorySummary = computed(() => {
+  if (!totalTemplateCount.value) {
+    return localText("等待加载可编辑模板目录。", "Loading the editable template catalog.");
+  }
+  return localText(
+    `当前共 ${totalTemplateCount.value} 份模板，其中 ${customTemplateCount.value} 份为自定义版本。`,
+    `${totalTemplateCount.value} templates are available, with ${customTemplateCount.value} customized versions.`,
+  );
+});
+
+const placeholderSummary = computed(() => {
+  return localText(
+    `当前可用 ${placeholderList.value.length} 个占位符，可直接复制到主题或 HTML 中。`,
+    `${placeholderList.value.length} placeholders are available to copy into the subject or HTML.`,
+  );
+});
+
+const selectionSummary = computed(() => {
+  const eventLabel = selectedEventMeta.value?.label || localText("未选择事件", "No event selected");
+  const localeLabel = selectedLocale.value ? formatLocale(selectedLocale.value) : localText("未选择语言", "No locale selected");
+  return localText(
+    `当前正在编排 ${eventLabel} 的 ${localeLabel} 模板，并同步预览邮件主题与正文。${templateInventorySummary.value}`,
+    `You are editing the ${localeLabel} template for ${eventLabel}, with the subject and HTML preview kept in sync. ${templateInventorySummary.value}`,
+  );
+});
+
 const placeholderList = computed(() => {
   const combined = [...placeholders.value, ...fallbackPlaceholders];
   return Array.from(
@@ -560,16 +670,58 @@ function selectInitialLocale(locales: string[]): string {
   return locales[0] || "";
 }
 
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(locale.value, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function upsertTemplateSummary(summary: EmailTemplateSummary) {
+  const next = [...templateSummaries.value];
+  const index = next.findIndex(
+    (template) =>
+      template.event === summary.event &&
+      template.locale === summary.locale,
+  );
+  if (index >= 0) {
+    next[index] = summary;
+  } else {
+    next.push(summary);
+  }
+  templateSummaries.value = next;
+}
+
 function applyTemplate(template: {
+  event?: string;
+  locale?: string;
   subject: string;
   html: string;
   is_custom?: boolean;
+  updated_at?: string;
   placeholders?: string[];
 }) {
   subject.value = template.subject;
   html.value = template.html;
   isCustomTemplate.value = template.is_custom === true;
   placeholders.value = template.placeholders || [];
+
+  const eventValue = template.event || selectedEvent.value;
+  const localeValue = template.locale || selectedLocale.value;
+  if (eventValue && localeValue) {
+    upsertTemplateSummary({
+      event: eventValue,
+      locale: localeValue,
+      subject: template.subject,
+      is_custom: template.is_custom,
+      updated_at: template.updated_at,
+    });
+  }
 }
 
 async function loadTemplate() {
@@ -595,6 +747,7 @@ async function loadTemplateList() {
     const response = await adminAPI.settings.getEmailTemplates();
     eventOptions.value = response.events.map(normalizeEventOption);
     localeOptions.value = response.locales;
+    templateSummaries.value = response.templates || [];
     placeholders.value = response.placeholders || [];
     initializingSelection.value = true;
     selectedEvent.value = eventOptions.value[0]?.value || "";
@@ -697,3 +850,162 @@ onMounted(() => {
   void loadTemplateList();
 });
 </script>
+
+<style scoped>
+.sst-email-template-editor {
+  border: 1px solid rgba(198, 184, 157, 0.46);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top left, rgba(167, 58, 42, 0.06), transparent 28%),
+    linear-gradient(180deg, rgba(252, 249, 243, 0.98), rgba(248, 243, 232, 0.92));
+  box-shadow: 0 24px 52px -42px rgba(58, 48, 34, 0.38);
+}
+
+.sst-email-template-header {
+  @apply flex flex-col gap-4 border-b px-6 py-5 lg:flex-row lg:items-start lg:justify-between;
+  border-color: rgba(198, 184, 157, 0.42);
+}
+
+.sst-email-template-header-copy {
+  @apply space-y-1;
+}
+
+.sst-email-template-kicker {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em];
+  color: #8b5e3c;
+  background: rgba(167, 58, 42, 0.08);
+}
+
+.sst-email-template-header-actions {
+  @apply flex flex-wrap gap-2;
+}
+
+.sst-email-template-loading {
+  @apply flex items-center gap-2 rounded-xl border px-4 py-3 text-sm;
+  border-color: rgba(198, 184, 157, 0.38);
+  background: rgba(255, 252, 246, 0.75);
+  color: #6a6a63;
+}
+
+.sst-email-template-toolbar {
+  @apply flex flex-col gap-4 rounded-2xl border px-4 py-4 xl:flex-row xl:items-start xl:justify-between;
+  border-color: rgba(198, 184, 157, 0.4);
+  background: rgba(255, 252, 246, 0.72);
+}
+
+.sst-email-template-toolbar-copy {
+  @apply space-y-2;
+}
+
+.sst-email-template-toolbar-label {
+  @apply inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em];
+  color: #8b5e3c;
+  background: rgba(167, 58, 42, 0.08);
+}
+
+.sst-email-template-toolbar-copy p {
+  @apply text-sm leading-6;
+  color: #5f6257;
+}
+
+.sst-email-template-meta,
+.sst-email-template-panel,
+.sst-email-template-preview-shell {
+  border: 1px solid rgba(198, 184, 157, 0.42);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 243, 231, 0.84));
+  box-shadow: 0 18px 42px -38px rgba(58, 48, 34, 0.32);
+}
+
+.sst-email-template-meta {
+  @apply p-4;
+}
+
+.sst-email-template-status-grid {
+  @apply grid grid-cols-1 gap-3 md:grid-cols-3;
+}
+
+.sst-email-template-status-card {
+  @apply rounded-2xl border px-4 py-4;
+  border-color: rgba(198, 184, 157, 0.38);
+  background: rgba(255, 252, 246, 0.76);
+}
+
+.sst-email-template-status-card strong {
+  @apply mt-2 block text-base font-semibold text-gray-900 dark:text-white;
+}
+
+.sst-email-template-status-card p {
+  @apply mt-2 text-xs leading-6 text-gray-500 dark:text-gray-400;
+}
+
+.sst-email-template-status-label {
+  @apply text-[11px] font-medium uppercase tracking-[0.18em];
+  color: #8b5e3c;
+}
+
+.sst-email-template-panel {
+  @apply p-4 sm:p-5;
+}
+
+.sst-email-template-panel-heading {
+  @apply mb-4 space-y-1;
+}
+
+.sst-email-template-panel-heading h3 {
+  @apply text-sm font-semibold text-gray-900 dark:text-white;
+}
+
+.sst-email-template-panel-heading p {
+  @apply text-xs leading-6 text-gray-500 dark:text-gray-400;
+}
+
+.sst-email-template-placeholder-panel :deep(button) {
+  box-shadow: 0 10px 18px -18px rgba(58, 48, 34, 0.42);
+}
+
+.sst-email-template-preview-header {
+  @apply flex items-center justify-between gap-3 border-b px-4 py-4 sm:px-5;
+  border-color: rgba(198, 184, 157, 0.36);
+}
+
+.sst-email-template-preview-frame {
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(239, 232, 218, 0.72), rgba(247, 242, 233, 0.82));
+}
+
+</style>
+<style>
+.dark .sst-email-template-editor,
+.dark .sst-email-template-toolbar,
+.dark .sst-email-template-meta,
+.dark .sst-email-template-status-card,
+.dark .sst-email-template-panel,
+.dark .sst-email-template-preview-shell,
+.dark .sst-email-template-loading {
+  border-color: rgba(58, 61, 54, 0.96);
+  background:
+    linear-gradient(180deg, rgba(24, 26, 21, 0.92), rgba(18, 20, 16, 0.96));
+}
+
+.dark .sst-email-template-header {
+  border-color: rgba(58, 61, 54, 0.96);
+}
+
+.dark .sst-email-template-kicker,
+.dark .sst-email-template-toolbar-label,
+.dark .sst-email-template-status-label {
+  color: #e7b58e;
+  background: rgba(167, 58, 42, 0.22);
+}
+
+.dark .sst-email-template-toolbar-copy p {
+  color: #9ea49a;
+}
+
+.dark .sst-email-template-preview-frame {
+  background: rgba(16, 18, 14, 0.76);
+}
+</style>
