@@ -1771,12 +1771,13 @@ func lightweightAccountProbeTarget(account *Account, modelID string) (accountPro
 		return accountProbeTarget{}, false
 	}
 	return accountProbeTarget{
-		AccountID: account.ID,
-		Provider:  provider,
-		Model:     model,
-		Endpoint:  endpoint,
-		APIKey:    apiKey,
-		APIMode:   accountProbeAPIMode(account),
+		AccountID:  account.ID,
+		Provider:   provider,
+		Model:      model,
+		Endpoint:   endpoint,
+		APIKey:     apiKey,
+		APIMode:    accountProbeAPIMode(account),
+		AuthScheme: accountProbeAuthScheme(account),
 	}, true
 }
 

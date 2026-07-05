@@ -68,6 +68,31 @@ func TestRunAccountProbeTarget_ChatUsesOnlyHiAndOneToken(t *testing.T) {
 	require.Equal(t, "Bearer sk-test", h.lastHeaders.Get("Authorization"))
 }
 
+func TestRunAccountProbeTarget_AnthropicBearerAuthScheme(t *testing.T) {
+	h := &captureHandler{respondText: monitorLightweightPrompt}
+	endpoint := setupFakeAnthropic(t, h)
+
+	row := runAccountProbeTarget(t.Context(), accountProbeTarget{
+		AccountID:  1,
+		PoolID:     2,
+		Provider:   MonitorProviderAnthropic,
+		Model:      "claude-opus-4-8",
+		Endpoint:   endpoint,
+		APIKey:     "sk-test",
+		AuthScheme: AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+	})
+
+	require.Equal(t, MonitorStatusOperational, row.Status)
+	messages, _ := h.lastBody["messages"].([]any)
+	require.Len(t, messages, 1)
+	msg, _ := messages[0].(map[string]any)
+	require.Equal(t, monitorLightweightPrompt, strings.TrimSpace(stringFromAny(msg["content"])))
+	require.Equal(t, float64(monitorLightweightMaxTokens), h.lastBody["max_tokens"])
+	require.Equal(t, "Bearer sk-test", h.lastHeaders.Get("Authorization"))
+	require.Empty(t, h.lastHeaders.Get("x-api-key"))
+	require.Equal(t, monitorAnthropicAPIVersion, h.lastHeaders.Get("anthropic-version"))
+}
+
 func TestRunTestBackgroundWithMode_LightweightResponsesUsesMinimalViableProbe(t *testing.T) {
 	h := &openAICaptureHandler{}
 	endpoint := setupFakeOpenAI(t, h)

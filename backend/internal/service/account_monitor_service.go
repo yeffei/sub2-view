@@ -33,14 +33,15 @@ type AccountMonitorService struct {
 }
 
 type accountProbeTarget struct {
-	AccountID int64
-	PoolID    int64
-	GroupID   int64
-	Provider  string
-	Model     string
-	Endpoint  string
-	APIKey    string
-	APIMode   string
+	AccountID  int64
+	PoolID     int64
+	GroupID    int64
+	Provider   string
+	Model      string
+	Endpoint   string
+	APIKey     string
+	APIMode    string
+	AuthScheme string
 }
 
 func NewAccountMonitorService(
@@ -105,13 +106,14 @@ func (s *AccountMonitorService) buildProbeTargets(ctx context.Context) ([]accoun
 			}
 			seen[key] = struct{}{}
 			target := accountProbeTarget{
-				AccountID: account.ID,
-				PoolID:    pool.ID,
-				Provider:  pool.Platform,
-				Model:     account.GetMappedModel(model),
-				Endpoint:  endpoint,
-				APIKey:    apiKey,
-				APIMode:   accountProbeAPIMode(account),
+				AccountID:  account.ID,
+				PoolID:     pool.ID,
+				Provider:   pool.Platform,
+				Model:      account.GetMappedModel(model),
+				Endpoint:   endpoint,
+				APIKey:     apiKey,
+				APIMode:    accountProbeAPIMode(account),
+				AuthScheme: accountProbeAuthScheme(account),
 			}
 			if groupID != nil {
 				target.GroupID = *groupID
@@ -155,8 +157,9 @@ func (s *AccountMonitorService) runProbeTargets(ctx context.Context, targets []a
 func runAccountProbeTarget(ctx context.Context, target accountProbeTarget) *AccountMonitorHistoryRow {
 	pingMs := pingEndpointOrigin(ctx, target.Endpoint)
 	result := runCheckForModel(ctx, target.Provider, target.Endpoint, target.APIKey, target.Model, &CheckOptions{
-		Lightweight: true,
-		APIMode:     target.APIMode,
+		Lightweight:      true,
+		APIMode:          target.APIMode,
+		APIKeyAuthScheme: target.AuthScheme,
 	})
 	result.PingLatencyMs = pingMs
 	poolID := target.PoolID
@@ -187,6 +190,13 @@ func accountProbeAPIMode(account *Account) string {
 		return MonitorAPIModeResponses
 	}
 	return MonitorAPIModeChatCompletions
+}
+
+func accountProbeAuthScheme(account *Account) string {
+	if account == nil || account.Platform != PlatformAnthropic || account.Type != AccountTypeAPIKey {
+		return ""
+	}
+	return account.GetAnthropicAPIKeyAuthScheme()
 }
 
 func accountProbeCandidate(member UpstreamPoolMember, account *Account, poolPlatform string) bool {

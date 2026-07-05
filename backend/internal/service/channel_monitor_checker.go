@@ -42,6 +42,8 @@ func newSSRFSafeHTTPClient(timeout time.Duration) *http.Client {
 type CheckOptions struct {
 	// APIMode 仅对 OpenAI provider 生效；空串等同 chat_completions。
 	APIMode string
+	// APIKeyAuthScheme 仅用于账号/上游池自动探针，区分 Anthropic API Key 上游认证头。
+	APIKeyAuthScheme string
 	// Lightweight 用于账号/上游池自动探针：只发极短输入、限制 1 个输出 token。
 	// 该模式只做可用性确认，不做 challenge 文本校验，避免周期探测消耗过多 token。
 	Lightweight bool
@@ -309,7 +311,7 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 	if err != nil {
 		return "", "", 0, err
 	}
-	headers := mergeHeaders(adapter.buildHeaders(apiKey), opts)
+	headers := mergeHeaders(buildProviderHeaders(provider, adapter, apiKey, opts), opts)
 	full := joinURL(endpoint, adapter.buildPath(model))
 	respBytes, status, err := postRawJSON(ctx, full, body, headers)
 	if err != nil {
@@ -322,6 +324,16 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 		return extractOpenAIChatText(respBytes), string(respBytes), status, nil
 	}
 	return gjson.GetBytes(respBytes, adapter.textPath).String(), string(respBytes), status, nil
+}
+
+func buildProviderHeaders(provider string, adapter providerAdapter, apiKey string, opts *CheckOptions) map[string]string {
+	if provider == MonitorProviderAnthropic && opts != nil && opts.APIKeyAuthScheme == AnthropicAPIKeyAuthSchemeAuthorizationBearer {
+		return map[string]string{
+			"Authorization":     "Bearer " + apiKey,
+			"anthropic-version": monitorAnthropicAPIVersion,
+		}
+	}
+	return adapter.buildHeaders(apiKey)
 }
 
 // extractOpenAIChatText 尽量从 OpenAI-compatible chat/completions 响应中提取最终文本。
