@@ -117,7 +117,7 @@ func (s *UpstreamPoolRecoveryProbeRunnerService) runScheduled() {
 	var candidates []int64
 	for i := range pools {
 		pool := pools[i]
-		if !pool.Enabled || pool.Platform != PlatformOpenAI {
+		if !pool.Enabled || !isUpstreamPoolRecoverySupportedPlatform(pool.Platform) {
 			continue
 		}
 		members, err := s.upstreamPoolRepo.ListUpstreamPoolMembers(ctx, pool.ID)
@@ -180,11 +180,14 @@ func (s *UpstreamPoolRecoveryProbeRunnerService) runOneCandidate(ctx context.Con
 	if account.LastUsedAt != nil && time.Since(*account.LastUsedAt) < upstreamPoolRecoveryProbeMinAge {
 		return
 	}
-	if account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+	if !isUpstreamPoolRecoverySupportedAccount(account) {
 		return
 	}
 
 	result := runUpstreamPoolRecoveryLightweightProbe(ctx, account)
+	if result == nil && s.accountTestSvc != nil {
+		result, _ = s.accountTestSvc.RunTestBackground(ctx, account.ID, probeModelForPool(account.Platform, nil))
+	}
 	if result == nil {
 		logger.LegacyPrintf("service.upstream_pool_recovery_probe", "[UpstreamPoolRecoveryProbe] account=%d lightweight probe skipped", accountID)
 		s.extendTempUnschedOnFailedProbe(ctx, account, "probe_error")
@@ -210,6 +213,29 @@ func (s *UpstreamPoolRecoveryProbeRunnerService) runOneCandidate(ctx context.Con
 	}
 	if recovery.ClearedError || recovery.ClearedRateLimit {
 		logger.LegacyPrintf("service.upstream_pool_recovery_probe", "[UpstreamPoolRecoveryProbe] account=%d recovered error=%v rate_limit=%v", accountID, recovery.ClearedError, recovery.ClearedRateLimit)
+	}
+}
+
+func isUpstreamPoolRecoverySupportedPlatform(platform string) bool {
+	switch platform {
+	case PlatformOpenAI, PlatformAnthropic:
+		return true
+	default:
+		return false
+	}
+}
+
+func isUpstreamPoolRecoverySupportedAccount(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	switch account.Platform {
+	case PlatformOpenAI:
+		return account.Type == AccountTypeAPIKey
+	case PlatformAnthropic:
+		return account.Type == AccountTypeOAuth || account.Type == AccountTypeSetupToken || account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount || account.Type == AccountTypeBedrock
+	default:
+		return false
 	}
 }
 

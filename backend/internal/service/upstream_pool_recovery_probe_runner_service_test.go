@@ -24,6 +24,7 @@ var _ UpstreamPoolRepository = (*upstreamPoolRecoveryProbeRepoStub)(nil)
 
 type upstreamPoolRecoveryProbeAccountRepoStub struct {
 	accounts       map[int64]*Account
+	groupsByID     map[int64][]Group
 	tempUnschedIDs []int64
 	tempReasons    []string
 }
@@ -44,7 +45,16 @@ func (r *upstreamPoolRecoveryProbeAccountRepoStub) GetByID(ctx context.Context, 
 }
 
 func (r *upstreamPoolRecoveryProbeAccountRepoStub) GetByIDs(ctx context.Context, ids []int64) ([]*Account, error) {
-	return nil, nil
+	if r == nil || r.accounts == nil {
+		return nil, nil
+	}
+	out := make([]*Account, 0, len(ids))
+	for _, id := range ids {
+		if account, ok := r.accounts[id]; ok {
+			out = append(out, account)
+		}
+	}
+	return out, nil
 }
 
 func (r *upstreamPoolRecoveryProbeAccountRepoStub) ExistsByID(ctx context.Context, id int64) (bool, error) {
@@ -107,6 +117,9 @@ func (r *upstreamPoolRecoveryProbeAccountRepoStub) AutoPauseExpiredAccounts(ctx 
 	return 0, nil
 }
 func (r *upstreamPoolRecoveryProbeAccountRepoStub) GetGroups(ctx context.Context, accountID int64) ([]Group, error) {
+	if r != nil && r.groupsByID != nil {
+		return append([]Group(nil), r.groupsByID[accountID]...), nil
+	}
 	return nil, nil
 }
 func (r *upstreamPoolRecoveryProbeAccountRepoStub) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
@@ -176,6 +189,21 @@ func (r *upstreamPoolRecoveryProbeAccountRepoStub) UpdateExtra(ctx context.Conte
 	return nil
 }
 func (r *upstreamPoolRecoveryProbeAccountRepoStub) BulkUpdate(ctx context.Context, ids []int64, updates AccountBulkUpdate) (int64, error) {
+	for _, id := range ids {
+		account := r.accounts[id]
+		if account == nil {
+			continue
+		}
+		if updates.Name != nil {
+			account.Name = *updates.Name
+		}
+		if updates.Status != nil {
+			account.Status = *updates.Status
+		}
+		if updates.Schedulable != nil {
+			account.Schedulable = *updates.Schedulable
+		}
+	}
 	return 0, nil
 }
 func (r *upstreamPoolRecoveryProbeAccountRepoStub) IncrementQuotaUsed(ctx context.Context, id int64, amount float64) error {
@@ -189,8 +217,12 @@ func (r *upstreamPoolRecoveryProbeAccountRepoStub) RevertProxyFallback(ctx conte
 }
 
 type upstreamPoolRecoveryProbeRepoStub struct {
-	pools   []UpstreamPool
-	members map[int64][]UpstreamPoolMember
+	pools          []UpstreamPool
+	members        map[int64][]UpstreamPoolMember
+	bindings       []UpstreamPoolBinding
+	createdMembers []UpstreamPoolMember
+	updatedMembers []UpstreamPoolMember
+	deletedMembers []int64
 }
 
 func (r *upstreamPoolRecoveryProbeRepoStub) ListUpstreamPools(ctx context.Context) ([]UpstreamPool, error) {
@@ -222,14 +254,30 @@ func (r *upstreamPoolRecoveryProbeRepoStub) GetUpstreamPoolMemberByID(ctx contex
 }
 
 func (r *upstreamPoolRecoveryProbeRepoStub) CreateUpstreamPoolMember(ctx context.Context, input *UpstreamPoolMember) (*UpstreamPoolMember, error) {
+	if input != nil {
+		r.createdMembers = append(r.createdMembers, *input)
+	}
 	return input, nil
 }
 
 func (r *upstreamPoolRecoveryProbeRepoStub) UpdateUpstreamPoolMember(ctx context.Context, input *UpstreamPoolMember) (*UpstreamPoolMember, error) {
+	if input != nil {
+		r.updatedMembers = append(r.updatedMembers, *input)
+	}
 	return input, nil
 }
 
 func (r *upstreamPoolRecoveryProbeRepoStub) DeleteUpstreamPoolMember(ctx context.Context, id int64) error {
+	r.deletedMembers = append(r.deletedMembers, id)
+	for poolID, members := range r.members {
+		filtered := members[:0]
+		for _, member := range members {
+			if member.ID != id {
+				filtered = append(filtered, member)
+			}
+		}
+		r.members[poolID] = filtered
+	}
 	return nil
 }
 
@@ -286,7 +334,7 @@ func (r *upstreamPoolRecoveryProbeRepoStub) DeleteUpstreamPoolMemberSet(ctx cont
 }
 
 func (r *upstreamPoolRecoveryProbeRepoStub) ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error) {
-	return nil, nil
+	return append([]UpstreamPoolBinding(nil), r.bindings...), nil
 }
 
 func (r *upstreamPoolRecoveryProbeRepoStub) GetUpstreamPoolBindingByID(ctx context.Context, id int64) (*UpstreamPoolBinding, error) {
@@ -443,6 +491,164 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ProbesRecoverablePoolMembers(t *
 		require.Equal(t, monitorLightweightPrompt, strings.TrimSpace(stringFromAny(msg["content"])))
 		require.Equal(t, float64(monitorLightweightMaxTokens), body["max_tokens"])
 	}
+}
+
+func TestUpstreamPoolRecoveryProbeRunnerService_ProbesAnthropicPoolMembersViaAccountTest(t *testing.T) {
+	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
+		accounts: map[int64]*Account{
+			401: {
+				ID:          401,
+				Status:      StatusError,
+				Schedulable: true,
+				Platform:    PlatformAnthropic,
+				Type:        AccountTypeOAuth,
+				LastUsedAt:  ptrTimeUpstreamPoolRecoveryProbe(time.Now().Add(-10 * time.Minute)),
+			},
+		},
+	}
+	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
+		pools: []UpstreamPool{{ID: 4, Enabled: true, Platform: PlatformAnthropic}},
+		members: map[int64][]UpstreamPoolMember{
+			4: {{AccountID: 401, Enabled: true}},
+		},
+	}
+	testSvc := &upstreamPoolRecoveryProbeTestSvc{results: map[int64]string{401: "success"}}
+	rateLimitSvc := &upstreamPoolRecoveryProbeRateLimitStub{}
+	svc := NewUpstreamPoolRecoveryProbeRunnerService(upstreamRepo, accountRepo, testSvc, rateLimitSvc, &config.Config{})
+
+	svc.runScheduled()
+
+	require.Equal(t, []int64{401}, testSvc.calls)
+	require.Equal(t, []int64{401}, rateLimitSvc.calls)
+}
+
+func TestAdminServiceSyncUpstreamPoolMembersForAccount_AnthropicOAuth(t *testing.T) {
+	ctx := context.Background()
+	account := &Account{
+		ID:          501,
+		Name:        "claude-oauth",
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		GroupIDs:    []int64{42},
+	}
+	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
+		accounts: map[int64]*Account{501: account},
+	}
+	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
+		bindings: []UpstreamPoolBinding{
+			{ID: 1, GroupID: 42, PoolID: 7, Platform: PlatformAnthropic, Enabled: true},
+			{ID: 2, GroupID: 42, PoolID: 8, Platform: PlatformOpenAI, Enabled: true},
+		},
+		members: map[int64][]UpstreamPoolMember{
+			7: {},
+			8: {},
+		},
+	}
+	svc := &adminServiceImpl{
+		accountRepo:      accountRepo,
+		upstreamPoolRepo: upstreamRepo,
+	}
+
+	require.NoError(t, svc.syncUpstreamPoolMembersForAccount(ctx, nil, account))
+
+	require.Len(t, upstreamRepo.createdMembers, 1)
+	require.Equal(t, int64(7), upstreamRepo.createdMembers[0].PoolID)
+	require.Equal(t, int64(501), upstreamRepo.createdMembers[0].AccountID)
+	require.Equal(t, PlatformAnthropic, upstreamRepo.createdMembers[0].AccountPlatform)
+	require.True(t, upstreamRepo.createdMembers[0].Enabled)
+	require.False(t, upstreamRepo.createdMembers[0].ManualDrained)
+	require.Empty(t, upstreamRepo.deletedMembers)
+}
+
+func TestAdminServiceSyncUpstreamPoolMembersForAccount_RemovesPreviousPlatformPoolMember(t *testing.T) {
+	ctx := context.Background()
+	previous := &Account{
+		ID:          502,
+		Name:        "openai-key",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		GroupIDs:    []int64{42},
+	}
+	current := &Account{
+		ID:          502,
+		Name:        "claude-oauth",
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeOAuth,
+		Status:      StatusActive,
+		Schedulable: true,
+		GroupIDs:    []int64{43},
+	}
+	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
+		bindings: []UpstreamPoolBinding{
+			{ID: 1, GroupID: 42, PoolID: 7, Platform: PlatformOpenAI, Enabled: true},
+			{ID: 2, GroupID: 43, PoolID: 8, Platform: PlatformAnthropic, Enabled: true},
+		},
+		members: map[int64][]UpstreamPoolMember{
+			7: {{ID: 70, PoolID: 7, AccountID: 502, AccountPlatform: PlatformOpenAI}},
+			8: {},
+		},
+	}
+	svc := &adminServiceImpl{
+		accountRepo:      &upstreamPoolRecoveryProbeAccountRepoStub{},
+		upstreamPoolRepo: upstreamRepo,
+	}
+
+	require.NoError(t, svc.syncUpstreamPoolMembersForAccount(ctx, previous, current))
+
+	require.Equal(t, []int64{70}, upstreamRepo.deletedMembers)
+	require.Len(t, upstreamRepo.createdMembers, 1)
+	require.Equal(t, int64(8), upstreamRepo.createdMembers[0].PoolID)
+	require.Equal(t, PlatformAnthropic, upstreamRepo.createdMembers[0].AccountPlatform)
+}
+
+func TestAdminServiceBulkUpdateAccounts_SyncsAnthropicUpstreamPoolMembers(t *testing.T) {
+	ctx := context.Background()
+	groupIDs := []int64{42}
+	schedulable := false
+	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
+		accounts: map[int64]*Account{
+			503: {
+				ID:          503,
+				Name:        "claude-oauth",
+				Platform:    PlatformAnthropic,
+				Type:        AccountTypeOAuth,
+				Status:      StatusActive,
+				Schedulable: true,
+			},
+		},
+	}
+	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
+		bindings: []UpstreamPoolBinding{
+			{ID: 1, GroupID: 42, PoolID: 9, Platform: PlatformAnthropic, Enabled: true},
+		},
+		members: map[int64][]UpstreamPoolMember{
+			9: {{ID: 90, PoolID: 9, AccountID: 503, AccountPlatform: PlatformAnthropic, Enabled: true}},
+		},
+	}
+	svc := &adminServiceImpl{
+		accountRepo:      accountRepo,
+		groupRepo:        &groupRepoStubForAdmin{getByID: &Group{ID: 42, Name: "claude"}},
+		upstreamPoolRepo: upstreamRepo,
+	}
+
+	result, err := svc.BulkUpdateAccounts(ctx, &BulkUpdateAccountsInput{
+		AccountIDs:            []int64{503},
+		GroupIDs:              &groupIDs,
+		Schedulable:           &schedulable,
+		SkipMixedChannelCheck: true,
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, result.Success)
+	require.Empty(t, result.FailedIDs)
+	require.Len(t, upstreamRepo.updatedMembers, 1)
+	require.Equal(t, int64(9), upstreamRepo.updatedMembers[0].PoolID)
+	require.False(t, upstreamRepo.updatedMembers[0].Enabled)
+	require.True(t, upstreamRepo.updatedMembers[0].ManualDrained)
 }
 
 func TestUpstreamPoolRecoveryProbeRunnerService_ResponsesProbeUsesOnlyHiAndOneToken(t *testing.T) {

@@ -152,7 +152,7 @@
           <div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">账号集合</h3>
             <p class="text-xs text-gray-500 dark:text-gray-400">
-              先把同类 OAuth 账号放进集合，再把集合绑定到上游池成员。
+              先把同平台账号放进集合，再把集合绑定到上游池成员。
             </p>
           </div>
           <button class="btn btn-secondary btn-sm" @click="openAccountSetModal()">
@@ -162,7 +162,7 @@
         <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
           <h4 class="text-sm font-semibold text-amber-900 dark:text-amber-100">如何使用账号集合</h4>
           <p class="mt-1 text-xs leading-6 text-amber-800 dark:text-amber-200">
-            1. 先新建一个同平台集合。2. 把这批 OAuth 账号加入集合。3. 在下方“集合成员绑定”里把集合挂到目标上游池。4. 最后在“分组绑定”里让用户分组命中这个池。
+            1. 先新建一个同平台集合。2. 把这批账号加入集合。3. 在下方“集合成员绑定”里把集合挂到目标上游池。4. 最后在“分组绑定”里让用户分组命中这个池。
           </p>
         </div>
         <DataTable :columns="accountSetColumns" :data="accountSets" :loading="accountSetsLoading" row-key="id">
@@ -206,7 +206,7 @@
           </template>
 
           <template #empty>
-            <EmptyState title="暂无账号集合" description="先新建集合，再批量加入 OAuth 账号。" action-text="新建账号集合" @action="openAccountSetModal()" />
+            <EmptyState title="暂无账号集合" description="先新建集合，再批量加入同平台账号。" action-text="新建账号集合" @action="openAccountSetModal()" />
           </template>
         </DataTable>
 
@@ -219,7 +219,7 @@
               </p>
             </div>
             <button class="btn btn-secondary btn-sm" :disabled="accountSetAvailableAccounts.length === 0" @click="addAccountsToSelectedSet()">
-              补齐当前平台 OAuth
+              补齐当前平台账号
             </button>
           </div>
           <DataTable :columns="accountSetMemberColumns" :data="pagedAccountSetMembers" :loading="accountSetMembersLoading" :row-key="accountSetMemberRowKey">
@@ -245,7 +245,7 @@
             </template>
 
             <template #empty>
-              <EmptyState title="集合暂无成员" description="点击右上角把当前平台 OAuth 账号批量加入集合。" />
+              <EmptyState title="集合暂无成员" description="点击右上角把当前平台账号批量加入集合。" />
             </template>
           </DataTable>
           <Pagination
@@ -1351,7 +1351,8 @@ const boolSelectOptions = [
   { value: false, label: '否' },
 ]
 
-const canSyncSelectedPool = computed(() => selectedPool.value?.platform === 'openai')
+const poolAccountSyncPlatforms = new Set(['openai', 'anthropic'])
+const canSyncSelectedPool = computed(() => poolAccountSyncPlatforms.has(selectedPool.value?.platform || ''))
 const poolRoutingObservabilitySupported = computed(() => selectedPool.value?.platform === 'openai')
 const memberAccountNameMap = computed(() =>
   new Map(
@@ -1785,7 +1786,7 @@ const availablePoolAccounts = computed(() => {
 const accountSetAvailableAccounts = computed(() => {
   const platform = selectedAccountSet.value?.platform
   if (!platform) return []
-  return syncableAccounts.value.filter(account => account.platform === platform && account.type === 'oauth')
+  return syncableAccounts.value.filter(account => account.platform === platform)
 })
 
 const accountOptions = computed(() =>
@@ -2298,7 +2299,7 @@ async function submitMemberSet() {
 async function syncSelectedPoolMembers() {
   if (!selectedPool.value) return
   if (!canSyncSelectedPool.value) {
-    appStore.showError('当前只支持同步 OpenAI 上游池')
+    appStore.showError('当前只支持同步 OpenAI / Anthropic 上游池')
     return
   }
   if (availablePoolAccounts.value.length === 0) {
@@ -2361,7 +2362,7 @@ async function syncSelectedPoolMembers() {
 async function addMissingSelectedPoolMembers() {
   if (!selectedPool.value) return
   if (!canSyncSelectedPool.value) {
-    appStore.showError('当前只支持补齐 OpenAI 上游池')
+    appStore.showError('当前只支持补齐 OpenAI / Anthropic 上游池')
     return
   }
   if (availablePoolAccounts.value.length === 0) {
@@ -2408,7 +2409,7 @@ async function addAccountsToSelectedSet() {
     .map(account => account.id)
     .filter(accountID => !existing.has(accountID))
   if (targetIDs.length === 0) {
-    appStore.showError('当前没有可加入的新 OAuth 账号')
+    appStore.showError('当前没有可加入的新账号')
     return
   }
   submitting.value = true

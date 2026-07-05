@@ -650,6 +650,7 @@ type GatewayService struct {
 	tlsFPProfileService   *TLSFingerprintProfileService
 	balanceNotifyService  *BalanceNotifyService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
+	upstreamPoolRepo      UpstreamPoolRepository
 }
 
 // NewGatewayService creates a new GatewayService
@@ -681,6 +682,7 @@ func NewGatewayService(
 	resolver *ModelPricingResolver,
 	balanceNotifyService *BalanceNotifyService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	upstreamPoolRepo UpstreamPoolRepository,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
@@ -717,6 +719,7 @@ func NewGatewayService(
 		resolver:              resolver,
 		balanceNotifyService:  balanceNotifyService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
+		upstreamPoolRepo:      upstreamPoolRepo,
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,
@@ -2447,6 +2450,7 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 	if s.schedulerSnapshot != nil {
 		accounts, useMixed, err := s.schedulerSnapshot.ListSchedulableAccounts(ctx, groupID, platform, hasForcePlatform)
 		if err == nil {
+			accounts = s.filterAccountsByResolvedUpstreamPool(ctx, groupID, platform, accounts)
 			slog.Debug("account_scheduling_list_snapshot",
 				"group_id", derefGroupID(groupID),
 				"platform", platform,
@@ -2508,7 +2512,7 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 					"tls_fingerprint", acc.IsTLSFingerprintEnabled())
 			}
 		}
-		return filtered, useMixed, nil
+		return s.filterAccountsByResolvedUpstreamPool(ctx, groupID, platform, filtered), useMixed, nil
 	}
 
 	var accounts []Account
@@ -2543,7 +2547,88 @@ func (s *GatewayService) listSchedulableAccounts(ctx context.Context, groupID *i
 				"tls_fingerprint", acc.IsTLSFingerprintEnabled())
 		}
 	}
-	return accounts, useMixed, nil
+	return s.filterAccountsByResolvedUpstreamPool(ctx, groupID, platform, accounts), useMixed, nil
+}
+
+func (s *GatewayService) isAccountAllowedByResolvedUpstreamPool(ctx context.Context, groupID *int64, platform string, accountID int64) bool {
+	if s == nil || s.upstreamPoolRepo == nil || groupID == nil || *groupID <= 0 || accountID <= 0 || strings.TrimSpace(platform) == "" {
+		return true
+	}
+	resolved, err := s.upstreamPoolRepo.GetResolvedBindingByGroupAndPlatform(ctx, *groupID, platform)
+	if err != nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+		return true
+	}
+	if len(resolved.MemberConfigs) == 0 {
+		return false
+	}
+	_, ok := resolved.MemberConfigs[accountID]
+	return ok
+}
+
+func (s *GatewayService) filterAccountsByResolvedUpstreamPool(ctx context.Context, groupID *int64, platform string, accounts []Account) []Account {
+	if s == nil || s.upstreamPoolRepo == nil || groupID == nil || *groupID <= 0 || len(accounts) == 0 || strings.TrimSpace(platform) == "" {
+		return accounts
+	}
+	resolved, err := s.upstreamPoolRepo.GetResolvedBindingByGroupAndPlatform(ctx, *groupID, platform)
+	if err != nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+		return accounts
+	}
+	if len(resolved.MemberConfigs) == 0 {
+		return nil
+	}
+	filtered := make([]Account, 0, len(accounts))
+	for i := range accounts {
+		if overridden := applyResolvedUpstreamPoolMemberOverridesToAccount(&accounts[i], resolved.MemberConfigs); overridden != nil {
+			filtered = append(filtered, *overridden)
+		}
+	}
+	return filtered
+}
+
+func (s *GatewayService) applyResolvedUpstreamPoolMemberOverrides(ctx context.Context, groupID *int64, platform string, account *Account) *Account {
+	if account == nil {
+		return nil
+	}
+	if s == nil || s.upstreamPoolRepo == nil || groupID == nil || *groupID <= 0 || strings.TrimSpace(platform) == "" {
+		return account
+	}
+	resolved, err := s.upstreamPoolRepo.GetResolvedBindingByGroupAndPlatform(ctx, *groupID, platform)
+	if err != nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+		return account
+	}
+	return applyResolvedUpstreamPoolMemberOverridesToAccount(account, resolved.MemberConfigs)
+}
+
+func applyResolvedUpstreamPoolMemberOverridesToAccount(account *Account, memberConfigs map[int64]UpstreamPoolResolvedMemberConfig) *Account {
+	if account == nil {
+		return nil
+	}
+	if len(memberConfigs) == 0 {
+		return nil
+	}
+	memberCfg, ok := memberConfigs[account.ID]
+	if !ok {
+		return nil
+	}
+
+	cloned := *account
+	if memberCfg.SchedulableOverride != nil {
+		cloned.Schedulable = *memberCfg.SchedulableOverride
+	}
+	if memberCfg.PriorityOverride != nil {
+		cloned.Priority = *memberCfg.PriorityOverride
+	}
+	if memberCfg.MaxConcurrencyOverride != nil && *memberCfg.MaxConcurrencyOverride > 0 {
+		override := *memberCfg.MaxConcurrencyOverride
+		cloned.Concurrency = override
+		cloned.LoadFactor = &override
+	}
+	if memberCfg.Weight > 0 {
+		cloned.PoolMemberWeight = memberCfg.Weight
+	} else {
+		cloned.PoolMemberWeight = 100
+	}
+	return &cloned
 }
 
 // IsSingleAntigravityAccountGroup 检查指定分组是否只有一个 antigravity 平台的可调度账号。
@@ -3284,7 +3369,8 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
-						if !clearSticky && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) && !s.isStickyAccountUpstreamRestricted(ctx, groupID, account, requestedModel) {
+						account = s.applyResolvedUpstreamPoolMemberOverrides(ctx, groupID, platform, account)
+						if !clearSticky && account != nil && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) && !s.isStickyAccountUpstreamRestricted(ctx, groupID, account, requestedModel) {
 							if s.debugModelRoutingEnabled() {
 								logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), accountID)
 							}
@@ -3403,7 +3489,8 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
-					if !clearSticky && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
+					account = s.applyResolvedUpstreamPoolMemberOverrides(ctx, groupID, platform, account)
+					if !clearSticky && account != nil && s.isAccountInGroup(account, groupID) && account.Platform == platform && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
 						return account, nil
 					}
 				}
@@ -3542,7 +3629,8 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
-						if !clearSticky && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
+						account = s.applyResolvedUpstreamPoolMemberOverrides(ctx, groupID, nativePlatform, account)
+						if !clearSticky && account != nil && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) {
 							if account.Platform == nativePlatform || (account.Platform == PlatformAntigravity && account.IsMixedSchedulingEnabled()) {
 								if s.debugModelRoutingEnabled() {
 									logger.LegacyPrintf("service.gateway", "[ModelRoutingDebug] legacy mixed routed sticky hit: group_id=%v model=%s session=%s account=%d", derefGroupID(groupID), requestedModel, shortSessionHash(sessionHash), accountID)
@@ -3663,7 +3751,8 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
-					if !clearSticky && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) && !s.isStickyAccountUpstreamRestricted(ctx, groupID, account, requestedModel) {
+					account = s.applyResolvedUpstreamPoolMemberOverrides(ctx, groupID, nativePlatform, account)
+					if !clearSticky && account != nil && s.isAccountInGroup(account, groupID) && (requestedModel == "" || s.isModelSupportedByAccountWithContext(ctx, account, requestedModel)) && s.isAccountSchedulableForModelSelection(ctx, account, requestedModel) && s.isAccountSchedulableForQuota(account) && s.isAccountSchedulableForWindowCost(ctx, account, true) && s.isAccountSchedulableForRPM(ctx, account, true) && !s.isStickyAccountUpstreamRestricted(ctx, groupID, account, requestedModel) {
 						if account.Platform == nativePlatform || (account.Platform == PlatformAntigravity && account.IsMixedSchedulingEnabled()) {
 							return account, nil
 						}

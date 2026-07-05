@@ -3448,9 +3448,10 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		if err := s.accountRepo.BindGroups(ctx, account.ID, groupIDs); err != nil {
 			return nil, err
 		}
+		account.GroupIDs = append([]int64(nil), groupIDs...)
 	}
 
-	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, nil, account); err != nil {
+	if err := s.syncUpstreamPoolMembersForAccount(ctx, nil, account); err != nil {
 		return nil, err
 	}
 
@@ -3602,9 +3603,10 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		if err := s.accountRepo.BindGroups(ctx, account.ID, *input.GroupIDs); err != nil {
 			return nil, err
 		}
+		account.GroupIDs = append([]int64(nil), (*input.GroupIDs)...)
 	}
 
-	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, &previousAccount, account); err != nil {
+	if err := s.syncUpstreamPoolMembersForAccount(ctx, &previousAccount, account); err != nil {
 		return nil, err
 	}
 
@@ -3742,6 +3744,29 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			}
 		}
 
+		if s.upstreamPoolRepo != nil {
+			account, err := s.accountRepo.GetByID(ctx, accountID)
+			if err != nil {
+				entry.Success = false
+				entry.Error = fmt.Sprintf("get account after bulk update: %v", err)
+				result.Failed++
+				result.FailedIDs = append(result.FailedIDs, accountID)
+				result.Results = append(result.Results, entry)
+				continue
+			}
+			if input.GroupIDs != nil {
+				account.GroupIDs = append([]int64(nil), (*input.GroupIDs)...)
+			}
+			if err := s.syncUpstreamPoolMembersForAccount(ctx, nil, account); err != nil {
+				entry.Success = false
+				entry.Error = err.Error()
+				result.Failed++
+				result.FailedIDs = append(result.FailedIDs, accountID)
+				result.Results = append(result.Results, entry)
+				continue
+			}
+		}
+
 		entry.Success = true
 		result.Success++
 		result.SuccessIDs = append(result.SuccessIDs, accountID)
@@ -3809,7 +3834,7 @@ func (s *adminServiceImpl) DeleteAccount(ctx context.Context, id int64) error {
 	if err := s.accountRepo.Delete(ctx, id); err != nil {
 		return err
 	}
-	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, account, nil); err != nil {
+	if err := s.syncUpstreamPoolMembersForAccount(ctx, account, nil); err != nil {
 		return err
 	}
 	return nil
@@ -3858,58 +3883,50 @@ func (s *adminServiceImpl) SetAccountSchedulable(ctx context.Context, id int64, 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.syncOpenAIUpstreamPoolMembersForAccount(ctx, updated, updated); err != nil {
+	if err := s.syncUpstreamPoolMembersForAccount(ctx, updated, updated); err != nil {
 		return nil, err
 	}
 	return updated, nil
 }
 
-func (s *adminServiceImpl) syncOpenAIUpstreamPoolMembersForAccount(ctx context.Context, previousAccount, currentAccount *Account) error {
+func (s *adminServiceImpl) syncUpstreamPoolMembersForAccount(ctx context.Context, previousAccount, currentAccount *Account) error {
 	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil {
 		return nil
 	}
 
-	previousOpenAI := previousAccount != nil && previousAccount.Platform == PlatformOpenAI && previousAccount.Type == AccountTypeAPIKey
-	currentOpenAI := currentAccount != nil && currentAccount.Platform == PlatformOpenAI && currentAccount.Type == AccountTypeAPIKey
+	previousSupported := isAccountSupportedByUpstreamPoolAutoSync(previousAccount)
+	currentSupported := isAccountSupportedByUpstreamPoolAutoSync(currentAccount)
 
-	if !previousOpenAI && !currentOpenAI {
+	if !previousSupported && !currentSupported {
 		return nil
 	}
 
-	var groupIDs []int64
 	var accountID int64
-	if currentOpenAI {
+	var currentGroupIDs []int64
+	platforms := make(map[string]struct{})
+	if currentSupported {
 		accountID = currentAccount.ID
+		platforms[currentAccount.Platform] = struct{}{}
 		if len(currentAccount.GroupIDs) > 0 {
-			groupIDs = append(groupIDs, currentAccount.GroupIDs...)
+			currentGroupIDs = append(currentGroupIDs, currentAccount.GroupIDs...)
 		} else {
 			accountGroups, err := s.accountRepo.GetGroups(ctx, currentAccount.ID)
 			if err != nil {
 				return fmt.Errorf("get account groups: %w", err)
 			}
-			groupIDs = make([]int64, 0, len(accountGroups))
+			currentGroupIDs = make([]int64, 0, len(accountGroups))
 			for _, group := range accountGroups {
 				if group.ID > 0 {
-					groupIDs = append(groupIDs, group.ID)
+					currentGroupIDs = append(currentGroupIDs, group.ID)
 				}
 			}
 		}
-	} else if previousOpenAI {
+	}
+	if previousSupported {
+		platforms[previousAccount.Platform] = struct{}{}
+	}
+	if accountID == 0 && previousSupported {
 		accountID = previousAccount.ID
-		if len(previousAccount.GroupIDs) > 0 {
-			groupIDs = append(groupIDs, previousAccount.GroupIDs...)
-		} else {
-			accountGroups, err := s.accountRepo.GetGroups(ctx, previousAccount.ID)
-			if err != nil {
-				return fmt.Errorf("get account groups: %w", err)
-			}
-			groupIDs = make([]int64, 0, len(accountGroups))
-			for _, group := range accountGroups {
-				if group.ID > 0 {
-					groupIDs = append(groupIDs, group.ID)
-				}
-			}
-		}
 	}
 
 	bindings, err := s.upstreamPoolRepo.ListUpstreamPoolBindings(ctx)
@@ -3918,14 +3935,17 @@ func (s *adminServiceImpl) syncOpenAIUpstreamPoolMembersForAccount(ctx context.C
 	}
 
 	targetPoolIDs := make(map[int64]struct{})
-	openAIPoolIDs := make(map[int64]struct{})
+	platformPoolIDs := make(map[int64]struct{})
 	for _, binding := range bindings {
-		if !binding.Enabled || binding.Platform != PlatformOpenAI {
+		if !binding.Enabled {
 			continue
 		}
-		openAIPoolIDs[binding.PoolID] = struct{}{}
-		if currentOpenAI {
-			for _, groupID := range groupIDs {
+		if _, ok := platforms[binding.Platform]; !ok {
+			continue
+		}
+		platformPoolIDs[binding.PoolID] = struct{}{}
+		if currentSupported && binding.Platform == currentAccount.Platform {
+			for _, groupID := range currentGroupIDs {
 				if binding.GroupID == groupID {
 					targetPoolIDs[binding.PoolID] = struct{}{}
 				}
@@ -3933,7 +3953,7 @@ func (s *adminServiceImpl) syncOpenAIUpstreamPoolMembersForAccount(ctx context.C
 		}
 	}
 
-	for poolID := range openAIPoolIDs {
+	for poolID := range platformPoolIDs {
 		members, err := s.upstreamPoolRepo.ListUpstreamPoolMembers(ctx, poolID)
 		if err != nil {
 			return fmt.Errorf("list upstream pool members: %w", err)
@@ -3947,7 +3967,7 @@ func (s *adminServiceImpl) syncOpenAIUpstreamPoolMembersForAccount(ctx context.C
 			}
 		}
 
-		if !currentOpenAI {
+		if !currentSupported {
 			if existing != nil {
 				if err := s.upstreamPoolRepo.DeleteUpstreamPoolMember(ctx, existing.ID); err != nil {
 					return fmt.Errorf("delete upstream pool member: %w", err)
@@ -3996,6 +4016,25 @@ func (s *adminServiceImpl) syncOpenAIUpstreamPoolMembersForAccount(ctx context.C
 		}
 	}
 	return nil
+}
+
+func isAccountSupportedByUpstreamPoolAutoSync(account *Account) bool {
+	if account == nil {
+		return false
+	}
+	switch account.Platform {
+	case PlatformOpenAI:
+		return account.Type == AccountTypeAPIKey
+	case PlatformAnthropic:
+		switch account.Type {
+		case AccountTypeOAuth, AccountTypeSetupToken, AccountTypeAPIKey, AccountTypeServiceAccount, AccountTypeBedrock:
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
 }
 
 func (s *adminServiceImpl) RevertAccountProxyFallback(ctx context.Context, id int64) error {

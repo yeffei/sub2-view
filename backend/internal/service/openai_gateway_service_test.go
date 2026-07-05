@@ -308,6 +308,64 @@ func TestOpenAIGatewayService_OpenAIRoutingMaxFailoverHops(t *testing.T) {
 	})
 }
 
+func TestGatewayService_FilterAccountsByResolvedUpstreamPool_Anthropic(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(42)
+	priority := 1
+	concurrency := 7
+	schedulable := false
+	svc := &GatewayService{
+		upstreamPoolRepo: stubGatewayUpstreamPoolRepo{
+			platform: PlatformAnthropic,
+			memberConfigs: map[int64]UpstreamPoolResolvedMemberConfig{
+				2: {
+					AccountID:              2,
+					Weight:                 250,
+					PriorityOverride:       &priority,
+					MaxConcurrencyOverride: &concurrency,
+					SchedulableOverride:    &schedulable,
+				},
+			},
+		},
+	}
+
+	got := svc.filterAccountsByResolvedUpstreamPool(ctx, &groupID, PlatformAnthropic, []Account{
+		{ID: 1, Platform: PlatformAnthropic, Priority: 9, Concurrency: 1, Schedulable: true},
+		{ID: 2, Platform: PlatformAnthropic, Priority: 9, Concurrency: 1, Schedulable: true},
+	})
+
+	require.Len(t, got, 1)
+	require.Equal(t, int64(2), got[0].ID)
+	require.Equal(t, 1, got[0].Priority)
+	require.Equal(t, 7, got[0].Concurrency)
+	require.NotNil(t, got[0].LoadFactor)
+	require.Equal(t, 7, *got[0].LoadFactor)
+	require.False(t, got[0].Schedulable)
+	require.Equal(t, 250, got[0].PoolMemberWeight)
+}
+
+type stubGatewayUpstreamPoolRepo struct {
+	UpstreamPoolRepository
+	platform      string
+	memberConfigs map[int64]UpstreamPoolResolvedMemberConfig
+}
+
+func (r stubGatewayUpstreamPoolRepo) GetResolvedBindingByGroupAndPlatform(ctx context.Context, groupID int64, platform string) (*UpstreamPoolResolvedBinding, error) {
+	if groupID <= 0 || platform != r.platform {
+		return nil, nil
+	}
+	memberIDs := make(map[int64]struct{}, len(r.memberConfigs))
+	for id := range r.memberConfigs {
+		memberIDs[id] = struct{}{}
+	}
+	return &UpstreamPoolResolvedBinding{
+		Binding:       &UpstreamPoolBinding{GroupID: groupID, Platform: platform, Enabled: true},
+		Pool:          &UpstreamPool{ID: 1, Platform: platform, Enabled: true},
+		MemberIDs:     memberIDs,
+		MemberConfigs: r.memberConfigs,
+	}, nil
+}
+
 func TestOpenAIGatewayService_OpenAIRoutingPoolMode5xxCooldown(t *testing.T) {
 	ctx := context.Background()
 	groupID := int64(42)
