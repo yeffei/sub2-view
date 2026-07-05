@@ -23,11 +23,12 @@ import (
 type channelMonitorRepository struct {
 	client *dbent.Client
 	db     *sql.DB
+	sql    sqlExecutor
 }
 
 // NewChannelMonitorRepository 创建仓储实例。
 func NewChannelMonitorRepository(client *dbent.Client, db *sql.DB) service.ChannelMonitorRepository {
-	return &channelMonitorRepository{client: client, db: db}
+	return &channelMonitorRepository{client: client, db: db, sql: db}
 }
 
 // ---------- CRUD ----------
@@ -60,6 +61,9 @@ func (r *channelMonitorRepository) Create(ctx context.Context, m *service.Channe
 	if err != nil {
 		return translatePersistenceError(err, service.ErrChannelMonitorNotFound, nil)
 	}
+	if err := r.syncMonitorGroupID(ctx, created.ID, m.GroupID); err != nil {
+		return fmt.Errorf("sync channel monitor group_id: %w", err)
+	}
 	m.ID = created.ID
 	m.CreatedAt = created.CreatedAt
 	m.UpdatedAt = created.UpdatedAt
@@ -73,7 +77,11 @@ func (r *channelMonitorRepository) GetByID(ctx context.Context, id int64) (*serv
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrChannelMonitorNotFound, nil)
 	}
-	return entToServiceMonitor(row), nil
+	out := entToServiceMonitor(row)
+	if err := r.populateMonitorGroupIDs(ctx, out); err != nil {
+		return nil, fmt.Errorf("load channel monitor group_id: %w", err)
+	}
+	return out, nil
 }
 
 func (r *channelMonitorRepository) Update(ctx context.Context, m *service.ChannelMonitor) error {
@@ -106,6 +114,9 @@ func (r *channelMonitorRepository) Update(ctx context.Context, m *service.Channe
 	updated, err := updater.Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrChannelMonitorNotFound, nil)
+	}
+	if err := r.syncMonitorGroupID(ctx, m.ID, m.GroupID); err != nil {
+		return fmt.Errorf("sync channel monitor group_id: %w", err)
 	}
 	m.UpdatedAt = updated.UpdatedAt
 	return nil
@@ -162,6 +173,9 @@ func (r *channelMonitorRepository) List(ctx context.Context, params service.Chan
 	for _, row := range rows {
 		out = append(out, entToServiceMonitor(row))
 	}
+	if err := r.populateMonitorGroupIDs(ctx, out...); err != nil {
+		return nil, 0, fmt.Errorf("load channel monitor group_ids: %w", err)
+	}
 	return out, int64(total), nil
 }
 
@@ -177,6 +191,9 @@ func (r *channelMonitorRepository) ListEnabled(ctx context.Context) ([]*service.
 	out := make([]*service.ChannelMonitor, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, entToServiceMonitor(row))
+	}
+	if err := r.populateMonitorGroupIDs(ctx, out...); err != nil {
+		return nil, fmt.Errorf("load enabled channel monitor group_ids: %w", err)
 	}
 	return out, nil
 }
@@ -461,6 +478,55 @@ func (r *channelMonitorRepository) ListRecentHistoryForMonitors(
 	return out, nil
 }
 
+// ListHistorySinceForMonitors 批量取多个 monitor 各自主模型在 since 之后的全部历史。
+// 结果按 monitor_id, checked_at DESC 排序返回，供 pool health 做时间槽并集聚合。
+func (r *channelMonitorRepository) ListHistorySinceForMonitors(
+	ctx context.Context,
+	ids []int64,
+	primaryModels map[int64]string,
+	since time.Time,
+) (map[int64][]*service.ChannelMonitorHistoryEntry, error) {
+	out := make(map[int64][]*service.ChannelMonitorHistoryEntry, len(ids))
+	pairIDs, pairModels := buildMonitorModelPairs(ids, primaryModels)
+	if len(pairIDs) == 0 {
+		return out, nil
+	}
+
+	const q = `
+		WITH targets AS (
+		    SELECT unnest($1::bigint[]) AS monitor_id,
+		           unnest($2::text[])   AS model
+		)
+		SELECT h.monitor_id, h.status, h.latency_ms, h.ping_latency_ms, h.checked_at
+		FROM channel_monitor_histories h
+		JOIN targets t
+		  ON t.monitor_id = h.monitor_id AND t.model = h.model
+		WHERE h.checked_at >= $3
+		ORDER BY h.monitor_id, h.checked_at DESC
+	`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(pairIDs), pq.Array(pairModels), since)
+	if err != nil {
+		return nil, fmt.Errorf("query history window batch: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	for rows.Next() {
+		var monitorID int64
+		entry := &service.ChannelMonitorHistoryEntry{}
+		var latency, ping sql.NullInt64
+		if err := rows.Scan(&monitorID, &entry.Status, &latency, &ping, &entry.CheckedAt); err != nil {
+			return nil, fmt.Errorf("scan history window row: %w", err)
+		}
+		assignNullInt(&entry.LatencyMs, latency)
+		assignNullInt(&entry.PingLatencyMs, ping)
+		out[monitorID] = append(out[monitorID], entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // buildMonitorModelPairs 基于 ids 过滤出有效的 (monitor_id, model) 对，model 为空时跳过。
 // 保证两个数组长度一致且一一对应，供 unnest 展开。
 func buildMonitorModelPairs(ids []int64, primaryModels map[int64]string) ([]int64, []string) {
@@ -734,6 +800,83 @@ func entToServiceMonitor(row *dbent.ChannelMonitor) *service.ChannelMonitor {
 		out.TemplateID = &id
 	}
 	return out
+}
+
+func (r *channelMonitorRepository) syncMonitorGroupID(ctx context.Context, monitorID int64, groupID *int64) error {
+	exec := txAwareSQLExecutor(ctx, r.sql, r.client)
+	if exec == nil {
+		return fmt.Errorf("sql executor is not configured")
+	}
+	const q = `UPDATE channel_monitors SET group_id = $2 WHERE id = $1`
+	var dbGroupID any
+	if groupID != nil {
+		dbGroupID = *groupID
+	}
+	if _, err := exec.ExecContext(ctx, q, monitorID, dbGroupID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *channelMonitorRepository) populateMonitorGroupIDs(ctx context.Context, monitors ...*service.ChannelMonitor) error {
+	if len(monitors) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(monitors))
+	for _, monitor := range monitors {
+		if monitor != nil && monitor.ID > 0 {
+			ids = append(ids, monitor.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	groupIDs, err := r.loadMonitorGroupIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, monitor := range monitors {
+		if monitor == nil {
+			continue
+		}
+		if groupID, ok := groupIDs[monitor.ID]; ok {
+			monitor.GroupID = groupID
+		}
+	}
+	return nil
+}
+
+func (r *channelMonitorRepository) loadMonitorGroupIDs(ctx context.Context, ids []int64) (map[int64]*int64, error) {
+	exec := txAwareSQLExecutor(ctx, r.sql, r.client)
+	if exec == nil {
+		return nil, fmt.Errorf("sql executor is not configured")
+	}
+	const q = `
+		SELECT id, group_id
+		FROM channel_monitors
+		WHERE id = ANY($1)
+	`
+	rows, err := exec.QueryContext(ctx, q, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[int64]*int64, len(ids))
+	for rows.Next() {
+		var monitorID int64
+		var groupID sql.NullInt64
+		if err := rows.Scan(&monitorID, &groupID); err != nil {
+			return nil, err
+		}
+		if groupID.Valid {
+			value := groupID.Int64
+			out[monitorID] = &value
+			continue
+		}
+		out[monitorID] = nil
+	}
+	return out, rows.Err()
 }
 
 // emptyHeadersIfNilRepo 与 service.emptyHeadersIfNil 功能一致，

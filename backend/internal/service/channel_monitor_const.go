@@ -89,6 +89,13 @@ const (
 	// 监控只需要确认“上游能否最小单位地正常出字”，不需要真实推理；
 	// 因此把上限压到极低，减少对计费模型的消耗。
 	monitorChallengeMaxTokens = 8
+	// monitorLightweightMaxTokens 上游池账号探针的输出上限。
+	// 只需要验证账号能否产生最小响应，周期探测必须尽量节省 token。
+	monitorLightweightMaxTokens = 1
+	// monitorLightweightPrompt 上游池账号探针的最小输入。
+	monitorLightweightPrompt = "Hi"
+	// monitorChallengeInstructions 后台手工监控保留 challenge 校验。
+	monitorChallengeInstructions = "Reply with the exact same single word from the input. Do not add punctuation or extra words."
 
 	// monitorRunOneBuffer runOne 的总超时缓冲（除请求超时与 ping 超时外的额外裕量）。
 	monitorRunOneBuffer = 10 * time.Second
@@ -148,6 +155,9 @@ var (
 	)
 	ErrChannelMonitorMissingPrimaryModel = infraerrors.BadRequest(
 		"CHANNEL_MONITOR_MISSING_PRIMARY_MODEL", "primary_model is required",
+	)
+	ErrChannelMonitorInvalidGroupPlatform = infraerrors.BadRequest(
+		"CHANNEL_MONITOR_INVALID_GROUP_PLATFORM", "group platform must match monitor provider",
 	)
 	ErrChannelMonitorAPIKeyDecryptFailed = infraerrors.InternalServer(
 		"CHANNEL_MONITOR_KEY_DECRYPT_FAILED", "api key decryption failed; please re-edit the monitor with a fresh key",

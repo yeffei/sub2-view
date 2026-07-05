@@ -9,6 +9,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/robfig/cron/v3"
 )
 
@@ -179,10 +180,13 @@ func (s *UpstreamPoolRecoveryProbeRunnerService) runOneCandidate(ctx context.Con
 	if account.LastUsedAt != nil && time.Since(*account.LastUsedAt) < upstreamPoolRecoveryProbeMinAge {
 		return
 	}
+	if account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+		return
+	}
 
-	result, err := s.accountTestSvc.RunTestBackgroundWithMode(ctx, accountID, "", AccountTestModeCompact)
-	if err != nil {
-		logger.LegacyPrintf("service.upstream_pool_recovery_probe", "[UpstreamPoolRecoveryProbe] account=%d test error: %v", accountID, err)
+	result := runUpstreamPoolRecoveryLightweightProbe(ctx, account)
+	if result == nil {
+		logger.LegacyPrintf("service.upstream_pool_recovery_probe", "[UpstreamPoolRecoveryProbe] account=%d lightweight probe skipped", accountID)
 		s.extendTempUnschedOnFailedProbe(ctx, account, "probe_error")
 		return
 	}
@@ -207,6 +211,47 @@ func (s *UpstreamPoolRecoveryProbeRunnerService) runOneCandidate(ctx context.Con
 	if recovery.ClearedError || recovery.ClearedRateLimit {
 		logger.LegacyPrintf("service.upstream_pool_recovery_probe", "[UpstreamPoolRecoveryProbe] account=%d recovered error=%v rate_limit=%v", accountID, recovery.ClearedError, recovery.ClearedRateLimit)
 	}
+}
+
+func runUpstreamPoolRecoveryLightweightProbe(ctx context.Context, account *Account) *ScheduledTestResult {
+	if account == nil || account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+		return nil
+	}
+	endpoint := account.GetOpenAIBaseURL()
+	apiKey := account.GetOpenAIApiKey()
+	if strings.TrimSpace(endpoint) == "" || strings.TrimSpace(apiKey) == "" {
+		return nil
+	}
+
+	model := account.GetMappedModel(probeModelForPool(PlatformOpenAI, nil))
+	opts := &CheckOptions{Lightweight: true}
+	if openai_compat.ResolveResponsesSupport(account.Extra) == openai_compat.ResponsesSupportYes {
+		opts.APIMode = MonitorAPIModeResponses
+	}
+
+	started := time.Now()
+	check := runCheckForModel(ctx, MonitorProviderOpenAI, endpoint, apiKey, model, opts)
+	finished := time.Now()
+	status := "failed"
+	if check != nil && (check.Status == MonitorStatusOperational || check.Status == MonitorStatusDegraded) {
+		status = "success"
+	}
+
+	result := &ScheduledTestResult{
+		Status:     status,
+		StartedAt:  started,
+		FinishedAt: finished,
+		CreatedAt:  finished,
+	}
+	if check != nil {
+		if check.Message != "" {
+			result.ErrorMessage = check.Message
+		}
+		if check.LatencyMs != nil {
+			result.LatencyMs = int64(*check.LatencyMs)
+		}
+	}
+	return result
 }
 
 var upstreamPoolRecoveryProbePolicyCache sync.Map // key: int64(accountID), value: OpenAIRoutingPolicy

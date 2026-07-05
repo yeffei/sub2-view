@@ -10,7 +10,6 @@
         :total-count="items.length"
         :healthy-count="healthyCount"
         :attention-count="attentionCount"
-        :provider-count="providerCount"
         :latest-checked-at="latestCheckedAt"
         @update:window="handleWindowChange"
         @refresh="manualReload"
@@ -41,11 +40,11 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import {
-  list as listChannelMonitorViews,
-  status as fetchChannelMonitorDetail,
-  type UserMonitorView,
-  type UserMonitorDetail,
-} from '@/api/channelMonitor'
+  list as listPoolHealthViews,
+  status as fetchPoolHealthDetail,
+  type PoolHealthView,
+  type PoolHealthDetail,
+} from '@/api/poolHealth'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import MonitorHero, {
   type MonitorWindow,
@@ -63,12 +62,12 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 // ── State ──
-const items = ref<UserMonitorView[]>([])
+const items = ref<PoolHealthView[]>([])
 const loading = ref(false)
 const currentWindow = ref<MonitorWindow>('7d')
-const detailCache = reactive<Record<number, UserMonitorDetail>>({})
+const detailCache = reactive<Record<number, PoolHealthDetail>>({})
 const showDetail = ref(false)
-const detailTarget = ref<UserMonitorView | null>(null)
+const detailTarget = ref<PoolHealthView | null>(null)
 
 let abortController: AbortController | null = null
 
@@ -85,19 +84,17 @@ const countdown = autoRefresh.countdown
 const overallStatus = computed<OverallStatus>(() => {
   if (items.value.length === 0) return 'operational'
   for (const it of items.value) {
-    if (it.primary_status === 'failed' || it.primary_status === 'error') return 'degraded'
-    if (it.primary_status !== STATUS_OPERATIONAL) return 'degraded'
+    if (it.status === 'failed' || it.status === 'error') return 'degraded'
+    if (it.status !== STATUS_OPERATIONAL) return 'degraded'
   }
   return 'operational'
 })
 
 const healthyCount = computed(() =>
-  items.value.filter(it => it.primary_status === STATUS_OPERATIONAL).length
+  items.value.filter(it => it.status === STATUS_OPERATIONAL).length
 )
 
 const attentionCount = computed(() => Math.max(0, items.value.length - healthyCount.value))
-
-const providerCount = computed(() => new Set(items.value.map(it => it.provider)).size)
 
 const latestCheckedAt = computed(() => {
   let latest: string | null = null
@@ -127,7 +124,7 @@ async function reload(silent = false) {
   abortController = ctrl
   if (!silent) loading.value = true
   try {
-    const res = await listChannelMonitorViews({ signal: ctrl.signal })
+    const res = await listPoolHealthViews({ signal: ctrl.signal })
     if (ctrl.signal.aborted || abortController !== ctrl) return
     items.value = res.items || []
   } catch (err: unknown) {
@@ -155,7 +152,7 @@ async function manualReload() {
 async function loadDetail(id: number, force = false) {
   if (!force && detailCache[id]) return
   try {
-    detailCache[id] = await fetchChannelMonitorDetail(id)
+    detailCache[id] = await fetchPoolHealthDetail(id)
   } catch (err: unknown) {
     appStore.showError(extractApiErrorMessage(err, t('channelStatus.detailLoadError')))
   }
@@ -172,7 +169,7 @@ async function handleWindowChange(value: MonitorWindow) {
   await ensureDetailsForWindow()
 }
 
-function openDetail(row: UserMonitorView) {
+function openDetail(row: PoolHealthView) {
   detailTarget.value = row
   showDetail.value = true
 }

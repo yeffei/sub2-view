@@ -50,32 +50,32 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import type { UserMonitorView, UserMonitorDetail } from '@/api/channelMonitor'
+import type { PoolHealthView, PoolHealthDetail } from '@/api/poolHealth'
 import EmptyState from '@/components/common/EmptyState.vue'
 import MonitorCard from './MonitorCard.vue'
 
 const props = defineProps<{
-  items: UserMonitorView[]
+  items: PoolHealthView[]
   window: '7d' | '15d' | '30d'
   countdownSeconds: number
   loading: boolean
-  detailCache: Record<number, UserMonitorDetail>
+  detailCache: Record<number, PoolHealthDetail>
 }>()
 
 const emit = defineEmits<{
-  (e: 'cardClick', item: UserMonitorView): void
+  (e: 'cardClick', item: PoolHealthView): void
 }>()
 
 const { t } = useI18n()
 
-function resolveAvailability(item: UserMonitorView): number | null {
+function resolveAvailability(item: PoolHealthView): number | null {
   if (props.window === '7d') {
     return item.availability_7d ?? null
   }
   const detail = props.detailCache[item.id]
   if (!detail) return null
-  const primary = detail.models.find(m => m.model === item.primary_model)
-  if (!primary) return null
-  return props.window === '15d' ? primary.availability_15d ?? null : primary.availability_30d ?? null
+  return props.window === '15d'
+    ? detail.availability_15d ?? null
+    : detail.availability_30d ?? null
 }
 </script>

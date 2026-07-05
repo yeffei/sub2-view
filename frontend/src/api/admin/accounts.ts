@@ -489,6 +489,31 @@ export async function syncUpstreamModels(id: number): Promise<SyncUpstreamModels
   return data
 }
 
+export interface SyncUpstreamRateMultiplierResult {
+  account: Account
+  rate_multiplier: number
+  source: string
+  upstream: {
+    platform?: string
+    group_id?: number
+    group_name?: string
+    rate_source?: string
+    subscription_type?: string
+  }
+}
+
+/**
+ * Sync this local account cost multiplier from a compatible upstream gateway.
+ * @param id - Account ID
+ * @returns Updated account and upstream rate metadata
+ */
+export async function syncUpstreamRateMultiplier(id: number): Promise<SyncUpstreamRateMultiplierResult> {
+  const { data } = await apiClient.post<SyncUpstreamRateMultiplierResult>(
+    `/admin/accounts/${id}/rate-multiplier/sync-upstream`
+  )
+  return data
+}
+
 export interface SyncUpstreamPreviewParams {
   platform: string
   type: string
@@ -804,6 +829,7 @@ export const accountsAPI = {
   setSchedulable,
   getAvailableModels,
   syncUpstreamModels,
+  syncUpstreamRateMultiplier,
   syncUpstreamModelsPreview,
   generateAuthUrl,
   exchangeCode,

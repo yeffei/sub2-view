@@ -68,6 +68,7 @@
       'actions-expanded': actionsExpanded,
       'is-scrollable': isScrollable
     }"
+    :style="tableWrapperStyle"
   >
     <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
       <thead class="table-header bg-gray-50 dark:bg-dark-800">
@@ -217,6 +218,7 @@ const emit = defineEmits<{
 const tableWrapperRef = ref<HTMLElement | null>(null)
 const isScrollable = ref(false)
 const actionsColumnNeedsExpanding = ref(false)
+const selectColumnWidth = ref(52)
 
 // --- 虚拟滚动「整表空白」根治 ---
 // 根因:本组件根 .table-wrapper 为 flex:1 / min-h-0,高度由父级 flex 链决定。@tanstack 虚拟化器
@@ -243,6 +245,20 @@ const observeElementRectNonZero = (
 const checkScrollable = () => {
   if (tableWrapperRef.value) {
     isScrollable.value = tableWrapperRef.value.scrollWidth > tableWrapperRef.value.clientWidth
+  }
+}
+
+const updateStickyOffsets = () => {
+  if (!tableWrapperRef.value || !hasSelectColumn.value) return
+
+  const firstHeaderCell = tableWrapperRef.value.querySelector('thead th:first-child') as HTMLElement | null
+  const firstBodyCell = tableWrapperRef.value.querySelector(
+    'tbody tr:not([aria-hidden="true"]) td:first-child'
+  ) as HTMLElement | null
+  const measuredWidth = Math.max(firstHeaderCell?.offsetWidth ?? 0, firstBodyCell?.offsetWidth ?? 0)
+
+  if (measuredWidth > 0) {
+    selectColumnWidth.value = Math.ceil(measuredWidth)
   }
 }
 
@@ -309,10 +325,12 @@ const detachDesktopTableTracking = () => {
 
 const attachDesktopTableTracking = () => {
   checkScrollable()
+  updateStickyOffsets()
   checkActionsColumnWidth()
   if (tableWrapperRef.value && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
       checkScrollable()
+      updateStickyOffsets()
       checkActionsColumnWidth()
     })
     resizeObserver.observe(tableWrapperRef.value)
@@ -320,6 +338,7 @@ const attachDesktopTableTracking = () => {
     // 降级方案：不支持 ResizeObserver 时使用 window resize
     resizeHandler = () => {
       checkScrollable()
+      updateStickyOffsets()
       checkActionsColumnWidth()
     }
     window.addEventListener('resize', resizeHandler)
@@ -546,6 +565,7 @@ watch(
   async () => {
     await nextTick()
     checkScrollable()
+    updateStickyOffsets()
     checkActionsColumnWidth()
   },
   { flush: 'post' }
@@ -555,6 +575,7 @@ watch(
 watch(actionsExpanded, async () => {
   await nextTick()
   checkScrollable()
+  updateStickyOffsets()
 })
 
 const handleSort = (key: string) => {
@@ -632,6 +653,13 @@ const hasActionsColumn = computed(() => {
 
 const hasSelectColumn = computed(() => {
   return props.columns.length > 0 && props.columns[0].key === 'select'
+})
+
+const tableWrapperStyle = computed(() => {
+  if (!hasSelectColumn.value) return undefined
+  return {
+    '--select-col-width': `${selectColumnWidth.value}px`
+  }
 })
 
 // 生成固定列的 CSS 类
@@ -734,7 +762,7 @@ defineExpose({
 <style scoped>
 /* 表格横向滚动 */
 .table-wrapper {
-  --select-col-width: 52px; /* 勾选列宽度：px-6 (24px*2) + checkbox (16px) */
+  --select-col-width: 52px;
   position: relative;
   overflow-x: auto;
   overflow-y: auto;

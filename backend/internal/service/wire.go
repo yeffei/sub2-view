@@ -671,6 +671,9 @@ var ProviderSet = wire.NewSet(
 	ProvideBalanceNotifyService,
 	ProvideChannelMonitorService,
 	ProvideChannelMonitorRunner,
+	NewAccountMonitorService,
+	ProvideAccountMonitorRunner,
+	NewPoolHealthService,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
 )
@@ -715,10 +718,12 @@ func ProvidePaymentOrderExpiryService(paymentSvc *PaymentService, lockCache Lead
 func ProvideChannelMonitorService(
 	repo ChannelMonitorRepository,
 	encryptor SecretEncryptor,
+	groupRepo GroupRepository,
 	upstreamPoolRepo UpstreamPoolRepository,
 	accountRepo AccountRepository,
 ) *ChannelMonitorService {
 	svc := NewChannelMonitorService(repo, encryptor)
+	svc.SetGroupRepository(groupRepo)
 	svc.SetUpstreamPoolRepository(upstreamPoolRepo)
 	svc.SetAccountRepository(accountRepo)
 	return svc

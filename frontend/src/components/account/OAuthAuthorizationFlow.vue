@@ -187,6 +187,11 @@
             <p class="mb-3 text-sm text-blue-700 dark:text-blue-300">
               {{ t('admin.accounts.oauth.openai.codexSessionDesc') }}
             </p>
+            <div
+              class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-200"
+            >
+              {{ t('admin.accounts.oauth.openai.codexSessionSafetyHint') }}
+            </div>
 
             <div class="mb-4">
               <label
@@ -201,6 +206,33 @@
                   {{ t('admin.accounts.oauth.keysCount', { count: parsedCodexSessionCount }) }}
                 </span>
               </label>
+              <div
+                class="mb-3 flex flex-col gap-2 rounded-lg border border-dashed border-blue-200 bg-blue-50/60 p-3 dark:border-blue-800/60 dark:bg-blue-900/20 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div class="min-w-0">
+                  <div class="truncate text-sm font-medium text-blue-800 dark:text-blue-200">
+                    {{ codexSessionFileName || t('admin.accounts.oauth.openai.codexSessionFileSelect') }}
+                  </div>
+                  <div class="mt-0.5 text-xs text-blue-600 dark:text-blue-300">
+                    {{ t('admin.accounts.oauth.openai.codexSessionFileHint') }}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="btn btn-secondary shrink-0"
+                  :disabled="loading"
+                  @click="openCodexSessionFilePicker"
+                >
+                  {{ t('common.chooseFile') }}
+                </button>
+                <input
+                  ref="codexSessionFileInput"
+                  type="file"
+                  class="hidden"
+                  accept="application/json,.json,text/plain,.txt"
+                  @change="handleCodexSessionFileChange"
+                />
+              </div>
               <textarea
                 v-model="codexSessionInput"
                 rows="8"
@@ -654,6 +686,7 @@ interface Props {
   showCodexSessionImportOption?: boolean
   platform?: AccountPlatform // Platform type for different UI/text
   showProjectId?: boolean // New prop to control project ID visibility
+  initialInputMethod?: AuthInputMethod
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -672,7 +705,8 @@ const props = withDefaults(defineProps<Props>(), {
   showAccessTokenOption: false,
   showCodexSessionImportOption: false,
   platform: 'anthropic',
-  showProjectId: true
+  showProjectId: true,
+  initialInputMethod: 'manual'
 })
 
 const emit = defineEmits<{
@@ -718,12 +752,14 @@ const oauthImportantNotice = computed(() => {
 })
 
 // Local state
-const inputMethod = ref<AuthInputMethod>(props.showCookieOption ? 'manual' : 'manual')
+const inputMethod = ref<AuthInputMethod>(props.initialInputMethod)
 const authCodeInput = ref('')
 const sessionKeyInput = ref('')
 const refreshTokenInput = ref('')
 const sessionTokenInput = ref('')
 const codexSessionInput = ref('')
+const codexSessionFileInput = ref<HTMLInputElement | null>(null)
+const codexSessionFileName = ref('')
 const showHelpDialog = ref(false)
 const oauthState = ref('')
 const projectId = ref('')
@@ -761,6 +797,13 @@ const parsedCodexSessionCount = computed(() => {
 })
 
 // Watchers
+watch(
+  () => props.initialInputMethod,
+  (method) => {
+    inputMethod.value = method
+  }
+)
+
 watch(inputMethod, (newVal) => {
   emit('update:inputMethod', newVal)
 })
@@ -837,6 +880,44 @@ const handleImportCodexSession = () => {
   }
 }
 
+const readFileAsText = async (sourceFile: File): Promise<string> => {
+  if (typeof sourceFile.text === 'function') {
+    return sourceFile.text()
+  }
+
+  if (typeof sourceFile.arrayBuffer === 'function') {
+    const buffer = await sourceFile.arrayBuffer()
+    return new TextDecoder().decode(buffer)
+  }
+
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
+    reader.readAsText(sourceFile)
+  })
+}
+
+const openCodexSessionFilePicker = () => {
+  codexSessionFileInput.value?.click()
+}
+
+const handleCodexSessionFileChange = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const sourceFile = target.files?.[0]
+  if (!sourceFile) return
+
+  try {
+    codexSessionInput.value = await readFileAsText(sourceFile)
+    codexSessionFileName.value = sourceFile.name
+  } catch (error) {
+    console.error('Failed to read Codex session import file:', error)
+    window.alert(t('admin.accounts.oauth.openai.codexSessionFileReadFailed'))
+  } finally {
+    target.value = ''
+  }
+}
+
 // Expose methods and state
 defineExpose({
   authCode: authCodeInput,
@@ -855,7 +936,11 @@ defineExpose({
     refreshTokenInput.value = ''
     sessionTokenInput.value = ''
     codexSessionInput.value = ''
-    inputMethod.value = 'manual'
+    codexSessionFileName.value = ''
+    if (codexSessionFileInput.value) {
+      codexSessionFileInput.value.value = ''
+    }
+    inputMethod.value = props.initialInputMethod
     showHelpDialog.value = false
   }
 })

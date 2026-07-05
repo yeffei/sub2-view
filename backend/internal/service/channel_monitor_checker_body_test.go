@@ -63,6 +63,8 @@ type openAICaptureHandler struct {
 	lastPath                  string
 	status                    int
 	responsesLeadingReasoning bool
+	chatResponsesEnvelope     bool
+	chatSSEResponse           bool
 }
 
 func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +78,10 @@ func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 	if h.status == 0 {
 		h.status = http.StatusOK
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(h.status)
-
 	answer := answerFromOpenAIRequest(parsed)
 	if h.lastPath == providerOpenAIResponsesPath {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(h.status)
 		output := []map[string]any{}
 		if h.responsesLeadingReasoning {
 			output = append(output, map[string]any{
@@ -101,12 +102,72 @@ func (h *openAICaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
+	if h.chatSSEResponse {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(h.status)
+		_, _ = w.Write([]byte("data: {\"type\":\"response.output_text.delta\",\"delta\":\"" + answer + "\"}\n\n"))
+		_, _ = w.Write([]byte("data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"type\":\"message\",\"status\":\"completed\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"" + answer + "\"}]}]}}\n\n"))
+		return
+	}
+	if h.chatResponsesEnvelope {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(h.status)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"response": map[string]any{
+				"output": []map[string]any{
+					{
+						"type":   "message",
+						"status": "completed",
+						"role":   "assistant",
+						"content": []map[string]any{
+							{"type": "output_text", "text": answer},
+						},
+					},
+				},
+			},
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(h.status)
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"choices": []map[string]any{{"message": map[string]any{"content": answer}}},
 	})
 }
 
 func setupFakeOpenAI(t *testing.T, handler *openAICaptureHandler) string {
+	t.Helper()
+	swapMonitorHTTPClient(t)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+type geminiCaptureHandler struct {
+	lastBody map[string]any
+	lastPath string
+	status   int
+}
+
+func (h *geminiCaptureHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.lastPath = r.URL.Path
+	defer func() { _ = r.Body.Close() }()
+	var parsed map[string]any
+	_ = json.NewDecoder(r.Body).Decode(&parsed)
+	h.lastBody = parsed
+	if h.status == 0 {
+		h.status = http.StatusOK
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(h.status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"candidates": []map[string]any{
+			{"content": map[string]any{"parts": []map[string]any{{"text": "Hi"}}}},
+		},
+	})
+}
+
+func setupFakeGemini(t *testing.T, handler *geminiCaptureHandler) string {
 	t.Helper()
 	swapMonitorHTTPClient(t)
 	srv := httptest.NewServer(handler)
@@ -144,6 +205,60 @@ func TestRunCheckForModel_OffMode_PreservesDefaultBody(t *testing.T) {
 	}
 }
 
+func TestRunCheckForModel_Anthropic_LightweightUsesHiAndOneToken(t *testing.T) {
+	h := &captureHandler{respondText: "Hi"}
+	endpoint := setupFakeAnthropic(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderAnthropic, endpoint, "sk-fake", "claude-x", &CheckOptions{
+		Lightweight: true,
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("lightweight anthropic request should pass with non-empty response, got status=%s message=%q", res.Status, res.Message)
+	}
+	messages, _ := h.lastBody["messages"].([]any)
+	if len(messages) != 1 {
+		t.Fatalf("expected one lightweight message, got %v", h.lastBody["messages"])
+	}
+	msg, _ := messages[0].(map[string]any)
+	if got := strings.TrimSpace(stringFromAny(msg["content"])); got != monitorLightweightPrompt {
+		t.Errorf("lightweight anthropic prompt should be %q, got %q", monitorLightweightPrompt, got)
+	}
+	if h.lastBody["max_tokens"] != float64(monitorLightweightMaxTokens) {
+		t.Errorf("lightweight anthropic should set max_tokens=%d, got %v", monitorLightweightMaxTokens, h.lastBody["max_tokens"])
+	}
+}
+
+func TestRunCheckForModel_Gemini_LightweightUsesHiAndOneToken(t *testing.T) {
+	h := &geminiCaptureHandler{}
+	endpoint := setupFakeGemini(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderGemini, endpoint, "AIza-fake", "gemini-test", &CheckOptions{
+		Lightweight: true,
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("lightweight gemini request should pass with non-empty response, got status=%s message=%q", res.Status, res.Message)
+	}
+	contents, _ := h.lastBody["contents"].([]any)
+	if len(contents) != 1 {
+		t.Fatalf("expected one lightweight content item, got %v", h.lastBody["contents"])
+	}
+	content, _ := contents[0].(map[string]any)
+	parts, _ := content["parts"].([]any)
+	if len(parts) != 1 {
+		t.Fatalf("expected one lightweight part, got %v", content["parts"])
+	}
+	part, _ := parts[0].(map[string]any)
+	if got := strings.TrimSpace(stringFromAny(part["text"])); got != monitorLightweightPrompt {
+		t.Errorf("lightweight gemini prompt should be %q, got %q", monitorLightweightPrompt, got)
+	}
+	cfg, _ := h.lastBody["generationConfig"].(map[string]any)
+	if cfg["maxOutputTokens"] != float64(monitorLightweightMaxTokens) {
+		t.Errorf("lightweight gemini should set maxOutputTokens=%d, got %v", monitorLightweightMaxTokens, cfg["maxOutputTokens"])
+	}
+}
+
 func TestRunCheckForModel_OpenAI_DefaultChatRequest(t *testing.T) {
 	h := &openAICaptureHandler{}
 	endpoint := setupFakeOpenAI(t, h)
@@ -176,6 +291,30 @@ func TestRunCheckForModel_OpenAI_DefaultChatRequest(t *testing.T) {
 	}
 	if h.lastHeaders.Get("Authorization") != "Bearer sk-openai" {
 		t.Errorf("expected bearer auth header, got %q", h.lastHeaders.Get("Authorization"))
+	}
+}
+
+func TestRunCheckForModel_OpenAI_LightweightChatUsesHiAndOneToken(t *testing.T) {
+	h := &openAICaptureHandler{}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "gpt-test", &CheckOptions{
+		Lightweight: true,
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("lightweight chat request should pass with non-empty response, got status=%s message=%q", res.Status, res.Message)
+	}
+	messages, _ := h.lastBody["messages"].([]any)
+	if len(messages) != 1 {
+		t.Fatalf("expected one lightweight message, got %v", h.lastBody["messages"])
+	}
+	msg, _ := messages[0].(map[string]any)
+	if got := strings.TrimSpace(stringFromAny(msg["content"])); got != monitorLightweightPrompt {
+		t.Errorf("lightweight chat prompt should be %q, got %q", monitorLightweightPrompt, got)
+	}
+	if h.lastBody["max_tokens"] != float64(monitorLightweightMaxTokens) {
+		t.Errorf("lightweight chat should set max_tokens=%d, got %v", monitorLightweightMaxTokens, h.lastBody["max_tokens"])
 	}
 }
 
@@ -224,6 +363,29 @@ func TestRunCheckForModel_OpenAIResponses_DefaultRequest(t *testing.T) {
 	}
 }
 
+func TestRunCheckForModel_OpenAIResponses_LightweightUsesHiAndOneToken(t *testing.T) {
+	h := &openAICaptureHandler{}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "gpt-test", &CheckOptions{
+		APIMode:     MonitorAPIModeResponses,
+		Lightweight: true,
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("lightweight responses request should pass with non-empty response, got status=%s message=%q", res.Status, res.Message)
+	}
+	if strings.TrimSpace(stringFromAny(h.lastBody["input"])) != monitorLightweightPrompt {
+		t.Errorf("lightweight responses input should be %q, got %q", monitorLightweightPrompt, h.lastBody["input"])
+	}
+	if _, exists := h.lastBody["instructions"]; exists {
+		t.Errorf("lightweight responses should omit instructions, got %v", h.lastBody["instructions"])
+	}
+	if h.lastBody["max_output_tokens"] != float64(monitorLightweightMaxTokens) {
+		t.Errorf("lightweight responses should set max_output_tokens=%d, got %v", monitorLightweightMaxTokens, h.lastBody["max_output_tokens"])
+	}
+}
+
 func TestRunCheckForModel_OpenAIResponses_SkipsLeadingReasoningItem(t *testing.T) {
 	h := &openAICaptureHandler{responsesLeadingReasoning: true}
 	endpoint := setupFakeOpenAI(t, h)
@@ -237,6 +399,34 @@ func TestRunCheckForModel_OpenAIResponses_SkipsLeadingReasoningItem(t *testing.T
 	}
 	if h.lastPath != providerOpenAIResponsesPath {
 		t.Fatalf("expected responses path %q, got %q", providerOpenAIResponsesPath, h.lastPath)
+	}
+}
+
+func TestRunCheckForModel_OpenAIChat_AcceptsResponsesEnvelope(t *testing.T) {
+	h := &openAICaptureHandler{chatResponsesEnvelope: true}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "gpt-5.5", nil)
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("responses-shaped chat response should pass challenge, got status=%s message=%q", res.Status, res.Message)
+	}
+	if h.lastPath != providerOpenAIPath {
+		t.Fatalf("expected chat completions path %q, got %q", providerOpenAIPath, h.lastPath)
+	}
+}
+
+func TestRunCheckForModel_OpenAIChat_AcceptsSSECompletedResponse(t *testing.T) {
+	h := &openAICaptureHandler{chatSSEResponse: true}
+	endpoint := setupFakeOpenAI(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderOpenAI, endpoint, "sk-openai", "gpt-5.5", nil)
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("sse chat response should pass challenge, got status=%s message=%q", res.Status, res.Message)
+	}
+	if h.lastPath != providerOpenAIPath {
+		t.Fatalf("expected chat completions path %q, got %q", providerOpenAIPath, h.lastPath)
 	}
 }
 

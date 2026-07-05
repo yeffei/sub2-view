@@ -10,44 +10,47 @@ import (
 )
 
 type stubAdminService struct {
-	users                []service.User
-	apiKeys              []service.APIKey
-	groups               []service.Group
-	accounts             []service.Account
-	upstreamPools        []service.UpstreamPool
-	upstreamPoolMembers  []service.UpstreamPoolMember
-	upstreamPoolBindings []service.UpstreamPoolBinding
-	proxies              []service.Proxy
-	proxyCounts          []service.ProxyWithAccountCount
-	redeems              []service.RedeemCode
-	boundAuthIdentity    *service.AdminBindAuthIdentityInput
-	boundAuthIdentityFor int64
-	createdAccounts      []*service.CreateAccountInput
-	createdProxies       []*service.CreateProxyInput
-	updatedProxyIDs      []int64
-	updatedProxies       []*service.UpdateProxyInput
-	testedProxyIDs       []int64
-	getUserErr           error
-	createAccountErr     error
-	updateAccountErr     error
-	bulkUpdateAccountErr error
-	checkMixedErr        error
-	lastMixedCheck       struct {
+	users                  []service.User
+	apiKeys                []service.APIKey
+	groups                 []service.Group
+	accounts               []service.Account
+	upstreamPools          []service.UpstreamPool
+	upstreamPoolMembers    []service.UpstreamPoolMember
+	accountSets            []service.UpstreamAccountSet
+	accountSetMembers      []service.UpstreamAccountSetMember
+	upstreamPoolMemberSets []service.UpstreamPoolMemberSet
+	upstreamPoolBindings   []service.UpstreamPoolBinding
+	proxies                []service.Proxy
+	proxyCounts            []service.ProxyWithAccountCount
+	redeems                []service.RedeemCode
+	boundAuthIdentity      *service.AdminBindAuthIdentityInput
+	boundAuthIdentityFor   int64
+	createdAccounts        []*service.CreateAccountInput
+	createdProxies         []*service.CreateProxyInput
+	updatedProxyIDs        []int64
+	updatedProxies         []*service.UpdateProxyInput
+	testedProxyIDs         []int64
+	getUserErr             error
+	createAccountErr       error
+	updateAccountErr       error
+	bulkUpdateAccountErr   error
+	checkMixedErr          error
+	lastMixedCheck         struct {
 		accountID int64
 		platform  string
 		groupIDs  []int64
 	}
 	lastListAccounts struct {
-		platform    string
-		accountType string
-		status      string
+		platform      string
+		accountType   string
+		status        string
 		anomalyReason string
-		search      string
-		groupID     int64
-		privacyMode string
-		sortBy      string
-		sortOrder   string
-		calls       int
+		search        string
+		groupID       int64
+		privacyMode   string
+		sortBy        string
+		sortOrder     string
+		calls         int
 	}
 	lastListUsers struct {
 		page      int
@@ -112,6 +115,15 @@ func newStubAdminService() *stubAdminService {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
+	openAIAccount := service.Account{
+		ID:        13,
+		Name:      "openai-account",
+		Platform:  service.PlatformOpenAI,
+		Type:      service.AccountTypeOAuth,
+		Status:    service.StatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
 	proxy := service.Proxy{
 		ID:        4,
 		Name:      "proxy",
@@ -131,10 +143,10 @@ func newStubAdminService() *stubAdminService {
 		CreatedAt: now,
 	}
 	return &stubAdminService{
-		users:       []service.User{user},
-		apiKeys:     []service.APIKey{apiKey},
-		groups:      []service.Group{group},
-		accounts:    []service.Account{account},
+		users:    []service.User{user},
+		apiKeys:  []service.APIKey{apiKey},
+		groups:   []service.Group{group},
+		accounts: []service.Account{account, openAIAccount},
 		upstreamPools: []service.UpstreamPool{{
 			ID:        11,
 			Name:      "pool",
@@ -145,13 +157,47 @@ func newStubAdminService() *stubAdminService {
 			UpdatedAt: now,
 		}},
 		upstreamPoolMembers: []service.UpstreamPoolMember{{
-			ID:        21,
-			PoolID:    11,
-			AccountID: account.ID,
-			Enabled:   true,
-			Weight:    100,
-			JoinedAt:   now,
-			UpdatedAt:  now,
+			ID:              21,
+			PoolID:          11,
+			AccountID:       openAIAccount.ID,
+			AccountName:     openAIAccount.Name,
+			AccountPlatform: openAIAccount.Platform,
+			AccountType:     openAIAccount.Type,
+			AccountStatus:   openAIAccount.Status,
+			Enabled:         true,
+			Weight:          100,
+			JoinedAt:        now,
+			UpdatedAt:       now,
+		}},
+		accountSets: []service.UpstreamAccountSet{{
+			ID:           41,
+			Name:         "set",
+			Code:         "openai-set",
+			Platform:     service.PlatformOpenAI,
+			Enabled:      true,
+			AccountCount: 1,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}},
+		accountSetMembers: []service.UpstreamAccountSetMember{{
+			SetID:           41,
+			AccountID:       openAIAccount.ID,
+			AccountName:     openAIAccount.Name,
+			AccountPlatform: openAIAccount.Platform,
+			AccountType:     openAIAccount.Type,
+			AccountStatus:   openAIAccount.Status,
+			AddedAt:         now,
+		}},
+		upstreamPoolMemberSets: []service.UpstreamPoolMemberSet{{
+			ID:          51,
+			PoolID:      11,
+			SetID:       41,
+			SetName:     "set",
+			SetCode:     "openai-set",
+			SetPlatform: service.PlatformOpenAI,
+			Enabled:     true,
+			JoinedAt:    now,
+			UpdatedAt:   now,
 		}},
 		upstreamPoolBindings: []service.UpstreamPoolBinding{{
 			ID:        31,
@@ -389,6 +435,133 @@ func (s *stubAdminService) DeleteUpstreamPoolMember(ctx context.Context, id int6
 	return nil
 }
 
+func (s *stubAdminService) ListUpstreamAccountSets(ctx context.Context) ([]service.UpstreamAccountSet, error) {
+	return s.accountSets, nil
+}
+
+func (s *stubAdminService) CreateUpstreamAccountSet(ctx context.Context, input *service.CreateUpstreamAccountSetInput) (*service.UpstreamAccountSet, error) {
+	item := service.UpstreamAccountSet{
+		ID:          401,
+		Name:        input.Name,
+		Code:        input.Code,
+		Platform:    input.Platform,
+		Description: input.Description,
+		Enabled:     input.Enabled,
+	}
+	return &item, nil
+}
+
+func (s *stubAdminService) UpdateUpstreamAccountSet(ctx context.Context, id int64, input *service.UpdateUpstreamAccountSetInput) (*service.UpstreamAccountSet, error) {
+	item := service.UpstreamAccountSet{
+		ID:           id,
+		Name:         "set",
+		Code:         "openai-set",
+		Platform:     service.PlatformOpenAI,
+		Enabled:      true,
+		AccountCount: len(s.accountSetMembers),
+	}
+	if input.Name != nil {
+		item.Name = *input.Name
+	}
+	if input.Code != nil {
+		item.Code = *input.Code
+	}
+	if input.Platform != nil {
+		item.Platform = *input.Platform
+	}
+	if input.Description != nil {
+		item.Description = *input.Description
+	}
+	if input.Enabled != nil {
+		item.Enabled = *input.Enabled
+	}
+	return &item, nil
+}
+
+func (s *stubAdminService) DeleteUpstreamAccountSet(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (s *stubAdminService) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]service.UpstreamAccountSetMember, error) {
+	out := make([]service.UpstreamAccountSetMember, 0)
+	for _, member := range s.accountSetMembers {
+		if member.SetID == setID {
+			out = append(out, member)
+		}
+	}
+	return out, nil
+}
+
+func (s *stubAdminService) AddUpstreamAccountSetMembers(ctx context.Context, setID int64, input *service.AddUpstreamAccountSetMembersInput) error {
+	for _, accountID := range input.AccountIDs {
+		s.accountSetMembers = append(s.accountSetMembers, service.UpstreamAccountSetMember{
+			SetID:     setID,
+			AccountID: accountID,
+			AddedAt:   time.Now().UTC(),
+		})
+	}
+	return nil
+}
+
+func (s *stubAdminService) DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error {
+	filtered := s.accountSetMembers[:0]
+	for _, member := range s.accountSetMembers {
+		if member.SetID == setID && member.AccountID == accountID {
+			continue
+		}
+		filtered = append(filtered, member)
+	}
+	s.accountSetMembers = filtered
+	return nil
+}
+
+func (s *stubAdminService) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]service.UpstreamPoolMemberSet, error) {
+	out := make([]service.UpstreamPoolMemberSet, 0)
+	for _, item := range s.upstreamPoolMemberSets {
+		if item.PoolID == poolID {
+			out = append(out, item)
+		}
+	}
+	return out, nil
+}
+
+func (s *stubAdminService) CreateUpstreamPoolMemberSet(ctx context.Context, poolID int64, input *service.CreateUpstreamPoolMemberSetInput) (*service.UpstreamPoolMemberSet, error) {
+	item := service.UpstreamPoolMemberSet{
+		ID:          501,
+		PoolID:      poolID,
+		SetID:       input.SetID,
+		SetName:     "set",
+		SetCode:     "openai-set",
+		SetPlatform: service.PlatformOpenAI,
+		Enabled:     input.Enabled,
+		Notes:       input.Notes,
+	}
+	return &item, nil
+}
+
+func (s *stubAdminService) UpdateUpstreamPoolMemberSet(ctx context.Context, id int64, input *service.UpdateUpstreamPoolMemberSetInput) (*service.UpstreamPoolMemberSet, error) {
+	item := service.UpstreamPoolMemberSet{
+		ID:          id,
+		PoolID:      11,
+		SetID:       41,
+		SetName:     "set",
+		SetCode:     "openai-set",
+		SetPlatform: service.PlatformOpenAI,
+		Enabled:     true,
+	}
+	if input.Enabled != nil {
+		item.Enabled = *input.Enabled
+	}
+	if input.Notes != nil {
+		item.Notes = *input.Notes
+	}
+	return &item, nil
+}
+
+func (s *stubAdminService) DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error {
+	return nil
+}
+
 func (s *stubAdminService) ListUpstreamPoolBindings(ctx context.Context) ([]service.UpstreamPoolBinding, error) {
 	return s.upstreamPoolBindings, nil
 }
@@ -447,7 +620,21 @@ func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int,
 	s.lastListAccounts.sortBy = sortBy
 	s.lastListAccounts.sortOrder = sortOrder
 	s.lastListAccounts.calls++
-	return s.accounts, int64(len(s.accounts)), nil
+	if pageSize <= 0 {
+		return s.accounts, int64(len(s.accounts)), nil
+	}
+	if page <= 0 {
+		page = 1
+	}
+	start := (page - 1) * pageSize
+	if start >= len(s.accounts) {
+		return []service.Account{}, int64(len(s.accounts)), nil
+	}
+	end := start + pageSize
+	if end > len(s.accounts) {
+		end = len(s.accounts)
+	}
+	return s.accounts[start:end], int64(len(s.accounts)), nil
 }
 
 func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.Account, error) {

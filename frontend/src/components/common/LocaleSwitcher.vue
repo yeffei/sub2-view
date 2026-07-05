@@ -8,7 +8,13 @@
       :title="currentLocale?.name"
     >
       <span v-if="variant !== 'public'" class="text-base">{{ currentLocale?.flag }}</span>
-      <span>{{ triggerLabel }}</span>
+      <template v-if="variant === 'public'">
+        <span class="locale-switcher-public-mark" aria-hidden="true">
+          <Icon name="paperScroll" size="sm" :stroke-width="1.55" />
+        </span>
+        <span class="locale-switcher-public-name">{{ triggerLabel }}</span>
+      </template>
+      <span v-else>{{ triggerLabel }}</span>
       <Icon
         name="chevronDown"
         size="xs"
@@ -132,20 +138,73 @@ onBeforeUnmount(() => {
 }
 
 .locale-switcher-btn-public {
-  min-height: 2.25rem;
+  min-height: var(--sst-public-tool-height, 2.28rem);
+  gap: var(--sst-public-tool-gap, 0.42rem);
   border-radius: 999px;
-  padding: 0.3rem 0.7rem;
-  font-size: 0.9rem;
-  color: #3b433d;
+  border: 1px solid var(--sst-public-tool-border, rgba(145, 128, 99, 0.14));
+  padding: 0.22rem 0.58rem 0.22rem 0.3rem;
+  background:
+    linear-gradient(180deg, var(--sst-public-tool-bg-top, rgba(255, 252, 247, 0.7)), var(--sst-public-tool-bg-bottom, rgba(244, 237, 226, 0.82)));
+  color: var(--sst-public-tool-fg, #343b35);
+  box-shadow: var(--sst-public-tool-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.58), 0 8px 18px rgba(74, 56, 33, 0.06));
 }
 
 .locale-switcher-btn-public:hover {
-  color: #a73a2a;
-  background: rgba(216, 205, 185, 0.18);
+  color: #9f3d2f;
+  border-color: var(--sst-public-tool-hover-border, rgba(167, 58, 42, 0.18));
+  background:
+    linear-gradient(180deg, var(--sst-public-tool-hover-top, rgba(255, 251, 245, 0.94)), var(--sst-public-tool-hover-bottom, rgba(242, 232, 218, 0.98)));
+  box-shadow: var(--sst-public-tool-hover-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 10px 20px rgba(167, 58, 42, 0.08));
+}
+
+.locale-switcher-public-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: calc(var(--sst-public-tool-mark-size, 1.62rem) + 0.02rem);
+  height: calc(var(--sst-public-tool-mark-size, 1.62rem) + 0.02rem);
+  border-radius: var(--sst-public-tool-mark-radius, 0.58rem);
+  background:
+    linear-gradient(180deg, var(--sst-public-tool-mark-top, rgba(244, 238, 229, 0.98)), var(--sst-public-tool-mark-bottom, rgba(233, 222, 205, 0.94)));
+  color: var(--sst-public-tool-mark-fg, #8d6845);
+  box-shadow: var(--sst-public-tool-mark-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 0 0 1px rgba(189, 161, 126, 0.12));
+}
+
+.locale-switcher-public-mark::after {
+  content: '';
+  position: absolute;
+  left: 0.34rem;
+  top: 0.34rem;
+  width: var(--sst-public-tool-dot-size, 0.16rem);
+  height: var(--sst-public-tool-dot-size, 0.16rem);
+  border-radius: 999px;
+  background: var(--sst-public-tool-dot, rgba(167, 58, 42, 0.72));
+  box-shadow: var(--sst-public-tool-dot-shadow, 0 0 0 0.13rem rgba(167, 58, 42, 0.06));
+}
+
+.locale-switcher-public-name {
+  min-width: 1.88rem;
+  font-size: 0.9rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--sst-public-tool-label, #2f332e);
+  text-align: left;
+}
+
+@media (max-width: 767px) {
+  .locale-switcher-btn-public {
+    padding: 0.18rem 0.46rem 0.18rem 0.26rem;
+  }
+
+  .locale-switcher-public-name {
+    min-width: 1.56rem;
+    font-size: 0.8rem;
+  }
 }
 
 .locale-switcher-chevron {
-  color: rgb(156 163 175);
+  color: var(--sst-public-tool-chevron, #aa9274);
   transition: transform 0.2s ease;
 }
 
@@ -171,8 +230,13 @@ html.dark .locale-switcher-btn-default:hover {
 }
 
 html.dark .public-site-header .locale-switcher-btn-public {
-  color: #ece2d2;
-  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
+  color: #e6dac7;
+  border-color: rgba(112, 101, 81, 0.28);
+  background: linear-gradient(180deg, rgba(31, 32, 28, 0.82), rgba(22, 24, 20, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.04),
+    0 5px 12px rgba(0, 0, 0, 0.18);
+  text-shadow: none;
 }
 
 html.dark .sst-public-tone-legal .locale-switcher-btn-public {
@@ -181,8 +245,12 @@ html.dark .sst-public-tone-legal .locale-switcher-btn-public {
 }
 
 html.dark .public-site-header .locale-switcher-btn-public:hover {
-  color: #ffd8bb;
-  background: rgba(216, 205, 185, 0.08);
+  color: #f0e4d2;
+  border-color: rgba(144, 118, 86, 0.34);
+  background: linear-gradient(180deg, rgba(38, 36, 31, 0.88), rgba(29, 28, 24, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.05),
+    0 7px 14px rgba(0, 0, 0, 0.22);
 }
 
 html.dark .sst-public-tone-legal .locale-switcher-btn-public:hover {
@@ -191,7 +259,24 @@ html.dark .sst-public-tone-legal .locale-switcher-btn-public:hover {
 }
 
 html.dark .public-site-header .locale-switcher-chevron {
-  color: #d9c8ae;
+  color: #b99868;
+}
+
+html.dark .public-site-header .locale-switcher-public-mark {
+  background: linear-gradient(180deg, rgba(58, 50, 41, 0.8), rgba(42, 38, 31, 0.88));
+  color: #d0ab7a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 251, 243, 0.06),
+    inset 0 0 0 1px rgba(201, 167, 122, 0.08);
+}
+
+html.dark .public-site-header .locale-switcher-public-mark::after {
+  background: rgba(177, 95, 72, 0.68);
+  box-shadow: 0 0 0 0.12rem rgba(177, 95, 72, 0.06);
+}
+
+html.dark .public-site-header .locale-switcher-public-name {
+  color: #e8dcc9;
 }
 
 html.dark .sst-public-tone-legal .locale-switcher-chevron {

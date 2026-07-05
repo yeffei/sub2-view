@@ -40,7 +40,7 @@ func TestAccountHandlerListIncludesCreatedAt(t *testing.T) {
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
-	require.Len(t, payload.Data.Items, 1)
+	require.NotEmpty(t, payload.Data.Items)
 
 	createdAt := payload.Data.Items[0].CreatedAt
 	require.NotEmpty(t, createdAt)

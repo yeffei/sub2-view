@@ -144,8 +144,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 
 		// ── 5. 加载订阅（订阅模式时始终加载） ───────────────────────
 
-		// skipBilling: /v1/usage 只需鉴权，跳过所有计费执行
-		skipBilling := c.Request.URL.Path == "/v1/usage"
+		// skipBilling: 只需鉴权，跳过所有计费执行。
+		// /v1/account/meta 用于同系下游同步当前 Key 的上游成本倍率，不产生用量。
+		skipBilling := c.Request.URL.Path == "/v1/usage" || c.Request.URL.Path == "/v1/account/meta"
 
 		var subscription *service.UserSubscription
 		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()

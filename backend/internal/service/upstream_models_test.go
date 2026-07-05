@@ -37,6 +37,14 @@ func TestBuildGeminiModelsURL(t *testing.T) {
 	require.Equal(t, "https://generativelanguage.googleapis.com/v1beta/models", buildGeminiModelsURL("https://generativelanguage.googleapis.com/v1beta/models"))
 }
 
+func TestBuildCompatibleAccountMetaURL(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "https://gateway.example.com/v1/account/meta", buildCompatibleAccountMetaURL("https://gateway.example.com"))
+	require.Equal(t, "https://gateway.example.com/v1/account/meta", buildCompatibleAccountMetaURL("https://gateway.example.com/v1"))
+	require.Equal(t, "https://gateway.example.com/v1/account/meta", buildCompatibleAccountMetaURL("https://gateway.example.com/v1/account/meta"))
+}
+
 func TestExtractUpstreamModelIDs(t *testing.T) {
 	t.Parallel()
 
@@ -72,6 +80,21 @@ func TestExtractUpstreamModelIDs(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestExtractCompatibleUpstreamAccountMeta(t *testing.T) {
+	t.Parallel()
+
+	meta, err := extractCompatibleUpstreamAccountMeta([]byte(`{"data":{"compatible":true,"platform":"openai","group_id":7,"group_name":"Codex Plus","rate_multiplier":0.06,"rate_source":"user_group_override","subscription_type":"standard"}}`))
+	require.NoError(t, err)
+	require.True(t, meta.Compatible)
+	require.Equal(t, "openai", meta.Platform)
+	require.NotNil(t, meta.GroupID)
+	require.Equal(t, int64(7), *meta.GroupID)
+	require.Equal(t, "Codex Plus", meta.GroupName)
+	require.Equal(t, 0.06, meta.RateMultiplier)
+	require.Equal(t, "user_group_override", meta.RateSource)
+	require.Equal(t, "standard", meta.SubscriptionType)
 }
 
 func TestBuildUpstreamModelsRequestsForAPIKeyAccounts(t *testing.T) {

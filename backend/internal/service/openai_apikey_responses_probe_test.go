@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -36,6 +37,24 @@ func TestDecideResponsesProbeSupport(t *testing.T) {
 			require.Equal(t, tc.want, decideResponsesProbeSupport(tc.status, tc.body))
 		})
 	}
+}
+
+func TestOpenAIResponsesProbePayloadUsesMinimalPromptAndOneToken(t *testing.T) {
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(openaiResponsesProbePayload("gpt-5.4"), &payload))
+
+	require.Equal(t, "gpt-5.4", payload["model"])
+	require.Equal(t, float64(monitorLightweightMaxTokens), payload["max_output_tokens"])
+	require.Equal(t, false, payload["stream"])
+	require.NotContains(t, payload, "instructions")
+
+	input, _ := payload["input"].([]any)
+	require.Len(t, input, 1)
+	msg, _ := input[0].(map[string]any)
+	content, _ := msg["content"].([]any)
+	require.Len(t, content, 1)
+	block, _ := content[0].(map[string]any)
+	require.Equal(t, monitorLightweightPrompt, block["text"])
 }
 
 func TestResponsesProbeBodyHasFunctionCall(t *testing.T) {

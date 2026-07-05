@@ -18,7 +18,8 @@ import (
 
 type availableModelsAdminService struct {
 	*stubAdminService
-	account service.Account
+	account               service.Account
+	updatedRateMultiplier *float64
 }
 
 func (s *availableModelsAdminService) GetAccount(_ context.Context, id int64) (*service.Account, error) {
@@ -27,6 +28,19 @@ func (s *availableModelsAdminService) GetAccount(_ context.Context, id int64) (*
 		return &acc, nil
 	}
 	return s.stubAdminService.GetAccount(context.Background(), id)
+}
+
+func (s *availableModelsAdminService) UpdateAccount(_ context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
+	if s.account.ID == id {
+		acc := s.account
+		if input.RateMultiplier != nil {
+			v := *input.RateMultiplier
+			s.updatedRateMultiplier = &v
+			acc.RateMultiplier = &v
+		}
+		return &acc, nil
+	}
+	return s.stubAdminService.UpdateAccount(context.Background(), id, input)
 }
 
 func setupAvailableModelsRouter(adminSvc service.AdminService) *gin.Engine {
@@ -67,6 +81,23 @@ func setupSyncUpstreamModelsRouter(adminSvc service.AdminService, upstream servi
 	)
 	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
 	router.POST("/api/v1/admin/accounts/:id/models/sync-upstream", handler.SyncUpstreamModels)
+	return router
+}
+
+func setupSyncUpstreamRateRouter(adminSvc service.AdminService, upstream service.HTTPUpstream) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	accountTestSvc := service.NewAccountTestService(
+		nil,
+		nil,
+		nil,
+		nil,
+		upstream,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+		nil,
+	)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
+	router.POST("/api/v1/admin/accounts/:id/rate-multiplier/sync-upstream", handler.SyncUpstreamRateMultiplier)
 	return router
 }
 
@@ -194,4 +225,67 @@ func TestAccountHandlerSyncUpstreamModels_UpstreamErrorDoesNotExposeBody(t *test
 	require.Equal(t, http.StatusBadGateway, rec.Code)
 	require.Contains(t, rec.Body.String(), "Upstream model list request failed with HTTP 502")
 	require.NotContains(t, rec.Body.String(), "SECRET_TOKEN")
+}
+
+func TestAccountHandlerSyncUpstreamRateMultiplier_UpdatesAccountRate(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       46,
+			Name:     "compatible-upstream",
+			Platform: service.PlatformOpenAI,
+			Type:     service.AccountTypeAPIKey,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"api_key":  "upstream-key",
+				"base_url": "https://upstream.example.com/v1",
+			},
+		},
+	}
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"data":{"compatible":true,"platform":"openai","group_id":88,"group_name":"Codex Plus","rate_multiplier":0.06,"rate_source":"group"}}`)),
+	}}
+	router := setupSyncUpstreamRateRouter(svc, upstream)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/46/rate-multiplier/sync-upstream", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, svc.updatedRateMultiplier)
+	require.Equal(t, 0.06, *svc.updatedRateMultiplier)
+	require.Contains(t, rec.Body.String(), `"rate_multiplier":0.06`)
+}
+
+func TestAccountHandlerSyncUpstreamRateMultiplier_UpstreamErrorDoesNotExposeBody(t *testing.T) {
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:       47,
+			Name:     "compatible-upstream-error",
+			Platform: service.PlatformOpenAI,
+			Type:     service.AccountTypeAPIKey,
+			Status:   service.StatusActive,
+			Credentials: map[string]any{
+				"api_key":  "upstream-key",
+				"base_url": "https://upstream.example.com/v1",
+			},
+		},
+	}
+	upstream := &syncUpstreamHTTPUpstream{resp: &http.Response{
+		StatusCode: http.StatusBadGateway,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"error":"SECRET_RATE_TOKEN should not be exposed"}`)),
+	}}
+	router := setupSyncUpstreamRateRouter(svc, upstream)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/47/rate-multiplier/sync-upstream", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadGateway, rec.Code)
+	require.Contains(t, rec.Body.String(), "Upstream account metadata request failed with HTTP 502")
+	require.NotContains(t, rec.Body.String(), "SECRET_RATE_TOKEN")
 }

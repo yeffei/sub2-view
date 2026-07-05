@@ -12,12 +12,16 @@ const (
 	AccountTestModeDefault = "default"
 	// AccountTestModeCompact drives the /responses/compact compact-probe test.
 	AccountTestModeCompact = "compact"
+	// AccountTestModeLightweight drives the smallest viable connectivity probe.
+	AccountTestModeLightweight = "lightweight"
 )
 
 func normalizeAccountTestMode(mode string) string {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case AccountTestModeCompact:
 		return AccountTestModeCompact
+	case AccountTestModeLightweight:
+		return AccountTestModeLightweight
 	default:
 		return AccountTestModeDefault
 	}
@@ -25,9 +29,10 @@ func normalizeAccountTestMode(mode string) string {
 
 func createOpenAICompactProbePayload(model string) map[string]any {
 	return map[string]any{
-		"model":        strings.TrimSpace(model),
-		"instructions": "OK only.",
-		"input":        "OK",
+		"model":             strings.TrimSpace(model),
+		"input":             "OK",
+		"max_output_tokens": monitorLightweightMaxTokens,
+		"store":             false,
 	}
 }
 

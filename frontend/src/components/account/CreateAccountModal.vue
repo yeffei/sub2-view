@@ -2871,6 +2871,7 @@
         :show-codex-session-import-option="form.platform === 'openai'"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
+        :initial-input-method="initialOAuthInputMethod"
         @generate-url="handleGenerateUrl"
         @cookie-auth="handleCookieAuth"
         @validate-refresh-token="handleValidateRefreshToken"
@@ -3252,6 +3253,9 @@ import {
 } from '@/utils/openaiWsMode'
 import OAuthAuthorizationFlow from './OAuthAuthorizationFlow.vue'
 
+type CodexSessionImportRequest = import('@/types').CodexSessionImportRequest
+type CodexSessionImportResult = import('@/types').CodexSessionImportResult
+
 // Type for exposed OAuthAuthorizationFlow component
 // Note: defineExpose automatically unwraps refs, so we use the unwrapped types
 interface OAuthFlowExposed {
@@ -3293,6 +3297,7 @@ interface Props {
   show: boolean
   proxies: Proxy[]
   groups: AdminGroup[]
+  quickFlow?: 'openai-codex-import' | null
 }
 
 const props = defineProps<Props>()
@@ -3713,6 +3718,10 @@ const isManualInputMethod = computed(() => {
   return oauthFlowRef.value?.inputMethod === 'manual'
 })
 
+const initialOAuthInputMethod = computed<AuthInputMethod>(() => {
+  return props.quickFlow === 'openai-codex-import' ? 'codex_session' : 'manual'
+})
+
 const expiresAtInput = computed({
   get: () => formatDateTimeLocal(form.expires_at),
   set: (value: string) => {
@@ -3757,6 +3766,7 @@ watch(
         antigravityModelMappings.value = []
         antigravityModelRestrictionMode.value = 'mapping'
       }
+      applyQuickFlow()
     } else {
       resetForm()
     }
@@ -4290,6 +4300,17 @@ const resetForm = () => {
   oauthFlowRef.value?.reset()
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
+}
+
+const applyQuickFlow = () => {
+  if (props.quickFlow !== 'openai-codex-import') return
+  form.name = form.name || t('admin.accounts.oauth.openai.codexImportDefaultName')
+  form.platform = 'openai'
+  form.type = 'oauth'
+  accountCategory.value = 'oauth-based'
+  addMethod.value = 'oauth'
+  step.value = 2
+  oauthFlowRef.value?.reset()
 }
 
 const handleClose = () => {
@@ -4898,6 +4919,50 @@ const formatCodexImportMessages = (messages?: CodexSessionImportMessage[]) => {
     .join('\n')
 }
 
+const buildCodexImportPayload = (
+  content: string,
+  credentialExtras: Record<string, unknown>,
+  extra: Record<string, unknown>,
+  dryRun: boolean
+): CodexSessionImportRequest => ({
+  content,
+  name: form.name,
+  notes: form.notes || null,
+  proxy_id: form.proxy_id,
+  concurrency: form.concurrency,
+  load_factor: form.load_factor ?? undefined,
+  priority: form.priority,
+  rate_multiplier: form.rate_multiplier,
+  group_ids: form.group_ids,
+  expires_at: form.expires_at,
+  auto_pause_on_expired: autoPauseOnExpired.value,
+  credential_extras: Object.keys(credentialExtras).length > 0 ? credentialExtras : undefined,
+  extra,
+  update_existing: true,
+  skip_default_group_bind: true,
+  dry_run: dryRun
+})
+
+const confirmCodexImportPreview = (preview: CodexSessionImportResult) => {
+  const warningText = formatCodexImportMessages(preview.warnings)
+  const errorText = formatCodexImportMessages(preview.errors)
+  const lines = [
+    t('admin.accounts.oauth.openai.codexSessionPreviewTitle'),
+    t('admin.accounts.oauth.openai.codexSessionPreviewSummary', {
+      total: preview.total,
+      created: preview.created,
+      updated: preview.updated,
+      skipped: preview.skipped,
+      failed: preview.failed
+    }),
+    warningText ? t('admin.accounts.oauth.openai.codexSessionPreviewWarnings', { warnings: warningText }) : '',
+    errorText ? t('admin.accounts.oauth.openai.codexSessionPreviewErrors', { errors: errorText }) : '',
+    preview.failed > 0 ? t('admin.accounts.oauth.openai.codexSessionPreviewFailedBlock') : '',
+    t('admin.accounts.oauth.openai.codexSessionPreviewConfirm')
+  ].filter(Boolean)
+  return window.confirm(lines.join('\n\n'))
+}
+
 const handleOpenAIImportCodexSession = async (content: string) => {
   const oauthClient = openaiOAuth
   const trimmed = content.trim()
@@ -4915,34 +4980,34 @@ const handleOpenAIImportCodexSession = async (content: string) => {
   oauthClient.error.value = ''
 
   try {
-    const extra = buildOpenAIExtra()
-    const result = await adminAPI.accounts.importCodexSession({
-      content: trimmed,
-      name: form.name,
-      notes: form.notes || null,
-      proxy_id: form.proxy_id,
-      concurrency: form.concurrency,
-      load_factor: form.load_factor ?? undefined,
-      priority: form.priority,
-      rate_multiplier: form.rate_multiplier,
-      group_ids: form.group_ids,
-      expires_at: form.expires_at,
-      auto_pause_on_expired: autoPauseOnExpired.value,
-      credential_extras: Object.keys(credentialExtras).length > 0 ? credentialExtras : undefined,
-      extra,
-      update_existing: true
-    })
+    const extra = buildOpenAIExtra() || {}
+    const preview = await adminAPI.accounts.importCodexSession(
+      buildCodexImportPayload(trimmed, credentialExtras, extra, true)
+    )
+    if (!confirmCodexImportPreview(preview)) {
+      appStore.showWarning(t('admin.accounts.oauth.openai.codexSessionImportCancelled'))
+      return
+    }
+
+    const result = await adminAPI.accounts.importCodexSession(
+      buildCodexImportPayload(trimmed, credentialExtras, extra, false)
+    )
 
     const successCount = result.created + result.updated
     const params = {
       created: result.created,
       updated: result.updated,
       skipped: result.skipped,
-      failed: result.failed
+      failed: result.failed,
+      batch_id: result.batch_id || ''
     }
+    const batchHint = result.batch_id
+      ? t('admin.accounts.oauth.openai.codexSessionBatchHint', { batch_id: result.batch_id })
+      : ''
 
     if (successCount > 0 && result.failed === 0) {
       appStore.showSuccess(t('admin.accounts.oauth.openai.codexSessionImportSuccess', params))
+      oauthClient.error.value = batchHint
       emit('created')
       handleClose()
       return
@@ -4950,7 +5015,7 @@ const handleOpenAIImportCodexSession = async (content: string) => {
 
     const errorText = formatCodexImportMessages(result.errors)
     const warningText = formatCodexImportMessages(result.warnings)
-    oauthClient.error.value = [errorText, warningText].filter(Boolean).join('\n')
+    oauthClient.error.value = [batchHint, errorText, warningText].filter(Boolean).join('\n')
 
     if (result.failed === 0) {
       appStore.showWarning(t('admin.accounts.oauth.openai.codexSessionImportSuccess', params))

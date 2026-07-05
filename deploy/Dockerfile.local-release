@@ -4,4 +4,4 @@ FROM ${BASE_IMAGE}
 COPY --chown=sub2api:sub2api output/sub2api-hotfix /app/sub2api
 COPY --chown=sub2api:sub2api backend/resources /app/resources
 
-RUN chmod +x /app/sub2api
+RUN chown -R sub2api:sub2api /app && chmod +x /app/sub2api

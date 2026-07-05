@@ -100,7 +100,20 @@
 
       <div>
         <label class="input-label">{{ t('admin.channelMonitor.form.groupName') }}</label>
-        <input v-model="form.group_name" type="text" class="input" :placeholder="t('admin.channelMonitor.form.groupNamePlaceholder')" />
+        <Select
+          v-model="groupSelectValue"
+          :options="groupOptions"
+          :placeholder="t('admin.channelMonitor.form.groupNamePlaceholder')"
+          searchable
+          clearable
+        />
+        <input
+          v-model="form.group_name"
+          type="text"
+          class="input mt-2"
+          :disabled="form.group_id !== null"
+          :placeholder="t('admin.channelMonitor.form.groupNamePlaceholder')"
+        />
       </div>
 
       <div>
@@ -200,6 +213,7 @@ import type {
 } from '@/api/admin/channelMonitor'
 import type { ChannelMonitorTemplate } from '@/api/admin/channelMonitorTemplate'
 import type { ApiKey } from '@/types'
+import type { AdminGroup } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import Select from '@/components/common/Select.vue'
@@ -258,6 +272,7 @@ interface MonitorForm {
   api_key: string
   primary_model: string
   extra_models: string[]
+  group_id: number | null
   group_name: string
   interval_seconds: number
   jitter_seconds: number
@@ -277,6 +292,7 @@ const form = reactive<MonitorForm>({
   api_key: '',
   primary_model: '',
   extra_models: [],
+  group_id: null,
   group_name: '',
   interval_seconds: systemDefaultInterval.value,
   jitter_seconds: 0,
@@ -295,6 +311,7 @@ let suppressFormWatchers = false
 // 可用模板列表（进入 dialog 时一次性拉取 cache；按 provider / api mode 过滤）。
 const templatesCache = ref<ChannelMonitorTemplate[]>([])
 const templatesLoading = ref(false)
+const groupsCache = ref<AdminGroup[]>([])
 
 const templateOptions = computed(() => {
   const items = templatesCache.value.filter((t) => {
@@ -319,6 +336,37 @@ async function loadTemplates() {
     console.warn('load monitor templates failed', err)
   } finally {
     templatesLoading.value = false
+  }
+}
+
+const groupOptions = computed(() => {
+  const filtered = groupsCache.value.filter((group) => group.platform === form.provider)
+  return filtered.map((group) => ({
+    value: group.id,
+    label: group.status === 'active' ? group.name : `${group.name} (${group.status})`,
+  }))
+})
+
+const groupSelectValue = computed<number | null>({
+  get: () => form.group_id,
+  set: (raw: number | null) => {
+    form.group_id = typeof raw === 'number' ? raw : null
+    if (form.group_id == null) {
+      return
+    }
+    const group = groupsCache.value.find((item) => item.id === form.group_id)
+    if (group) {
+      form.group_name = group.name
+    }
+  },
+})
+
+async function loadGroups() {
+  if (groupsCache.value.length > 0) return
+  try {
+    groupsCache.value = await adminAPI.groups.getAllIncludingInactive()
+  } catch (err: unknown) {
+    console.warn('load monitor groups failed', err)
   }
 }
 
@@ -406,6 +454,8 @@ const providerOptions = computed<ProviderOption[]>(() => [
 watch(() => form.provider, () => {
   if (suppressFormWatchers) return
   form.api_key = ''
+  form.group_id = null
+  form.group_name = ''
   if (form.provider !== PROVIDER_OPENAI) {
     form.api_mode = API_MODE_CHAT_COMPLETIONS
   }
@@ -428,6 +478,7 @@ function resetForm() {
   form.api_key = ''
   form.primary_model = ''
   form.extra_models = []
+  form.group_id = null
   form.group_name = ''
   form.interval_seconds = systemDefaultInterval.value
   form.jitter_seconds = 0
@@ -448,6 +499,7 @@ function loadFromMonitor(m: ChannelMonitor) {
   form.api_key = ''
   form.primary_model = m.primary_model
   form.extra_models = [...(m.extra_models || [])]
+  form.group_id = m.group_id ?? null
   form.group_name = m.group_name || ''
   form.interval_seconds = m.interval_seconds || systemDefaultInterval.value
   form.jitter_seconds = m.jitter_seconds || 0
@@ -466,6 +518,7 @@ watch(
   ([show, m]) => {
     if (!show) return
     void loadTemplates()
+    void loadGroups()
     if (m) loadFromMonitor(m)
     else resetForm()
   },
@@ -514,6 +567,7 @@ function buildPayload(): CreateParams {
     api_key: form.api_key.trim(),
     primary_model: form.primary_model.trim(),
     extra_models: form.extra_models,
+    group_id: form.group_id,
     group_name: form.group_name.trim(),
     enabled: form.enabled,
     interval_seconds: form.interval_seconds,
@@ -544,6 +598,9 @@ async function handleSubmit() {
       const req: UpdateParams = { ...rest }
       // Only send api_key if user typed a new value
       if (api_key) req.api_key = api_key
+      if (form.group_id == null && !form.group_name.trim()) {
+        req.clear_group = true
+      }
       // template_id=null 用 clear_template=true 明确告诉后端清空（pointer 语义）
       if (form.template_id == null) {
         req.clear_template = true

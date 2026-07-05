@@ -23,6 +23,7 @@ func newGatewayRoutesTestRouter() *gin.Engine {
 		&handler.Handlers{
 			Gateway:       &handler.GatewayHandler{},
 			OpenAIGateway: &handler.OpenAIGatewayHandler{},
+			AccountMeta:   &handler.AccountMetaHandler{},
 		},
 		servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {
 			groupID := int64(1)

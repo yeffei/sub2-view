@@ -9,6 +9,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/lib/pq"
 )
 
 type upstreamPoolRepository struct {
@@ -227,14 +228,79 @@ func (r *upstreamPoolRepository) ListUpstreamPoolMembers(ctx context.Context, po
 	}
 
 	const query = `
+WITH direct_members AS (
+  SELECT
+    m.id,
+    m.pool_id,
+    m.account_id,
+    COALESCE(a.name, '') AS account_name,
+    COALESCE(a.platform, '') AS account_platform,
+    COALESCE(a.type, '') AS account_type,
+    m.enabled,
+    m.schedulable_override,
+    m.manual_drained,
+    m.weight,
+    m.priority_override,
+    m.max_concurrency_override,
+    m.notes,
+    m.joined_at,
+    m.updated_at,
+    'direct'::text AS source_type,
+    NULL::BIGINT AS source_set_id,
+    ''::text AS source_set_name,
+    TRUE AS editable,
+    0 AS source_priority
+  FROM upstream_pool_members m
+  LEFT JOIN accounts a ON a.id = m.account_id AND a.deleted_at IS NULL
+  WHERE m.pool_id = $1
+), set_members AS (
+  SELECT
+    0::BIGINT AS id,
+    pms.pool_id,
+    a.id AS account_id,
+    COALESCE(a.name, '') AS account_name,
+    COALESCE(a.platform, '') AS account_platform,
+    COALESCE(a.type, '') AS account_type,
+    (pms.enabled AND uas.enabled) AS enabled,
+    NULL::BOOLEAN AS schedulable_override,
+    FALSE AS manual_drained,
+    100 AS weight,
+    NULL::INTEGER AS priority_override,
+    NULL::INTEGER AS max_concurrency_override,
+    pms.notes,
+    pms.joined_at,
+    pms.updated_at,
+    'account_set'::text AS source_type,
+    uas.id AS source_set_id,
+    uas.name AS source_set_name,
+    FALSE AS editable,
+    1 AS source_priority
+  FROM upstream_pool_member_sets pms
+  JOIN upstream_account_sets uas ON uas.id = pms.set_id
+  JOIN upstream_account_set_members uasm ON uasm.set_id = uas.id
+  JOIN accounts a ON a.id = uasm.account_id
+  WHERE pms.pool_id = $1
+    AND a.deleted_at IS NULL
+), ranked AS (
+  SELECT DISTINCT ON (account_id)
+    id, pool_id, account_id, account_name, account_platform, account_type, enabled,
+    schedulable_override, manual_drained, weight, priority_override,
+    max_concurrency_override, notes, joined_at, updated_at,
+    source_type, source_set_id, source_set_name, editable
+  FROM (
+    SELECT * FROM direct_members
+    UNION ALL
+    SELECT * FROM set_members
+  ) merged
+  ORDER BY account_id, source_priority ASC, source_set_id ASC NULLS FIRST
+)
 SELECT
-  m.id, m.pool_id, m.account_id, COALESCE(a.name, '') AS account_name, COALESCE(a.platform, '') AS account_platform,
-  m.enabled, m.schedulable_override, m.manual_drained,
-  m.weight, m.priority_override, m.max_concurrency_override, m.notes, m.joined_at, m.updated_at
-FROM upstream_pool_members m
-LEFT JOIN accounts a ON a.id = m.account_id
-WHERE m.pool_id = $1
-ORDER BY m.id ASC`
+  id, pool_id, account_id, account_name, account_platform, account_type,
+  enabled, schedulable_override, manual_drained,
+  weight, priority_override, max_concurrency_override, notes, joined_at, updated_at,
+  source_type, source_set_id, source_set_name, editable
+FROM ranked
+ORDER BY account_name ASC, account_id ASC`
 
 	rows, err := r.db.QueryContext(ctx, query, poolID)
 	if err != nil {
@@ -248,12 +314,14 @@ ORDER BY m.id ASC`
 		var schedulableOverride sql.NullBool
 		var priorityOverride sql.NullInt64
 		var maxConcurrencyOverride sql.NullInt64
+		var sourceSetID sql.NullInt64
 		if err := rows.Scan(
 			&member.ID,
 			&member.PoolID,
 			&member.AccountID,
 			&member.AccountName,
 			&member.AccountPlatform,
+			&member.AccountType,
 			&member.Enabled,
 			&schedulableOverride,
 			&member.ManualDrained,
@@ -263,6 +331,10 @@ ORDER BY m.id ASC`
 			&member.Notes,
 			&member.JoinedAt,
 			&member.UpdatedAt,
+			&member.SourceType,
+			&sourceSetID,
+			&member.SourceSetName,
+			&member.Editable,
 		); err != nil {
 			return nil, fmt.Errorf("scan upstream pool member: %w", err)
 		}
@@ -276,6 +348,10 @@ ORDER BY m.id ASC`
 		if maxConcurrencyOverride.Valid {
 			v := int(maxConcurrencyOverride.Int64)
 			member.MaxConcurrencyOverride = &v
+		}
+		if sourceSetID.Valid {
+			value := sourceSetID.Int64
+			member.SourceSetID = &value
 		}
 		out = append(out, member)
 	}
@@ -356,7 +432,7 @@ func (r *upstreamPoolRepository) GetUpstreamPoolMemberByID(ctx context.Context, 
 
 	const query = `
 SELECT
-  m.id, m.pool_id, m.account_id, COALESCE(a.name, '') AS account_name, COALESCE(a.platform, '') AS account_platform,
+  m.id, m.pool_id, m.account_id, COALESCE(a.name, '') AS account_name, COALESCE(a.platform, '') AS account_platform, COALESCE(a.type, '') AS account_type,
   m.enabled, m.schedulable_override, m.manual_drained,
   m.weight, m.priority_override, m.max_concurrency_override, m.notes, m.joined_at, m.updated_at
 FROM upstream_pool_members m
@@ -373,6 +449,7 @@ WHERE m.id = $1`
 		&member.AccountID,
 		&member.AccountName,
 		&member.AccountPlatform,
+		&member.AccountType,
 		&member.Enabled,
 		&schedulableOverride,
 		&member.ManualDrained,
@@ -399,6 +476,8 @@ WHERE m.id = $1`
 		v := int(maxConcurrencyOverride.Int64)
 		member.MaxConcurrencyOverride = &v
 	}
+	member.SourceType = "direct"
+	member.Editable = true
 	return &member, nil
 }
 
@@ -413,6 +492,397 @@ func (r *upstreamPoolRepository) DeleteUpstreamPoolMember(ctx context.Context, i
 	affected, err := res.RowsAffected()
 	if err != nil {
 		return fmt.Errorf("delete upstream pool member rows affected: %w", err)
+	}
+	if affected == 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	return nil
+}
+
+func (r *upstreamPoolRepository) ListUpstreamAccountSets(ctx context.Context) ([]service.UpstreamAccountSet, error) {
+	if r == nil || r.db == nil {
+		return []service.UpstreamAccountSet{}, nil
+	}
+
+	const query = `
+SELECT
+  s.id, s.name, s.code, s.platform, s.description, s.enabled,
+  COUNT(m.account_id) AS account_count,
+  s.created_at, s.updated_at
+FROM upstream_account_sets s
+LEFT JOIN upstream_account_set_members m ON m.set_id = s.id
+GROUP BY s.id
+ORDER BY s.id ASC`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query upstream account sets: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]service.UpstreamAccountSet, 0)
+	for rows.Next() {
+		var item service.UpstreamAccountSet
+		if err := rows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.Code,
+			&item.Platform,
+			&item.Description,
+			&item.Enabled,
+			&item.AccountCount,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan upstream account set: %w", err)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate upstream account sets: %w", err)
+	}
+	return out, nil
+}
+
+func (r *upstreamPoolRepository) GetUpstreamAccountSetByID(ctx context.Context, id int64) (*service.UpstreamAccountSet, error) {
+	if r == nil || r.db == nil || id <= 0 {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+
+	const query = `
+SELECT
+  s.id, s.name, s.code, s.platform, s.description, s.enabled,
+  COUNT(m.account_id) AS account_count,
+  s.created_at, s.updated_at
+FROM upstream_account_sets s
+LEFT JOIN upstream_account_set_members m ON m.set_id = s.id
+WHERE s.id = $1
+GROUP BY s.id`
+
+	var item service.UpstreamAccountSet
+	if err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&item.ID,
+		&item.Name,
+		&item.Code,
+		&item.Platform,
+		&item.Description,
+		&item.Enabled,
+		&item.AccountCount,
+		&item.CreatedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, service.ErrUpstreamPoolNotFound
+		}
+		return nil, fmt.Errorf("query upstream account set by id: %w", err)
+	}
+	return &item, nil
+}
+
+func (r *upstreamPoolRepository) CreateUpstreamAccountSet(ctx context.Context, input *service.UpstreamAccountSet) (*service.UpstreamAccountSet, error) {
+	if r == nil || r.db == nil || input == nil {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+
+	const query = `
+INSERT INTO upstream_account_sets (
+  name, code, platform, description, enabled
+) VALUES ($1,$2,$3,$4,$5)
+RETURNING id, created_at, updated_at`
+
+	if err := r.db.QueryRowContext(
+		ctx,
+		query,
+		input.Name,
+		input.Code,
+		input.Platform,
+		input.Description,
+		input.Enabled,
+	).Scan(&input.ID, &input.CreatedAt, &input.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("create upstream account set: %w", err)
+	}
+	return input, nil
+}
+
+func (r *upstreamPoolRepository) UpdateUpstreamAccountSet(ctx context.Context, input *service.UpstreamAccountSet) (*service.UpstreamAccountSet, error) {
+	if r == nil || r.db == nil || input == nil || input.ID <= 0 {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+
+	const query = `
+UPDATE upstream_account_sets SET
+  name = $2,
+  code = $3,
+  platform = $4,
+  description = $5,
+  enabled = $6,
+  updated_at = NOW()
+WHERE id = $1
+RETURNING created_at, updated_at`
+
+	if err := r.db.QueryRowContext(
+		ctx,
+		query,
+		input.ID,
+		input.Name,
+		input.Code,
+		input.Platform,
+		input.Description,
+		input.Enabled,
+	).Scan(&input.CreatedAt, &input.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, service.ErrUpstreamPoolNotFound
+		}
+		return nil, fmt.Errorf("update upstream account set: %w", err)
+	}
+	return input, nil
+}
+
+func (r *upstreamPoolRepository) DeleteUpstreamAccountSet(ctx context.Context, id int64) error {
+	if r == nil || r.db == nil || id <= 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	res, err := r.db.ExecContext(ctx, `DELETE FROM upstream_account_sets WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete upstream account set: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete upstream account set rows affected: %w", err)
+	}
+	if affected == 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	return nil
+}
+
+func (r *upstreamPoolRepository) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]service.UpstreamAccountSetMember, error) {
+	if r == nil || r.db == nil || setID <= 0 {
+		return []service.UpstreamAccountSetMember{}, nil
+	}
+
+	const query = `
+SELECT
+  m.set_id,
+  m.account_id,
+  COALESCE(a.name, '') AS account_name,
+  COALESCE(a.platform, '') AS account_platform,
+  COALESCE(a.type, '') AS account_type,
+  COALESCE(a.status, '') AS account_status,
+  m.added_at
+FROM upstream_account_set_members m
+LEFT JOIN accounts a ON a.id = m.account_id
+WHERE m.set_id = $1
+ORDER BY account_name ASC, m.account_id ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, setID)
+	if err != nil {
+		return nil, fmt.Errorf("query upstream account set members: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]service.UpstreamAccountSetMember, 0)
+	for rows.Next() {
+		var item service.UpstreamAccountSetMember
+		if err := rows.Scan(
+			&item.SetID,
+			&item.AccountID,
+			&item.AccountName,
+			&item.AccountPlatform,
+			&item.AccountType,
+			&item.AccountStatus,
+			&item.AddedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan upstream account set member: %w", err)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate upstream account set members: %w", err)
+	}
+	return out, nil
+}
+
+func (r *upstreamPoolRepository) AddUpstreamAccountSetMembers(ctx context.Context, setID int64, accountIDs []int64) error {
+	if r == nil || r.db == nil || setID <= 0 || len(accountIDs) == 0 {
+		return nil
+	}
+	const query = `
+INSERT INTO upstream_account_set_members (set_id, account_id)
+SELECT $1, UNNEST($2::BIGINT[])
+ON CONFLICT (set_id, account_id) DO NOTHING`
+	if _, err := r.db.ExecContext(ctx, query, setID, pq.Array(accountIDs)); err != nil {
+		return fmt.Errorf("add upstream account set members: %w", err)
+	}
+	return nil
+}
+
+func (r *upstreamPoolRepository) DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error {
+	if r == nil || r.db == nil || setID <= 0 || accountID <= 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	res, err := r.db.ExecContext(ctx, `DELETE FROM upstream_account_set_members WHERE set_id = $1 AND account_id = $2`, setID, accountID)
+	if err != nil {
+		return fmt.Errorf("delete upstream account set member: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete upstream account set member rows affected: %w", err)
+	}
+	if affected == 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	return nil
+}
+
+func (r *upstreamPoolRepository) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]service.UpstreamPoolMemberSet, error) {
+	if r == nil || r.db == nil || poolID <= 0 {
+		return []service.UpstreamPoolMemberSet{}, nil
+	}
+
+	const query = `
+SELECT
+  pms.id, pms.pool_id, pms.set_id,
+  COALESCE(s.name, '') AS set_name,
+  COALESCE(s.code, '') AS set_code,
+  COALESCE(s.platform, '') AS set_platform,
+  pms.enabled, pms.notes, pms.joined_at, pms.updated_at
+FROM upstream_pool_member_sets pms
+LEFT JOIN upstream_account_sets s ON s.id = pms.set_id
+WHERE pms.pool_id = $1
+ORDER BY pms.id ASC`
+
+	rows, err := r.db.QueryContext(ctx, query, poolID)
+	if err != nil {
+		return nil, fmt.Errorf("query upstream pool member sets: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]service.UpstreamPoolMemberSet, 0)
+	for rows.Next() {
+		var item service.UpstreamPoolMemberSet
+		if err := rows.Scan(
+			&item.ID,
+			&item.PoolID,
+			&item.SetID,
+			&item.SetName,
+			&item.SetCode,
+			&item.SetPlatform,
+			&item.Enabled,
+			&item.Notes,
+			&item.JoinedAt,
+			&item.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan upstream pool member set: %w", err)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate upstream pool member sets: %w", err)
+	}
+	return out, nil
+}
+
+func (r *upstreamPoolRepository) GetUpstreamPoolMemberSetByID(ctx context.Context, id int64) (*service.UpstreamPoolMemberSet, error) {
+	if r == nil || r.db == nil || id <= 0 {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+
+	const query = `
+SELECT
+  pms.id, pms.pool_id, pms.set_id,
+  COALESCE(s.name, '') AS set_name,
+  COALESCE(s.code, '') AS set_code,
+  COALESCE(s.platform, '') AS set_platform,
+  pms.enabled, pms.notes, pms.joined_at, pms.updated_at
+FROM upstream_pool_member_sets pms
+LEFT JOIN upstream_account_sets s ON s.id = pms.set_id
+WHERE pms.id = $1`
+
+	var item service.UpstreamPoolMemberSet
+	if err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&item.ID,
+		&item.PoolID,
+		&item.SetID,
+		&item.SetName,
+		&item.SetCode,
+		&item.SetPlatform,
+		&item.Enabled,
+		&item.Notes,
+		&item.JoinedAt,
+		&item.UpdatedAt,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, service.ErrUpstreamPoolNotFound
+		}
+		return nil, fmt.Errorf("query upstream pool member set by id: %w", err)
+	}
+	return &item, nil
+}
+
+func (r *upstreamPoolRepository) CreateUpstreamPoolMemberSet(ctx context.Context, input *service.UpstreamPoolMemberSet) (*service.UpstreamPoolMemberSet, error) {
+	if r == nil || r.db == nil || input == nil {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+
+	const query = `
+INSERT INTO upstream_pool_member_sets (
+  pool_id, set_id, enabled, notes
+) VALUES ($1,$2,$3,$4)
+RETURNING id, joined_at, updated_at`
+
+	if err := r.db.QueryRowContext(
+		ctx,
+		query,
+		input.PoolID,
+		input.SetID,
+		input.Enabled,
+		input.Notes,
+	).Scan(&input.ID, &input.JoinedAt, &input.UpdatedAt); err != nil {
+		return nil, fmt.Errorf("create upstream pool member set: %w", err)
+	}
+	return input, nil
+}
+
+func (r *upstreamPoolRepository) UpdateUpstreamPoolMemberSet(ctx context.Context, input *service.UpstreamPoolMemberSet) (*service.UpstreamPoolMemberSet, error) {
+	if r == nil || r.db == nil || input == nil || input.ID <= 0 {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+
+	const query = `
+UPDATE upstream_pool_member_sets SET
+  enabled = $2,
+  notes = $3,
+  updated_at = NOW()
+WHERE id = $1
+RETURNING joined_at, updated_at`
+
+	if err := r.db.QueryRowContext(
+		ctx,
+		query,
+		input.ID,
+		input.Enabled,
+		input.Notes,
+	).Scan(&input.JoinedAt, &input.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, service.ErrUpstreamPoolNotFound
+		}
+		return nil, fmt.Errorf("update upstream pool member set: %w", err)
+	}
+	return input, nil
+}
+
+func (r *upstreamPoolRepository) DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error {
+	if r == nil || r.db == nil || id <= 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	res, err := r.db.ExecContext(ctx, `DELETE FROM upstream_pool_member_sets WHERE id = $1`, id)
+	if err != nil {
+		return fmt.Errorf("delete upstream pool member set: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("delete upstream pool member set rows affected: %w", err)
 	}
 	if affected == 0 {
 		return service.ErrUpstreamPoolNotFound
@@ -719,16 +1189,46 @@ LIMIT 1`
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
 
 	const membersQuery = `
-SELECT
-  m.account_id,
-  m.schedulable_override,
-  m.weight,
-  m.priority_override,
-  m.max_concurrency_override
-FROM upstream_pool_members m
-WHERE m.pool_id = $1
-  AND m.enabled = TRUE
-  AND m.manual_drained = FALSE`
+SELECT DISTINCT ON (account_id)
+  account_id,
+  schedulable_override,
+  weight,
+  priority_override,
+  max_concurrency_override
+FROM (
+  SELECT
+    m.account_id,
+    m.schedulable_override,
+    m.weight,
+    m.priority_override,
+    m.max_concurrency_override,
+    0 AS source_priority,
+    NULL::BIGINT AS source_set_id
+  FROM upstream_pool_members m
+  JOIN accounts a ON a.id = m.account_id
+  WHERE m.pool_id = $1
+    AND m.enabled = TRUE
+    AND m.manual_drained = FALSE
+    AND a.deleted_at IS NULL
+  UNION ALL
+  SELECT
+    uasm.account_id,
+    NULL::BOOLEAN AS schedulable_override,
+    100 AS weight,
+    NULL::INTEGER AS priority_override,
+    NULL::INTEGER AS max_concurrency_override,
+    1 AS source_priority,
+    pms.set_id AS source_set_id
+  FROM upstream_pool_member_sets pms
+  JOIN upstream_account_sets uas ON uas.id = pms.set_id
+  JOIN upstream_account_set_members uasm ON uasm.set_id = uas.id
+  JOIN accounts a ON a.id = uasm.account_id
+  WHERE pms.pool_id = $1
+    AND pms.enabled = TRUE
+    AND uas.enabled = TRUE
+    AND a.deleted_at IS NULL
+) members
+ORDER BY account_id, source_priority ASC, source_set_id ASC NULLS FIRST`
 
 	rows, err := r.db.QueryContext(ctx, membersQuery, pool.ID)
 	if err != nil {

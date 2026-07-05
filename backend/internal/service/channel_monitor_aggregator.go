@@ -244,13 +244,15 @@ func matchUserMonitorPoolBinding(view *UserMonitorView, bindings []userMonitorPo
 		if !strings.EqualFold(strings.TrimSpace(binding.pool.Platform), strings.TrimSpace(view.Provider)) {
 			continue
 		}
-		if !monitorGroupMatchesBinding(view.GroupName, binding.binding.GroupName) {
+		if view.GroupID != nil && *view.GroupID > 0 {
+			if binding.binding.GroupID == *view.GroupID {
+				return binding, true
+			}
 			continue
 		}
-		if !monitorModelMatchesBinding(view.PrimaryModel, binding.binding.Models) {
-			continue
+		if monitorGroupMatchesBinding(view.GroupName, binding.binding.GroupName) {
+			return binding, true
 		}
-		return binding, true
 	}
 	return userMonitorPoolBinding{}, false
 }
@@ -261,7 +263,7 @@ func monitorGroupMatchesBinding(monitorGroup, bindingGroup string) bool {
 	if monitor == "" || group == "" {
 		return false
 	}
-	return monitor == group || strings.Contains(group, monitor) || strings.Contains(monitor, group)
+	return monitor == group
 }
 
 func normalizeMonitorGroupName(v string) string {
@@ -295,6 +297,7 @@ func buildUserPoolView(bucket *userMonitorPoolBucket) *UserMonitorView {
 		ID:                   userPoolMonitorID(bucket.binding.pool.ID),
 		Name:                 bucket.binding.pool.Name,
 		Provider:             bucket.binding.pool.Platform,
+		GroupID:              &bucket.binding.binding.GroupID,
 		GroupName:            bucket.binding.binding.GroupName,
 		PrimaryModel:         base.PrimaryModel,
 		PrimaryStatus:        status,
@@ -697,6 +700,7 @@ func buildUserViewFromSummary(
 		ID:               m.ID,
 		Name:             m.Name,
 		Provider:         m.Provider,
+		GroupID:          m.GroupID,
 		GroupName:        m.GroupName,
 		PrimaryModel:     m.PrimaryModel,
 		PrimaryStatus:    summary.PrimaryStatus,

@@ -15,7 +15,7 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showCreate = true"
+            @create="openCreateAccount"
           >
             <template #after>
               <!-- Auto Refresh Dropdown -->
@@ -222,22 +222,23 @@
           </button>
         </div>
         <div ref="accountTableRef" class="account-table-shell flex min-h-0 min-w-0 flex-1 flex-col">
-          <div class="account-table-scroll-x" :style="accountTableViewportStyle">
-            <DataTable
-              ref="dataTableRef"
-              :columns="cols"
-              :data="accounts"
-              :loading="loading"
-              :sticky-actions-column="false"
-              row-key="id"
-              :server-side-sort="true"
-              @sort="handleSort"
-              default-sort-key="name"
-              default-sort-order="asc"
-              :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
-              :estimate-row-height="72"
-              :overscan="5"
-            >
+          <DataTable
+            ref="dataTableRef"
+            class="account-table-grid"
+            :style="accountTableViewportStyle"
+            :columns="cols"
+            :data="accounts"
+            :loading="loading"
+            :sticky-actions-column="false"
+            row-key="id"
+            :server-side-sort="true"
+            @sort="handleSort"
+            default-sort-key="name"
+            default-sort-order="asc"
+            :sort-storage-key="ACCOUNT_SORT_STORAGE_KEY"
+            :estimate-row-height="72"
+            :overscan="5"
+          >
           <template #header-select>
             <input
               type="checkbox"
@@ -375,36 +376,89 @@
             </div>
           </template>
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-1">
-              <button @click="handleEdit(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
+            <div class="flex items-center gap-0.5 whitespace-nowrap">
+              <button @click="handleEdit(row)" :title="t('common.edit')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
-                <span class="text-xs">{{ t('common.edit') }}</span>
               </button>
-              <button @click="handleDelete(row)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
+              <button @click="handleDelete(row)" :title="t('common.delete')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                <span class="text-xs">{{ t('common.delete') }}</span>
               </button>
-              <button @click="openMenu(row, $event)" class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white">
-                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" /></svg>
-                <span class="text-xs">{{ t('common.more') }}</span>
+              <button @click="handleTest(row)" :title="t('admin.accounts.testAccountConnection')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5v14l11-7-11-7z" /></svg>
+              </button>
+              <button @click="handleViewStats(row)" :title="t('admin.accounts.usageStatistics')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 16.5v-9m4.5 9v-6m4.5 6V4.5m-12 12h15" /></svg>
+              </button>
+              <button @click="handleSchedule(row)" :title="t('admin.scheduledTests.schedule')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/20">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </button>
+              <button
+                v-if="canSyncUpstreamRate(row)"
+                @click="handleSyncUpstreamRate(row)"
+                :title="t('admin.accounts.syncUpstreamRateMultiplier')"
+                :disabled="syncingRateAccountId === row.id"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-600 transition-colors hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-teal-300 dark:hover:bg-teal-900/20"
+              >
+                <svg v-if="syncingRateAccountId === row.id" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" /></svg>
+                <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3m7.8-9h-3M7.2 12h-3m13.3-5.5-2.1 2.1M8.6 15.4l-2.1 2.1m0-11 2.1 2.1m6.8 6.8 2.1 2.1" /></svg>
               </button>
             </div>
           </template>
-            </DataTable>
-          </div>
+          </DataTable>
         </div>
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
     </div>
-    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" :quick-flow="createQuickFlow" @close="closeCreateModal" @created="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
     <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
-    <AccountActionMenu :show="menu.show" :account="menu.acc" :position="menu.pos" @close="menu.show = false" @test="handleTest" @stats="handleViewStats" @schedule="handleSchedule" @reauth="handleReAuth" @refresh-token="handleRefresh" @recover-state="handleRecoverState" @reset-quota="handleResetQuota" @set-privacy="handleSetPrivacy" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
+    <BaseDialog
+      :show="showImportChooser"
+      :title="t('admin.accounts.importChooserTitle')"
+      width="wide"
+      @close="showImportChooser = false"
+    >
+      <div class="grid gap-3 md:grid-cols-2">
+        <button
+          type="button"
+          class="group rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-emerald-300 hover:bg-emerald-50/60 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-emerald-700 dark:hover:bg-emerald-900/20"
+          @click="openImportDataFromChooser"
+        >
+          <span class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300">
+            <Icon name="upload" size="sm" />
+          </span>
+          <span class="block text-sm font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.accounts.importChooserDataTitle') }}
+          </span>
+          <span class="mt-1 block text-sm leading-6 text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.importChooserDataDesc') }}
+          </span>
+        </button>
+        <button
+          type="button"
+          class="group rounded-xl border border-gray-200 bg-white p-4 text-left transition hover:border-blue-300 hover:bg-blue-50/60 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-700 dark:hover:bg-blue-900/20"
+          @click="openOpenAICodexImportFromChooser"
+        >
+          <span class="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
+            <Icon name="key" size="sm" />
+          </span>
+          <span class="block text-sm font-semibold text-gray-900 dark:text-white">
+            {{ t('admin.accounts.importChooserOpenAICodexTitle') }}
+          </span>
+          <span class="mt-1 block text-sm leading-6 text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.importChooserOpenAICodexDesc') }}
+          </span>
+        </button>
+      </div>
+      <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-800/40 dark:bg-amber-900/20 dark:text-amber-200">
+        {{ t('admin.accounts.importChooserSafetyHint') }}
+      </p>
+    </BaseDialog>
     <ImportDataModal :show="showImportData" @close="showImportData = false" @imported="handleDataImported" />
     <BulkEditAccountModal
       :show="showBulkEdit"
@@ -444,6 +498,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import type { Column } from '@/components/common/types'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
@@ -451,7 +506,6 @@ import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrs
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
-import AccountActionMenu from '@/components/admin/account/AccountActionMenu.vue'
 import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
@@ -522,8 +576,10 @@ const selTypes = computed<AccountType[]>(() => {
   return [...types]
 })
 const showCreate = ref(false)
+const createQuickFlow = ref<'openai-codex-import' | null>(null)
 const showEdit = ref(false)
 const showSync = ref(false)
+const showImportChooser = ref(false)
 const showImportData = ref(false)
 const showExportDataDialog = ref(false)
 const includeProxyOnExport = ref(true)
@@ -546,7 +602,7 @@ const showSchedulePanel = ref(false)
 const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
-const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
+const syncingRateAccountId = ref<number | null>(null)
 const exportingData = ref(false)
 
 // Account tools dropdown
@@ -920,6 +976,7 @@ const isAnyModalOpen = computed(() => {
     showCreate.value ||
     showEdit.value ||
     showSync.value ||
+    showImportChooser.value ||
     showImportData.value ||
     showExportDataDialog.value ||
     showBulkEdit.value ||
@@ -1061,7 +1118,6 @@ const syncAccountRefs = (nextAccount: Account) => {
   if (reAuthAcc.value?.id === nextAccount.id) reAuthAcc.value = nextAccount
   if (tempUnschedAcc.value?.id === nextAccount.id) tempUnschedAcc.value = nextAccount
   if (deletingAcc.value?.id === nextAccount.id) deletingAcc.value = nextAccount
-  if (menu.acc?.id === nextAccount.id) menu.acc = nextAccount
 }
 
 const mergeAccountsIncrementally = (nextRows: Account[]) => {
@@ -1140,6 +1196,16 @@ const handleManualRefresh = async () => {
   usageManualRefreshToken.value += 1
 }
 
+const openCreateAccount = () => {
+  createQuickFlow.value = null
+  showCreate.value = true
+}
+
+const closeCreateModal = () => {
+  showCreate.value = false
+  createQuickFlow.value = null
+}
+
 const closeAccountToolsDropdown = () => {
   showAccountToolsDropdown.value = false
   accountToolsDropdownPosition.value = null
@@ -1189,7 +1255,18 @@ const openSyncFromCrs = () => {
 
 const openImportData = () => {
   closeAccountToolsDropdown()
+  showImportChooser.value = true
+}
+
+const openImportDataFromChooser = () => {
+  showImportChooser.value = false
   showImportData.value = true
+}
+
+const openOpenAICodexImportFromChooser = () => {
+  showImportChooser.value = false
+  createQuickFlow.value = 'openai-codex-import'
+  showCreate.value = true
 }
 
 const openExportDataDialogFromMenu = () => {
@@ -1220,7 +1297,7 @@ const { pause: pauseAutoRefresh, resume: resumeAutoRefresh } = useIntervalFn(
     if (document.hidden) return
     if (loading.value || autoRefreshFetching.value) return
     if (isAnyModalOpen.value) return
-    if (menu.show || showAccountToolsDropdown.value || showAutoRefreshDropdown.value) return
+    if (showAccountToolsDropdown.value || showAutoRefreshDropdown.value) return
     if (inAutoRefreshSilentWindow()) {
       autoRefreshCountdown.value = Math.max(
         0,
@@ -1277,22 +1354,23 @@ function getAntigravityTierClass(row: any): string {
 
 const ACCOUNT_COLUMN_CLASS_MAP: Record<string, string> = {
   select: 'w-12 min-w-[3rem] max-w-[3rem]',
+  name: 'w-[10rem] min-w-[10rem]',
   id: 'w-[5.5rem] min-w-[5.5rem]',
-  platform_type: 'w-[9rem] min-w-[9rem]',
-  capacity: 'w-[6.75rem] min-w-[6.75rem]',
+  platform_type: 'w-[8rem] min-w-[8rem]',
+  capacity: 'w-[6rem] min-w-[6rem]',
   status: 'w-[5.5rem] min-w-[5.5rem]',
   schedulable: 'w-[4.75rem] min-w-[4.75rem]',
-  today_stats: 'w-[10rem] min-w-[10rem]',
-  groups: 'w-[14.5rem] min-w-[14.5rem]',
-  usage: 'w-[11rem] min-w-[11rem]',
-  proxy: 'w-[9rem] min-w-[9rem]',
+  today_stats: 'w-[8.5rem] min-w-[8.5rem]',
+  groups: 'w-[11.5rem] min-w-[11.5rem]',
+  usage: 'w-[9.25rem] min-w-[9.25rem]',
+  proxy: 'w-[7.75rem] min-w-[7.75rem]',
   priority: 'w-[4rem] min-w-[4rem]',
   rate_multiplier: 'w-[5.25rem] min-w-[5.25rem]',
-  last_used_at: 'w-[9.5rem] min-w-[9.5rem]',
+  last_used_at: 'w-[8rem] min-w-[8rem]',
   created_at: 'w-[6.5rem] min-w-[6.5rem]',
-  expires_at: 'w-[9.5rem] min-w-[9.5rem]',
-  notes: 'w-[10rem] min-w-[10rem]',
-  actions: 'w-[8rem] min-w-[8rem]'
+  expires_at: 'w-[8.25rem] min-w-[8.25rem]',
+  notes: 'w-[8rem] min-w-[8rem]',
+  actions: 'w-[12rem] min-w-[12rem]'
 }
 
 const getAccountColumnClass = (key: string) => ACCOUNT_COLUMN_CLASS_MAP[key] ?? ''
@@ -1301,7 +1379,7 @@ const getAccountColumnClass = (key: string) => ACCOUNT_COLUMN_CLASS_MAP[key] ?? 
 const allColumns = computed<Column[]>(() => {
   const c: Column[] = [
     { key: 'select', label: '', sortable: false, class: getAccountColumnClass('select') },
-    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
+    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, class: getAccountColumnClass('name') },
     { key: 'id', label: t('admin.accounts.columns.id'), sortable: true, class: getAccountColumnClass('id') },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false, class: getAccountColumnClass('platform_type') },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false, class: getAccountColumnClass('capacity') },
@@ -1339,57 +1417,6 @@ const cols = computed(() =>
 )
 
 const handleEdit = (a: Account) => { edAcc.value = a; showEdit.value = true }
-const openMenu = (a: Account, e: MouseEvent) => {
-  menu.acc = a
-
-  const target = e.currentTarget as HTMLElement
-  if (target) {
-    const rect = target.getBoundingClientRect()
-    const menuWidth = 200
-    const menuHeight = 240
-    const padding = 8
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-
-    let left: number
-    let top: number
-
-    if (viewportWidth < 768) {
-      // 居中显示,水平位置
-      left = Math.max(padding, Math.min(
-        rect.left + rect.width / 2 - menuWidth / 2,
-        viewportWidth - menuWidth - padding
-      ))
-
-      // 优先显示在按钮下方
-      top = rect.bottom + 4
-
-      // 如果下方空间不够,显示在上方
-      if (top + menuHeight > viewportHeight - padding) {
-        top = rect.top - menuHeight - 4
-        // 如果上方也不够,就贴在视口顶部
-        if (top < padding) {
-          top = padding
-        }
-      }
-    } else {
-      left = Math.max(padding, Math.min(
-        e.clientX - menuWidth,
-        viewportWidth - menuWidth - padding
-      ))
-      top = e.clientY
-      if (top + menuHeight > viewportHeight - padding) {
-        top = viewportHeight - menuHeight - padding
-      }
-    }
-
-    menu.pos = { top, left }
-  } else {
-    menu.pos = { top: e.clientY, left: e.clientX - 200 }
-  }
-
-  menu.show = true
-}
 const toggleSelectAllVisible = (event: Event) => {
   const target = event.target as HTMLInputElement
   toggleVisible(target.checked)
@@ -1582,6 +1609,27 @@ const handleBulkUpdated = () => {
   reload()
 }
 const handleDataImported = () => { showImportData.value = false; reload() }
+const canSyncUpstreamRate = (account: Account) => account.type === 'apikey'
+const handleSyncUpstreamRate = async (account: Account) => {
+  if (syncingRateAccountId.value !== null) return
+  syncingRateAccountId.value = account.id
+  try {
+    const result = await adminAPI.accounts.syncUpstreamRateMultiplier(account.id)
+    syncAccountRefs(result.account)
+    mergeAccountsIncrementally([result.account])
+    appStore.showSuccess(t('admin.accounts.syncUpstreamRateMultiplierSuccess', {
+      rate: result.rate_multiplier.toFixed(2)
+    }))
+  } catch (error: any) {
+    console.error('Failed to sync upstream rate multiplier:', error)
+    const message = error?.status === 404
+      ? t('admin.accounts.syncUpstreamRateMultiplierRouteMissing')
+      : (error?.message || error?.response?.data?.message || t('admin.accounts.syncUpstreamRateMultiplierFailed'))
+    appStore.showError(message)
+  } finally {
+    syncingRateAccountId.value = null
+  }
+}
 const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
 const ACCOUNT_PRIVACY_MODE_UNSET_QUERY_VALUE = '__unset__'
 const anomalyReasonLabel = (code: AccountAnomalyReasonCode) => t(`admin.accounts.anomalyReasons.${code}.label`)
@@ -1687,10 +1735,6 @@ const patchAccountInList = (updatedAccount: Account) => {
     accounts.value = accounts.value.filter(account => account.id !== mergedAccount.id)
     syncPaginationAfterLocalRemoval()
     removeSelectedAccounts([mergedAccount.id])
-    if (menu.acc?.id === mergedAccount.id) {
-      menu.show = false
-      menu.acc = null
-    }
     return
   }
   const nextAccounts = [...accounts.value]
@@ -1757,48 +1801,6 @@ const handleSchedule = async (a: Account) => {
   }
 }
 const closeSchedulePanel = () => { showSchedulePanel.value = false; scheduleAcc.value = null; scheduleModelOptions.value = [] }
-const handleReAuth = (a: Account) => { reAuthAcc.value = a; showReAuth.value = true }
-const handleRefresh = async (a: Account) => {
-  try {
-    const updated = await adminAPI.accounts.refreshCredentials(a.id)
-    patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
-  } catch (error) {
-    console.error('Failed to refresh credentials:', error)
-  }
-}
-const handleRecoverState = async (a: Account) => {
-  try {
-    const updated = await adminAPI.accounts.recoverState(a.id)
-    patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
-    appStore.showSuccess(t('admin.accounts.recoverStateSuccess'))
-  } catch (error: any) {
-    console.error('Failed to recover account state:', error)
-    appStore.showError(error?.message || t('admin.accounts.recoverStateFailed'))
-  }
-}
-const handleResetQuota = async (a: Account) => {
-  try {
-    const updated = await adminAPI.accounts.resetAccountQuota(a.id)
-    patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
-    appStore.showSuccess(t('common.success'))
-  } catch (error) {
-    console.error('Failed to reset quota:', error)
-  }
-}
-const handleSetPrivacy = async (a: Account) => {
-  try {
-    const updated = await adminAPI.accounts.setPrivacy(a.id)
-    patchAccountInList(updated)
-    enterAutoRefreshSilentWindow()
-    appStore.showSuccess(t('common.success'))
-  } catch (error: any) {
-    console.error('Failed to set privacy:', error)
-    appStore.showError(error?.response?.data?.message || t('admin.accounts.privacyFailed'))
-  }
-}
 const onRevertFallback = async (a: Account) => {
   try {
     await adminAPI.accounts.revertProxyFallback(a.id)
@@ -1858,11 +1860,6 @@ const proxyExpiryText = (p: AccountProxy): string => {
   return params ? t(key, params) : t(key)
 }
 
-// 滚动时关闭操作菜单（不关闭列设置下拉菜单）
-const handleScroll = () => {
-  menu.show = false
-}
-
 // 点击外部关闭顶部下拉菜单
 const handleClickOutside = (event: MouseEvent) => {
   const target = event.target as HTMLElement
@@ -1883,7 +1880,6 @@ onMounted(async () => {
   } catch (error) {
     console.error('Failed to load proxies/groups:', error)
   }
-  window.addEventListener('scroll', handleScroll, true)
   document.addEventListener('click', handleClickOutside)
 
   if (autoRefreshEnabled.value) {
@@ -1895,7 +1891,6 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll, true)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -1938,57 +1933,55 @@ onUnmounted(() => {
   min-width: 0;
 }
 
-.account-table-scroll-x {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
+.account-table-grid {
   min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-gutter: stable;
+  flex: 1 1 auto;
 }
 
-.account-table-scroll-x :deep(.table-wrapper) {
-  width: max-content;
-  max-width: none;
-  min-width: 100%;
-  overflow-x: visible !important;
+.account-table-grid :deep(.table-wrapper) {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
   overflow-y: auto;
   height: var(--account-table-visible-height, min(72vh, 52rem));
   min-height: var(--account-table-visible-height, min(72vh, 52rem));
+  scrollbar-gutter: stable;
 }
 
-.account-table-scroll-x :deep(.sticky-header-cell) {
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
+.account-table-grid :deep(.sticky-header-cell) {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 
-.account-table-scroll-x :deep(tbody td) {
-  padding-top: 0.625rem;
-  padding-bottom: 0.625rem;
+.account-table-grid :deep(tbody td) {
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
 }
 
-.account-table-scroll-x :deep(table) {
+.account-table-grid :deep(table) {
   min-width: max-content;
 }
 
-.account-table-scroll-x::-webkit-scrollbar {
+.account-table-grid :deep(.table-wrapper::-webkit-scrollbar) {
   height: 12px;
 }
 
-.account-table-scroll-x::-webkit-scrollbar-track {
+.account-table-grid :deep(.table-wrapper::-webkit-scrollbar-track) {
   background: rgba(0, 0, 0, 0.03);
   border-radius: 6px;
 }
 
-.account-table-scroll-x::-webkit-scrollbar-thumb {
+.account-table-grid :deep(.table-wrapper::-webkit-scrollbar-thumb) {
   background: rgba(107, 114, 128, 0.72);
   border-radius: 6px;
 }
 
-.account-table-scroll-x::-webkit-scrollbar-thumb:hover {
+.account-table-grid :deep(.table-wrapper::-webkit-scrollbar-thumb:hover) {
   background: rgba(75, 85, 99, 0.88);
 }
 

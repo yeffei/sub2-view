@@ -7939,7 +7939,7 @@ const form = reactive<SettingsForm>({
   subscription_expiry_notify_enabled: true,
   account_quota_notify_enabled: false,
   account_quota_notify_emails: [] as NotifyEmailEntry[],
-  // Channel Monitor feature switch
+  // Upstream pool status probe feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 300,
   // Available Channels feature switch
@@ -9112,7 +9112,7 @@ async function saveSettings() {
       account_quota_notify_emails: (
         form.account_quota_notify_emails || []
       ).filter((e) => e.email.trim() !== ""),
-      // Channel Monitor feature switch
+      // Upstream pool status probe feature switch
       channel_monitor_enabled: form.channel_monitor_enabled,
       channel_monitor_default_interval_seconds:
         Number(form.channel_monitor_default_interval_seconds) || 60,

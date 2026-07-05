@@ -11,9 +11,9 @@
         @click.self="handleClose"
       >
         <!-- Modal panel -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
+        <div ref="dialogRef" :class="['modal-content', widthClasses, props.panelClass]" @click.stop>
           <!-- Header -->
-          <div class="modal-header">
+          <div :class="['modal-header', props.headerClass]">
             <h3 :id="dialogId" class="modal-title">
               {{ title }}
             </h3>
@@ -28,12 +28,12 @@
           </div>
 
           <!-- Body -->
-          <div class="modal-body">
+          <div :class="['modal-body', props.bodyClass]">
             <slot></slot>
           </div>
 
           <!-- Footer -->
-          <div v-if="$slots.footer" class="modal-footer">
+          <div v-if="$slots.footer" :class="['modal-footer', props.footerClass]">
             <slot name="footer"></slot>
           </div>
         </div>
@@ -54,7 +54,7 @@ const dialogId = `modal-title-${++dialogIdCounter}`
 const dialogRef = ref<HTMLElement | null>(null)
 let previousActiveElement: HTMLElement | null = null
 
-type DialogWidth = 'narrow' | 'normal' | 'wide' | 'extra-wide' | 'full'
+type DialogWidth = 'narrow' | 'normal' | 'wide' | 'extra-wide' | 'full' | 'content'
 
 interface Props {
   show: boolean
@@ -64,6 +64,10 @@ interface Props {
   closeOnClickOutside?: boolean
   showCloseButton?: boolean
   zIndex?: number
+  panelClass?: string
+  headerClass?: string
+  bodyClass?: string
+  footerClass?: string
 }
 
 interface Emits {
@@ -75,7 +79,11 @@ const props = withDefaults(defineProps<Props>(), {
   closeOnEscape: true,
   closeOnClickOutside: false,
   showCloseButton: true,
-  zIndex: 50
+  zIndex: 50,
+  panelClass: '',
+  headerClass: '',
+  bodyClass: '',
+  footerClass: ''
 })
 
 const emit = defineEmits<Emits>()
@@ -94,7 +102,8 @@ const widthClasses = computed(() => {
     normal: 'max-w-lg',
     wide: 'w-full sm:max-w-2xl md:max-w-3xl lg:max-w-4xl',
     'extra-wide': 'w-full sm:max-w-3xl md:max-w-4xl lg:max-w-5xl xl:max-w-6xl',
-    full: 'w-full sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl'
+    full: 'w-full sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl',
+    content: ''
   }
   return widths[props.width]
 })

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"log/slog"
 	"net/http"
@@ -78,6 +79,17 @@ type AdminService interface {
 	CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberInput) (*UpstreamPoolMember, error)
 	UpdateUpstreamPoolMember(ctx context.Context, id int64, input *UpdateUpstreamPoolMemberInput) (*UpstreamPoolMember, error)
 	DeleteUpstreamPoolMember(ctx context.Context, id int64) error
+	ListUpstreamAccountSets(ctx context.Context) ([]UpstreamAccountSet, error)
+	CreateUpstreamAccountSet(ctx context.Context, input *CreateUpstreamAccountSetInput) (*UpstreamAccountSet, error)
+	UpdateUpstreamAccountSet(ctx context.Context, id int64, input *UpdateUpstreamAccountSetInput) (*UpstreamAccountSet, error)
+	DeleteUpstreamAccountSet(ctx context.Context, id int64) error
+	ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error)
+	AddUpstreamAccountSetMembers(ctx context.Context, setID int64, input *AddUpstreamAccountSetMembersInput) error
+	DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error
+	ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]UpstreamPoolMemberSet, error)
+	CreateUpstreamPoolMemberSet(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberSetInput) (*UpstreamPoolMemberSet, error)
+	UpdateUpstreamPoolMemberSet(ctx context.Context, id int64, input *UpdateUpstreamPoolMemberSetInput) (*UpstreamPoolMemberSet, error)
+	DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error
 	ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error)
 	CreateUpstreamPoolBinding(ctx context.Context, input *CreateUpstreamPoolBindingInput) (*UpstreamPoolBinding, error)
 	UpdateUpstreamPoolBinding(ctx context.Context, id int64, input *UpdateUpstreamPoolBindingInput) (*UpstreamPoolBinding, error)
@@ -351,13 +363,13 @@ type BulkUpdateAccountsInput struct {
 }
 
 type BulkUpdateAccountFilters struct {
-	Platform    string
-	Type        string
-	Status      string
+	Platform      string
+	Type          string
+	Status        string
 	AnomalyReason string
-	Group       string
-	Search      string
-	PrivacyMode string
+	Group         string
+	Search        string
+	PrivacyMode   string
 }
 
 // BulkUpdateAccountResult captures the result for a single account update.
@@ -652,26 +664,26 @@ func (s *adminServiceImpl) CreateUpstreamPool(ctx context.Context, input *Create
 	}
 
 	pool := &UpstreamPool{
-		Name:                             strings.TrimSpace(input.Name),
-		Code:                             strings.TrimSpace(input.Code),
-		Platform:                         strings.TrimSpace(input.Platform),
-		Description:                      strings.TrimSpace(input.Description),
-		Enabled:                          input.Enabled,
-		SchedulerMode:                    strings.TrimSpace(input.SchedulerMode),
-		DefaultRequiredCapability:        strings.TrimSpace(input.DefaultRequiredCapability),
-		DefaultRequiredTransport:         strings.TrimSpace(input.DefaultRequiredTransport),
-		StickyEnabled:                    input.StickyEnabled,
-		StickyTTLSeconds:                 input.StickyTTLSeconds,
-		StickyEscapeEnabled:              input.StickyEscapeEnabled,
-		StickyEscapeErrorRateThreshold:    input.StickyEscapeErrorRateThreshold,
-		StickyEscapeTTFTMSThreshold:      input.StickyEscapeTTFTMSThreshold,
-		LoadBalanceEnabled:               input.LoadBalanceEnabled,
-		FailoverEnabled:                  input.FailoverEnabled,
-		TopK:                             input.TopK,
-		MaxFailoverHops:                  input.MaxFailoverHops,
-		WaitTimeoutMS:                    input.WaitTimeoutMS,
-		MaxWaiting:                       input.MaxWaiting,
-		PolicyJSON:                       input.PolicyJSON,
+		Name:                           strings.TrimSpace(input.Name),
+		Code:                           strings.TrimSpace(input.Code),
+		Platform:                       strings.TrimSpace(input.Platform),
+		Description:                    strings.TrimSpace(input.Description),
+		Enabled:                        input.Enabled,
+		SchedulerMode:                  strings.TrimSpace(input.SchedulerMode),
+		DefaultRequiredCapability:      strings.TrimSpace(input.DefaultRequiredCapability),
+		DefaultRequiredTransport:       strings.TrimSpace(input.DefaultRequiredTransport),
+		StickyEnabled:                  input.StickyEnabled,
+		StickyTTLSeconds:               input.StickyTTLSeconds,
+		StickyEscapeEnabled:            input.StickyEscapeEnabled,
+		StickyEscapeErrorRateThreshold: input.StickyEscapeErrorRateThreshold,
+		StickyEscapeTTFTMSThreshold:    input.StickyEscapeTTFTMSThreshold,
+		LoadBalanceEnabled:             input.LoadBalanceEnabled,
+		FailoverEnabled:                input.FailoverEnabled,
+		TopK:                           input.TopK,
+		MaxFailoverHops:                input.MaxFailoverHops,
+		WaitTimeoutMS:                  input.WaitTimeoutMS,
+		MaxWaiting:                     input.MaxWaiting,
+		PolicyJSON:                     input.PolicyJSON,
 	}
 	if err := normalizeUpstreamPoolForCreate(pool); err != nil {
 		return nil, err
@@ -807,6 +819,7 @@ func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID i
 		}
 		members[i].AccountName = account.Name
 		members[i].AccountPlatform = account.Platform
+		members[i].AccountType = account.Type
 		members[i].AccountStatus = account.Status
 		members[i].AccountSchedulable = account.IsSchedulable()
 		members[i].RuntimeLastUsedAt = account.LastUsedAt
@@ -908,7 +921,7 @@ func (s *adminServiceImpl) UpdateUpstreamPoolMember(ctx context.Context, id int6
 	if input.Enabled != nil {
 		member.Enabled = *input.Enabled
 	}
-	if input.SchedulableOverride != nil {
+	if input.SchedulableOverrideSet {
 		member.SchedulableOverride = input.SchedulableOverride
 	}
 	if input.ManualDrained != nil {
@@ -917,14 +930,18 @@ func (s *adminServiceImpl) UpdateUpstreamPoolMember(ctx context.Context, id int6
 	if input.Weight != nil {
 		member.Weight = *input.Weight
 	}
-	if input.PriorityOverride != nil {
+	if input.PriorityOverrideSet {
 		member.PriorityOverride = input.PriorityOverride
 	}
-	if input.MaxConcurrencyOverride != nil {
+	if input.MaxConcurrencyOverrideSet {
 		member.MaxConcurrencyOverride = input.MaxConcurrencyOverride
 	}
-	if input.Notes != nil {
-		member.Notes = strings.TrimSpace(*input.Notes)
+	if input.NotesSet {
+		if input.Notes == nil {
+			member.Notes = ""
+		} else {
+			member.Notes = strings.TrimSpace(*input.Notes)
+		}
 	}
 	if err := normalizeUpstreamPoolMemberForCreate(member); err != nil {
 		return nil, err
@@ -941,6 +958,177 @@ func (s *adminServiceImpl) DeleteUpstreamPoolMember(ctx context.Context, id int6
 		return ErrUpstreamPoolNotFound
 	}
 	return s.upstreamPoolRepo.DeleteUpstreamPoolMember(ctx, id)
+}
+
+func (s *adminServiceImpl) ListUpstreamAccountSets(ctx context.Context) ([]UpstreamAccountSet, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamAccountSet{}, nil
+	}
+	return s.upstreamPoolRepo.ListUpstreamAccountSets(ctx)
+}
+
+func (s *adminServiceImpl) CreateUpstreamAccountSet(ctx context.Context, input *CreateUpstreamAccountSetInput) (*UpstreamAccountSet, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	item := &UpstreamAccountSet{
+		Name:        strings.TrimSpace(input.Name),
+		Code:        strings.TrimSpace(input.Code),
+		Platform:    strings.TrimSpace(input.Platform),
+		Description: strings.TrimSpace(input.Description),
+		Enabled:     input.Enabled,
+	}
+	if item.Code == "" {
+		item.Code = buildAutoUpstreamAccountSetCode(item.Platform, item.Name)
+	}
+	if err := normalizeUpstreamAccountSetForCreate(item); err != nil {
+		return nil, err
+	}
+	return s.upstreamPoolRepo.CreateUpstreamAccountSet(ctx, item)
+}
+
+func (s *adminServiceImpl) UpdateUpstreamAccountSet(ctx context.Context, id int64, input *UpdateUpstreamAccountSetInput) (*UpstreamAccountSet, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	item, err := s.upstreamPoolRepo.GetUpstreamAccountSetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if input.Name != nil {
+		item.Name = strings.TrimSpace(*input.Name)
+	}
+	if input.Code != nil {
+		item.Code = strings.TrimSpace(*input.Code)
+	}
+	if input.Platform != nil {
+		item.Platform = strings.TrimSpace(*input.Platform)
+	}
+	if input.Description != nil {
+		item.Description = strings.TrimSpace(*input.Description)
+	}
+	if input.Enabled != nil {
+		item.Enabled = *input.Enabled
+	}
+	if err := normalizeUpstreamAccountSetForCreate(item); err != nil {
+		return nil, err
+	}
+	return s.upstreamPoolRepo.UpdateUpstreamAccountSet(ctx, item)
+}
+
+func (s *adminServiceImpl) DeleteUpstreamAccountSet(ctx context.Context, id int64) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.DeleteUpstreamAccountSet(ctx, id)
+}
+
+func (s *adminServiceImpl) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamAccountSetMember{}, nil
+	}
+	return s.upstreamPoolRepo.ListUpstreamAccountSetMembers(ctx, setID)
+}
+
+func (s *adminServiceImpl) AddUpstreamAccountSetMembers(ctx context.Context, setID int64, input *AddUpstreamAccountSetMembersInput) error {
+	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil || input == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	item, err := s.upstreamPoolRepo.GetUpstreamAccountSetByID(ctx, setID)
+	if err != nil {
+		return err
+	}
+	accountIDs := uniquePositiveInt64s(input.AccountIDs)
+	if len(accountIDs) == 0 {
+		return errors.New("account_ids is required")
+	}
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return err
+	}
+	if len(accounts) != len(accountIDs) {
+		return errors.New("some accounts were not found")
+	}
+	for _, account := range accounts {
+		if account == nil {
+			return errors.New("some accounts were not found")
+		}
+		if !strings.EqualFold(strings.TrimSpace(account.Platform), strings.TrimSpace(item.Platform)) {
+			return errors.New("account platform does not match account set platform")
+		}
+	}
+	return s.upstreamPoolRepo.AddUpstreamAccountSetMembers(ctx, setID, accountIDs)
+}
+
+func (s *adminServiceImpl) DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.DeleteUpstreamAccountSetMember(ctx, setID, accountID)
+}
+
+func (s *adminServiceImpl) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]UpstreamPoolMemberSet, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamPoolMemberSet{}, nil
+	}
+	return s.upstreamPoolRepo.ListUpstreamPoolMemberSets(ctx, poolID)
+}
+
+func (s *adminServiceImpl) CreateUpstreamPoolMemberSet(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberSetInput) (*UpstreamPoolMemberSet, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	setItem, err := s.upstreamPoolRepo.GetUpstreamAccountSetByID(ctx, input.SetID)
+	if err != nil {
+		return nil, err
+	}
+	if !strings.EqualFold(strings.TrimSpace(pool.Platform), strings.TrimSpace(setItem.Platform)) {
+		return nil, errors.New("account set platform does not match pool platform")
+	}
+	item := &UpstreamPoolMemberSet{
+		PoolID:      pool.ID,
+		SetID:       setItem.ID,
+		SetName:     setItem.Name,
+		SetCode:     setItem.Code,
+		SetPlatform: setItem.Platform,
+		Enabled:     input.Enabled,
+		Notes:       strings.TrimSpace(input.Notes),
+	}
+	if err := normalizeUpstreamPoolMemberSetForCreate(item); err != nil {
+		return nil, err
+	}
+	return s.upstreamPoolRepo.CreateUpstreamPoolMemberSet(ctx, item)
+}
+
+func (s *adminServiceImpl) UpdateUpstreamPoolMemberSet(ctx context.Context, id int64, input *UpdateUpstreamPoolMemberSetInput) (*UpstreamPoolMemberSet, error) {
+	if s == nil || s.upstreamPoolRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	item, err := s.upstreamPoolRepo.GetUpstreamPoolMemberSetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if input.Enabled != nil {
+		item.Enabled = *input.Enabled
+	}
+	if input.Notes != nil {
+		item.Notes = strings.TrimSpace(*input.Notes)
+	}
+	if err := normalizeUpstreamPoolMemberSetForCreate(item); err != nil {
+		return nil, err
+	}
+	return s.upstreamPoolRepo.UpdateUpstreamPoolMemberSet(ctx, item)
+}
+
+func (s *adminServiceImpl) DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	return s.upstreamPoolRepo.DeleteUpstreamPoolMemberSet(ctx, id)
 }
 
 func (s *adminServiceImpl) ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error) {
@@ -1129,6 +1317,97 @@ func normalizeUpstreamPoolBindingForCreate(binding *UpstreamPoolBinding) error {
 		binding.RequestPathScope = []string{}
 	}
 	return nil
+}
+
+func normalizeUpstreamAccountSetForCreate(item *UpstreamAccountSet) error {
+	if item == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	item.Name = strings.TrimSpace(item.Name)
+	item.Code = strings.TrimSpace(item.Code)
+	item.Platform = strings.TrimSpace(item.Platform)
+	item.Description = strings.TrimSpace(item.Description)
+	if item.Name == "" {
+		return errors.New("name is required")
+	}
+	if item.Code == "" {
+		return errors.New("code is required")
+	}
+	if item.Platform == "" {
+		return errors.New("platform is required")
+	}
+	return nil
+}
+
+func buildAutoUpstreamAccountSetCode(platform, name string) string {
+	normalizedPlatform := strings.ToLower(strings.TrimSpace(platform))
+	if normalizedPlatform == "" {
+		normalizedPlatform = "set"
+	}
+
+	normalizedName := strings.ToLower(strings.TrimSpace(name))
+	var builder strings.Builder
+	lastDash := false
+	for _, r := range normalizedName {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+			lastDash = false
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			lastDash = false
+		case r == '-' || r == '_' || r == '.' || r == ' ':
+			if builder.Len() > 0 && !lastDash {
+				builder.WriteByte('-')
+				lastDash = true
+			}
+		}
+		if builder.Len() >= 24 {
+			break
+		}
+	}
+
+	baseName := strings.Trim(builder.String(), "-")
+	if baseName == "" {
+		baseName = "set"
+	}
+
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(normalizedPlatform + ":" + strings.TrimSpace(name)))
+	return fmt.Sprintf("%s-%s-%08x", normalizedPlatform, baseName, h.Sum32())
+}
+
+func normalizeUpstreamPoolMemberSetForCreate(item *UpstreamPoolMemberSet) error {
+	if item == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	if item.PoolID <= 0 {
+		return errors.New("pool_id is required")
+	}
+	if item.SetID <= 0 {
+		return errors.New("set_id is required")
+	}
+	item.Notes = strings.TrimSpace(item.Notes)
+	return nil
+}
+
+func uniquePositiveInt64s(values []int64) []int64 {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[int64]struct{}, len(values))
+	out := make([]int64, 0, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 // User management implementations

@@ -124,8 +124,8 @@ const codexModels: ModelRow[] = [
 ]
 
 const codexGroups: GroupRow[] = [
-  { key: 'codex-plus', name: 'Codex Plus', subtitle: '0.15x', rateText: '0.15x', multiplier: 0.15 },
-  { key: 'codex-pro', name: 'Codex Pro', subtitle: '0.50x', rateText: '0.50x', multiplier: 0.5 },
+  { key: 'codex-plus', name: 'Codex Plus', subtitle: '0.16x', rateText: '0.16x', multiplier: 0.16 },
+  { key: 'codex-pro', name: 'Codex Pro', subtitle: '0.45x', rateText: '0.45x', multiplier: 0.45 },
 ]
 const activeGroup = computed(() => codexGroups.find(group => group.key === activeGroupKey.value) || codexGroups[0])
 

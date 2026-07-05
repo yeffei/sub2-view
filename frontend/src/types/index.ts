@@ -598,6 +598,7 @@ export interface UpstreamPoolMember {
   account_id: number
   account_name?: string
   account_platform?: string
+  account_type?: string
   account_status?: string
   account_schedulable?: boolean
   runtime_status?: string
@@ -617,6 +618,10 @@ export interface UpstreamPoolMember {
   notes: string
   joined_at: string
   updated_at: string
+  source_type?: string
+  source_set_id?: number | null
+  source_set_name?: string
+  editable?: boolean
 }
 
 export interface UpstreamPoolBinding {
@@ -631,6 +636,41 @@ export interface UpstreamPoolBinding {
   priority: number
   enabled: boolean
   created_at: string
+  updated_at: string
+}
+
+export interface UpstreamAccountSet {
+  id: number
+  name: string
+  code: string
+  platform: string
+  description: string
+  enabled: boolean
+  account_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface UpstreamAccountSetMember {
+  set_id: number
+  account_id: number
+  account_name: string
+  account_platform: string
+  account_type: string
+  account_status: string
+  added_at: string
+}
+
+export interface UpstreamPoolMemberSet {
+  id: number
+  pool_id: number
+  set_id: number
+  set_name: string
+  set_code: string
+  set_platform: string
+  enabled: boolean
+  notes: string
+  joined_at: string
   updated_at: string
 }
 
@@ -1254,6 +1294,7 @@ export interface CodexSessionImportRequest {
   update_existing?: boolean
   skip_default_group_bind?: boolean
   confirm_mixed_channel_risk?: boolean
+  dry_run?: boolean
 }
 
 export interface CodexSessionImportMessage {
@@ -1271,6 +1312,8 @@ export interface CodexSessionImportItem {
 }
 
 export interface CodexSessionImportResult {
+  batch_id?: string
+  dry_run?: boolean
   total: number
   created: number
   updated: number

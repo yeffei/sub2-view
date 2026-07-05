@@ -42,7 +42,7 @@ func openaiResponsesProbePayload(modelID string) []byte {
 			{
 				"role": "user",
 				"content": []map[string]any{
-					{"type": "input_text", "text": "Call the probe_ping function with ok=true to acknowledge readiness. You must use the tool."},
+					{"type": "input_text", "text": monitorLightweightPrompt},
 				},
 			},
 		},
@@ -50,7 +50,7 @@ func openaiResponsesProbePayload(modelID string) []byte {
 			{
 				"type":        "function",
 				"name":        "probe_ping",
-				"description": "Capability probe. Call to acknowledge.",
+				"description": "Probe.",
 				"parameters": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
@@ -61,7 +61,7 @@ func openaiResponsesProbePayload(modelID string) []byte {
 			},
 		},
 		"tool_choice":       "required",
-		"max_output_tokens": 512,
+		"max_output_tokens": monitorLightweightMaxTokens,
 		"stream":            false,
 	})
 	return body

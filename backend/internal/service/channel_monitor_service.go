@@ -41,6 +41,10 @@ type ChannelMonitorRepository interface {
 	// ListRecentHistoryForMonitors 批量取多个 monitor 各自主模型（primaryModels[monitorID]）最近 perMonitorLimit 条历史。
 	// 返回的 entry 已按 checked_at DESC 排序（最新在前），不含 message 字段。
 	ListRecentHistoryForMonitors(ctx context.Context, ids []int64, primaryModels map[int64]string, perMonitorLimit int) (map[int64][]*ChannelMonitorHistoryEntry, error)
+	// ListHistorySinceForMonitors 批量取多个 monitor 各自主模型（primaryModels[monitorID]）
+	// 在 since 之后的全部历史，用于 pool health 按时间槽位做并集聚合。
+	// 返回的 entry 已按 checked_at DESC 排序（最新在前），不含 message 字段。
+	ListHistorySinceForMonitors(ctx context.Context, ids []int64, primaryModels map[int64]string, since time.Time) (map[int64][]*ChannelMonitorHistoryEntry, error)
 
 	// ---------- 聚合维护（OpsCleanupService 调用） ----------
 
@@ -61,6 +65,7 @@ type ChannelMonitorRepository interface {
 type ChannelMonitorService struct {
 	repo             ChannelMonitorRepository
 	encryptor        SecretEncryptor
+	groupRepo        GroupRepository
 	upstreamPoolRepo UpstreamPoolRepository
 	accountRepo      AccountRepository
 	// scheduler 由 wire 通过 SetScheduler 注入；CRUD 后调用对应钩子即时同步任务。
@@ -127,7 +132,6 @@ func (s *ChannelMonitorService) Create(ctx context.Context, p ChannelMonitorCrea
 		APIKey:           encrypted, // 注意：传入 repository 时该字段为密文
 		PrimaryModel:     strings.TrimSpace(p.PrimaryModel),
 		ExtraModels:      normalizeModels(p.ExtraModels),
-		GroupName:        strings.TrimSpace(p.GroupName),
 		Enabled:          p.Enabled,
 		IntervalSeconds:  p.IntervalSeconds,
 		JitterSeconds:    p.JitterSeconds,
@@ -136,6 +140,9 @@ func (s *ChannelMonitorService) Create(ctx context.Context, p ChannelMonitorCrea
 		ExtraHeaders:     emptyHeadersIfNil(p.ExtraHeaders),
 		BodyOverrideMode: defaultBodyMode(p.BodyOverrideMode),
 		BodyOverride:     p.BodyOverride,
+	}
+	if err := s.assignMonitorGroupReference(ctx, m, p.GroupID, p.GroupName); err != nil {
+		return nil, err
 	}
 	if err := s.repo.Create(ctx, m); err != nil {
 		return nil, fmt.Errorf("create channel monitor: %w", err)
@@ -182,6 +189,9 @@ func (s *ChannelMonitorService) Update(ctx context.Context, id int64, p ChannelM
 		return nil, err
 	}
 	if err := applyMonitorUpdate(existing, p); err != nil {
+		return nil, err
+	}
+	if err := s.applyMonitorGroupUpdate(ctx, existing, p); err != nil {
 		return nil, err
 	}
 
@@ -349,6 +359,11 @@ func (s *ChannelMonitorService) SetAccountRepository(repo AccountRepository) {
 	s.accountRepo = repo
 }
 
+// SetGroupRepository 注入分组仓库，用于把 monitor.group_id 解析成稳定的 group_name 冗余。
+func (s *ChannelMonitorService) SetGroupRepository(repo GroupRepository) {
+	s.groupRepo = repo
+}
+
 // ListEnabledMonitors 返回所有 enabled=true 的监控（解密后），供 runner 启动时建立任务表。
 func (s *ChannelMonitorService) ListEnabledMonitors(ctx context.Context) ([]*ChannelMonitor, error) {
 	all, err := s.repo.ListEnabled(ctx)
@@ -513,9 +528,6 @@ func applyMonitorUpdate(existing *ChannelMonitor, p ChannelMonitorUpdateParams) 
 	if p.ExtraModels != nil {
 		existing.ExtraModels = normalizeModels(*p.ExtraModels)
 	}
-	if p.GroupName != nil {
-		existing.GroupName = strings.TrimSpace(*p.GroupName)
-	}
 	if p.Enabled != nil {
 		existing.Enabled = *p.Enabled
 	}
@@ -535,6 +547,57 @@ func applyMonitorUpdate(existing *ChannelMonitor, p ChannelMonitorUpdateParams) 
 		}
 	}
 	return applyMonitorAdvancedUpdate(existing, p, providerChanged)
+}
+
+func (s *ChannelMonitorService) applyMonitorGroupUpdate(ctx context.Context, existing *ChannelMonitor, p ChannelMonitorUpdateParams) error {
+	switch {
+	case p.ClearGroup:
+		existing.GroupID = nil
+		existing.GroupName = ""
+		return nil
+	case p.GroupID != nil || p.GroupName != nil:
+		groupName := existing.GroupName
+		if p.GroupName != nil {
+			groupName = *p.GroupName
+		}
+		return s.assignMonitorGroupReference(ctx, existing, p.GroupID, groupName)
+	case p.Provider != nil && existing.GroupID != nil:
+		return s.assignMonitorGroupReference(ctx, existing, existing.GroupID, existing.GroupName)
+	default:
+		return nil
+	}
+}
+
+func (s *ChannelMonitorService) assignMonitorGroupReference(
+	ctx context.Context,
+	monitor *ChannelMonitor,
+	groupID *int64,
+	groupName string,
+) error {
+	if monitor == nil {
+		return nil
+	}
+	if groupID == nil {
+		monitor.GroupID = nil
+		monitor.GroupName = strings.TrimSpace(groupName)
+		return nil
+	}
+	if s.groupRepo == nil {
+		return fmt.Errorf("channel monitor group repository is not configured")
+	}
+	group, err := s.groupRepo.GetByID(ctx, *groupID)
+	if err != nil {
+		return err
+	}
+	if group != nil && strings.TrimSpace(group.Platform) != "" && !strings.EqualFold(group.Platform, monitor.Provider) {
+		return ErrChannelMonitorInvalidGroupPlatform
+	}
+	id := *groupID
+	monitor.GroupID = &id
+	if group != nil {
+		monitor.GroupName = strings.TrimSpace(group.Name)
+	}
+	return nil
 }
 
 // applyMonitorAdvancedUpdate 处理自定义请求快照相关字段，从 applyMonitorUpdate 拆出避免过长。

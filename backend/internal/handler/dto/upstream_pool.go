@@ -9,71 +9,111 @@ import (
 const upstreamPoolTimeLayout = "2006-01-02T15:04:05Z07:00"
 
 type UpstreamPool struct {
-	ID                                  int64                  `json:"id"`
-	Name                                string                 `json:"name"`
-	Code                                string                 `json:"code"`
-	Platform                            string                 `json:"platform"`
-	Description                         string                 `json:"description"`
-	Enabled                             bool                   `json:"enabled"`
-	SchedulerMode                       string                 `json:"scheduler_mode"`
-	DefaultRequiredCapability           string                 `json:"default_required_capability"`
-	DefaultRequiredTransport            string                 `json:"default_required_transport"`
-	StickyEnabled                       bool                   `json:"sticky_enabled"`
-	StickyTTLSeconds                    int                    `json:"sticky_ttl_seconds"`
-	StickyEscapeEnabled                 bool                   `json:"sticky_escape_enabled"`
-	StickyEscapeErrorRateThreshold      float64                `json:"sticky_escape_error_rate_threshold"`
-	StickyEscapeTTFTMSThreshold         int                    `json:"sticky_escape_ttft_ms_threshold"`
-	LoadBalanceEnabled                  bool                   `json:"load_balance_enabled"`
-	FailoverEnabled                     bool                   `json:"failover_enabled"`
-	TopK                                int                    `json:"top_k"`
-	MaxFailoverHops                     int                    `json:"max_failover_hops"`
-	WaitTimeoutMS                       int                    `json:"wait_timeout_ms"`
-	MaxWaiting                          int                    `json:"max_waiting"`
-	PolicyJSON                          map[string]any         `json:"policy_json"`
-	CreatedAt                           string                 `json:"created_at"`
-	UpdatedAt                           string                 `json:"updated_at"`
+	ID                             int64          `json:"id"`
+	Name                           string         `json:"name"`
+	Code                           string         `json:"code"`
+	Platform                       string         `json:"platform"`
+	Description                    string         `json:"description"`
+	Enabled                        bool           `json:"enabled"`
+	SchedulerMode                  string         `json:"scheduler_mode"`
+	DefaultRequiredCapability      string         `json:"default_required_capability"`
+	DefaultRequiredTransport       string         `json:"default_required_transport"`
+	StickyEnabled                  bool           `json:"sticky_enabled"`
+	StickyTTLSeconds               int            `json:"sticky_ttl_seconds"`
+	StickyEscapeEnabled            bool           `json:"sticky_escape_enabled"`
+	StickyEscapeErrorRateThreshold float64        `json:"sticky_escape_error_rate_threshold"`
+	StickyEscapeTTFTMSThreshold    int            `json:"sticky_escape_ttft_ms_threshold"`
+	LoadBalanceEnabled             bool           `json:"load_balance_enabled"`
+	FailoverEnabled                bool           `json:"failover_enabled"`
+	TopK                           int            `json:"top_k"`
+	MaxFailoverHops                int            `json:"max_failover_hops"`
+	WaitTimeoutMS                  int            `json:"wait_timeout_ms"`
+	MaxWaiting                     int            `json:"max_waiting"`
+	PolicyJSON                     map[string]any `json:"policy_json"`
+	CreatedAt                      string         `json:"created_at"`
+	UpdatedAt                      string         `json:"updated_at"`
 }
 
 type UpstreamPoolMember struct {
-	ID                     int64    `json:"id"`
-	PoolID                 int64    `json:"pool_id"`
-	AccountID              int64    `json:"account_id"`
-	AccountName            string   `json:"account_name"`
-	AccountPlatform        string   `json:"account_platform"`
-	AccountStatus          string   `json:"account_status"`
-	AccountSchedulable     bool     `json:"account_schedulable"`
-	RuntimeStatus          string   `json:"runtime_status"`
-	RuntimeReason          string   `json:"runtime_reason"`
-	RuntimeErrorRate       *float64 `json:"runtime_error_rate"`
-	RuntimeTTFTMs          *int     `json:"runtime_ttft_ms"`
-	RuntimeLastUsedAt      *string  `json:"runtime_last_used_at"`
-	RuntimeRateLimitResetAt *string `json:"runtime_rate_limit_reset_at"`
-	RuntimeOverloadUntil   *string  `json:"runtime_overload_until"`
-	RuntimeTempUnschedulableUntil *string `json:"runtime_temp_unschedulable_until"`
-	Enabled                bool     `json:"enabled"`
-	SchedulableOverride    *bool    `json:"schedulable_override"`
-	ManualDrained          bool     `json:"manual_drained"`
-	Weight                 int      `json:"weight"`
-	PriorityOverride       *int     `json:"priority_override"`
-	MaxConcurrencyOverride *int     `json:"max_concurrency_override"`
-	Notes                  string   `json:"notes"`
-	JoinedAt               string   `json:"joined_at"`
-	UpdatedAt              string   `json:"updated_at"`
+	ID                            int64    `json:"id"`
+	PoolID                        int64    `json:"pool_id"`
+	AccountID                     int64    `json:"account_id"`
+	AccountName                   string   `json:"account_name"`
+	AccountPlatform               string   `json:"account_platform"`
+	AccountType                   string   `json:"account_type"`
+	AccountStatus                 string   `json:"account_status"`
+	AccountSchedulable            bool     `json:"account_schedulable"`
+	RuntimeStatus                 string   `json:"runtime_status"`
+	RuntimeReason                 string   `json:"runtime_reason"`
+	RuntimeErrorRate              *float64 `json:"runtime_error_rate"`
+	RuntimeTTFTMs                 *int     `json:"runtime_ttft_ms"`
+	RuntimeLastUsedAt             *string  `json:"runtime_last_used_at"`
+	RuntimeRateLimitResetAt       *string  `json:"runtime_rate_limit_reset_at"`
+	RuntimeOverloadUntil          *string  `json:"runtime_overload_until"`
+	RuntimeTempUnschedulableUntil *string  `json:"runtime_temp_unschedulable_until"`
+	Enabled                       bool     `json:"enabled"`
+	SchedulableOverride           *bool    `json:"schedulable_override"`
+	ManualDrained                 bool     `json:"manual_drained"`
+	Weight                        int      `json:"weight"`
+	PriorityOverride              *int     `json:"priority_override"`
+	MaxConcurrencyOverride        *int     `json:"max_concurrency_override"`
+	Notes                         string   `json:"notes"`
+	JoinedAt                      string   `json:"joined_at"`
+	UpdatedAt                     string   `json:"updated_at"`
+	SourceType                    string   `json:"source_type"`
+	SourceSetID                   *int64   `json:"source_set_id"`
+	SourceSetName                 string   `json:"source_set_name"`
+	Editable                      bool     `json:"editable"`
 }
 
 type UpstreamPoolBinding struct {
-	ID               int64      `json:"id"`
-	GroupID          int64      `json:"group_id"`
-	GroupName        string     `json:"group_name"`
-	GroupPlatform    string     `json:"group_platform"`
-	PoolID           int64      `json:"pool_id"`
-	Platform         string     `json:"platform"`
-	Models           []string   `json:"models"`
-	RequestPathScope []string   `json:"request_path_scope"`
-	Priority         int        `json:"priority"`
-	Enabled          bool       `json:"enabled"`
-	CreatedAt        string     `json:"created_at"`
-	UpdatedAt        string     `json:"updated_at"`
+	ID               int64    `json:"id"`
+	GroupID          int64    `json:"group_id"`
+	GroupName        string   `json:"group_name"`
+	GroupPlatform    string   `json:"group_platform"`
+	PoolID           int64    `json:"pool_id"`
+	Platform         string   `json:"platform"`
+	Models           []string `json:"models"`
+	RequestPathScope []string `json:"request_path_scope"`
+	Priority         int      `json:"priority"`
+	Enabled          bool     `json:"enabled"`
+	CreatedAt        string   `json:"created_at"`
+	UpdatedAt        string   `json:"updated_at"`
+}
+
+type UpstreamAccountSet struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Code         string `json:"code"`
+	Platform     string `json:"platform"`
+	Description  string `json:"description"`
+	Enabled      bool   `json:"enabled"`
+	AccountCount int    `json:"account_count"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
+type UpstreamAccountSetMember struct {
+	SetID           int64  `json:"set_id"`
+	AccountID       int64  `json:"account_id"`
+	AccountName     string `json:"account_name"`
+	AccountPlatform string `json:"account_platform"`
+	AccountType     string `json:"account_type"`
+	AccountStatus   string `json:"account_status"`
+	AddedAt         string `json:"added_at"`
+}
+
+type UpstreamPoolMemberSet struct {
+	ID          int64  `json:"id"`
+	PoolID      int64  `json:"pool_id"`
+	SetID       int64  `json:"set_id"`
+	SetName     string `json:"set_name"`
+	SetCode     string `json:"set_code"`
+	SetPlatform string `json:"set_platform"`
+	Enabled     bool   `json:"enabled"`
+	Notes       string `json:"notes"`
+	JoinedAt    string `json:"joined_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
@@ -93,7 +133,7 @@ func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
 		StickyEnabled:                  pool.StickyEnabled,
 		StickyTTLSeconds:               pool.StickyTTLSeconds,
 		StickyEscapeEnabled:            pool.StickyEscapeEnabled,
-		StickyEscapeErrorRateThreshold:  pool.StickyEscapeErrorRateThreshold,
+		StickyEscapeErrorRateThreshold: pool.StickyEscapeErrorRateThreshold,
 		StickyEscapeTTFTMSThreshold:    pool.StickyEscapeTTFTMSThreshold,
 		LoadBalanceEnabled:             pool.LoadBalanceEnabled,
 		FailoverEnabled:                pool.FailoverEnabled,
@@ -112,30 +152,35 @@ func UpstreamPoolMemberFromService(member *service.UpstreamPoolMember) *Upstream
 		return nil
 	}
 	return &UpstreamPoolMember{
-		ID:                     member.ID,
-		PoolID:                 member.PoolID,
-		AccountID:              member.AccountID,
-		AccountName:            member.AccountName,
-		AccountPlatform:        member.AccountPlatform,
-		AccountStatus:          member.AccountStatus,
-		AccountSchedulable:     member.AccountSchedulable,
-		RuntimeStatus:          member.RuntimeStatus,
-		RuntimeReason:          member.RuntimeReason,
-		RuntimeErrorRate:       member.RuntimeErrorRate,
-		RuntimeTTFTMs:          member.RuntimeTTFTMs,
-		RuntimeLastUsedAt:      formatOptionalTime(member.RuntimeLastUsedAt),
-		RuntimeRateLimitResetAt: formatOptionalTime(member.RuntimeRateLimitResetAt),
-		RuntimeOverloadUntil:   formatOptionalTime(member.RuntimeOverloadUntil),
+		ID:                            member.ID,
+		PoolID:                        member.PoolID,
+		AccountID:                     member.AccountID,
+		AccountName:                   member.AccountName,
+		AccountPlatform:               member.AccountPlatform,
+		AccountType:                   member.AccountType,
+		AccountStatus:                 member.AccountStatus,
+		AccountSchedulable:            member.AccountSchedulable,
+		RuntimeStatus:                 member.RuntimeStatus,
+		RuntimeReason:                 member.RuntimeReason,
+		RuntimeErrorRate:              member.RuntimeErrorRate,
+		RuntimeTTFTMs:                 member.RuntimeTTFTMs,
+		RuntimeLastUsedAt:             formatOptionalTime(member.RuntimeLastUsedAt),
+		RuntimeRateLimitResetAt:       formatOptionalTime(member.RuntimeRateLimitResetAt),
+		RuntimeOverloadUntil:          formatOptionalTime(member.RuntimeOverloadUntil),
 		RuntimeTempUnschedulableUntil: formatOptionalTime(member.RuntimeTempUnschedulableUntil),
-		Enabled:                member.Enabled,
-		SchedulableOverride:    member.SchedulableOverride,
-		ManualDrained:          member.ManualDrained,
-		Weight:                 member.Weight,
-		PriorityOverride:       member.PriorityOverride,
-		MaxConcurrencyOverride: member.MaxConcurrencyOverride,
-		Notes:                  member.Notes,
-		JoinedAt:               member.JoinedAt.Format(upstreamPoolTimeLayout),
-		UpdatedAt:              member.UpdatedAt.Format(upstreamPoolTimeLayout),
+		Enabled:                       member.Enabled,
+		SchedulableOverride:           member.SchedulableOverride,
+		ManualDrained:                 member.ManualDrained,
+		Weight:                        member.Weight,
+		PriorityOverride:              member.PriorityOverride,
+		MaxConcurrencyOverride:        member.MaxConcurrencyOverride,
+		Notes:                         member.Notes,
+		JoinedAt:                      member.JoinedAt.Format(upstreamPoolTimeLayout),
+		UpdatedAt:                     member.UpdatedAt.Format(upstreamPoolTimeLayout),
+		SourceType:                    member.SourceType,
+		SourceSetID:                   member.SourceSetID,
+		SourceSetName:                 member.SourceSetName,
+		Editable:                      member.Editable,
 	}
 }
 
@@ -164,5 +209,55 @@ func UpstreamPoolBindingFromService(binding *service.UpstreamPoolBinding) *Upstr
 		Enabled:          binding.Enabled,
 		CreatedAt:        binding.CreatedAt.Format(upstreamPoolTimeLayout),
 		UpdatedAt:        binding.UpdatedAt.Format(upstreamPoolTimeLayout),
+	}
+}
+
+func UpstreamAccountSetFromService(item *service.UpstreamAccountSet) *UpstreamAccountSet {
+	if item == nil {
+		return nil
+	}
+	return &UpstreamAccountSet{
+		ID:           item.ID,
+		Name:         item.Name,
+		Code:         item.Code,
+		Platform:     item.Platform,
+		Description:  item.Description,
+		Enabled:      item.Enabled,
+		AccountCount: item.AccountCount,
+		CreatedAt:    item.CreatedAt.Format(upstreamPoolTimeLayout),
+		UpdatedAt:    item.UpdatedAt.Format(upstreamPoolTimeLayout),
+	}
+}
+
+func UpstreamAccountSetMemberFromService(item *service.UpstreamAccountSetMember) *UpstreamAccountSetMember {
+	if item == nil {
+		return nil
+	}
+	return &UpstreamAccountSetMember{
+		SetID:           item.SetID,
+		AccountID:       item.AccountID,
+		AccountName:     item.AccountName,
+		AccountPlatform: item.AccountPlatform,
+		AccountType:     item.AccountType,
+		AccountStatus:   item.AccountStatus,
+		AddedAt:         item.AddedAt.Format(upstreamPoolTimeLayout),
+	}
+}
+
+func UpstreamPoolMemberSetFromService(item *service.UpstreamPoolMemberSet) *UpstreamPoolMemberSet {
+	if item == nil {
+		return nil
+	}
+	return &UpstreamPoolMemberSet{
+		ID:          item.ID,
+		PoolID:      item.PoolID,
+		SetID:       item.SetID,
+		SetName:     item.SetName,
+		SetCode:     item.SetCode,
+		SetPlatform: item.SetPlatform,
+		Enabled:     item.Enabled,
+		Notes:       item.Notes,
+		JoinedAt:    item.JoinedAt.Format(upstreamPoolTimeLayout),
+		UpdatedAt:   item.UpdatedAt.Format(upstreamPoolTimeLayout),
 	}
 }

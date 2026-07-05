@@ -410,6 +410,18 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			service.SetOpsLatencyMs(c, service.OpsTimeToFirstTokenMsKey, int64(*result.FirstTokenMs))
 		}
 		if err != nil {
+			if sessionHash != "" {
+				if clearErr := h.gatewayService.ClearStickySession(c.Request.Context(), apiKey.GroupID, sessionHash); clearErr != nil {
+					reqLog.Warn("openai.clear_sticky_session_after_forward_failure_failed",
+						zap.Int64("account_id", account.ID),
+						zap.Error(clearErr),
+					)
+				} else {
+					reqLog.Info("openai.clear_sticky_session_after_forward_failure",
+						zap.Int64("account_id", account.ID),
+					)
+				}
+			}
 			if result != nil && result.ImageCount > 0 {
 				reqLog.Warn("openai.forward_partial_error_with_image_result",
 					zap.Int64("account_id", account.ID),

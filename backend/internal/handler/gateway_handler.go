@@ -1213,13 +1213,14 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 
 	// 判断模式: key 有总额度或速率限制 → quota_limited，否则 → unrestricted
 	isQuotaLimited := apiKey.Quota > 0 || apiKey.HasRateLimits()
+	billingMeta := h.buildAPIKeyBillingMeta(ctx, apiKey)
 
 	if isQuotaLimited {
-		h.usageQuotaLimited(c, ctx, apiKey, usageData, dailyUsage, modelStats)
+		h.usageQuotaLimited(c, ctx, apiKey, usageData, dailyUsage, modelStats, billingMeta)
 		return
 	}
 
-	h.usageUnrestricted(c, ctx, apiKey, subject, usageData, dailyUsage, modelStats)
+	h.usageUnrestricted(c, ctx, apiKey, subject, usageData, dailyUsage, modelStats, billingMeta)
 }
 
 // parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围
@@ -1289,12 +1290,46 @@ func (h *GatewayHandler) buildAPIKeyDailyUsage(c *gin.Context, userID, apiKeyID 
 	return stats
 }
 
+func (h *GatewayHandler) buildAPIKeyBillingMeta(ctx context.Context, apiKey *service.APIKey) gin.H {
+	if apiKey == nil || apiKey.GroupID == nil || apiKey.Group == nil {
+		return nil
+	}
+	rate := apiKey.Group.RateMultiplier
+	source := "group"
+	if h != nil && h.apiKeyService != nil {
+		rates, err := h.apiKeyService.GetUserGroupRates(ctx, apiKey.UserID)
+		if err == nil && rates != nil {
+			if override, ok := rates[*apiKey.GroupID]; ok {
+				rate = override
+				source = "user_group_override"
+			}
+		}
+	}
+	if rate < 0 {
+		rate = 1
+		source = "fallback"
+	}
+	return gin.H{
+		"compatible":            true,
+		"platform":              apiKey.Group.Platform,
+		"group_id":              *apiKey.GroupID,
+		"group_name":            apiKey.Group.Name,
+		"rate_multiplier":       rate,
+		"rate_source":           source,
+		"subscription_type":     apiKey.Group.SubscriptionType,
+		"image_rate_multiplier": apiKey.Group.ImageRateMultiplier,
+	}
+}
+
 // usageQuotaLimited 处理 quota_limited 模式的响应
-func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *service.APIKey, usageData gin.H, dailyUsage any, modelStats any) {
+func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *service.APIKey, usageData gin.H, dailyUsage any, modelStats any, billingMeta gin.H) {
 	resp := gin.H{
 		"mode":    "quota_limited",
 		"isValid": apiKey.Status == service.StatusAPIKeyActive || apiKey.Status == service.StatusAPIKeyQuotaExhausted || apiKey.Status == service.StatusAPIKeyExpired,
 		"status":  apiKey.Status,
+	}
+	if billingMeta != nil {
+		resp["billing"] = billingMeta
 	}
 
 	// 总额度信息
@@ -1383,7 +1418,7 @@ func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, 
 }
 
 // usageUnrestricted 处理 unrestricted 模式的响应（向后兼容）
-func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, usageData gin.H, dailyUsage any, modelStats any) {
+func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, usageData gin.H, dailyUsage any, modelStats any, billingMeta gin.H) {
 	// 订阅模式
 	if apiKey.Group != nil && apiKey.Group.IsSubscriptionType() {
 		resp := gin.H{
@@ -1391,6 +1426,9 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 			"isValid":  true,
 			"planName": apiKey.Group.Name,
 			"unit":     "USD",
+		}
+		if billingMeta != nil {
+			resp["billing"] = billingMeta
 		}
 
 		// 订阅信息可能不在 context 中（/v1/usage 路径跳过了中间件的计费检查）
@@ -1436,6 +1474,9 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		"remaining": latestUser.Balance,
 		"unit":      "USD",
 		"balance":   latestUser.Balance,
+	}
+	if billingMeta != nil {
+		resp["billing"] = billingMeta
 	}
 	if usageData != nil {
 		resp["usage"] = usageData

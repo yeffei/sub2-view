@@ -229,10 +229,10 @@ const trustAnchors = [
   },
   {
     index: '丁',
-    title: '文档兼容',
-    copy: '以文档与统一入口承接 OpenAI、Anthropic 等常见调用方式。',
-    copyClass: '',
-    copyLines: [],
+    title: '过路不留存',
+    copy: '请求经加密链路转发，代码与密钥只作当次通行，不作长期留存。',
+    copyClass: 'notice-copy-two-line',
+    copyLines: ['请求经加密链路转发，代码与密钥', '只作当次通行，不作长期留存。'],
   },
 ] as const
 
@@ -351,8 +351,14 @@ onMounted(() => {
 }
 
 .home-copy {
-  max-width: 40rem;
+  max-width: 48rem;
   text-wrap: pretty;
+}
+
+@media (min-width: 1024px) {
+  .home-copy {
+    white-space: nowrap;
+  }
 }
 
 :global(html.dark) .home-title,

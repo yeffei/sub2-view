@@ -25,10 +25,6 @@
             <span>{{ t('channelStatus.summary.attention') }}</span>
             <strong>{{ attentionCount }}</strong>
           </div>
-          <div class="monitor-summary-item" role="listitem">
-            <span>{{ t('channelStatus.summary.providers') }}</span>
-            <strong>{{ providerCount }}</strong>
-          </div>
         </div>
       </div>
 
@@ -92,7 +88,6 @@ const props = defineProps<{
   totalCount: number
   healthyCount: number
   attentionCount: number
-  providerCount: number
   latestCheckedAt: string | null
   autoRefresh?: {
     enabled: { value: boolean }
@@ -192,7 +187,7 @@ const overallDotClass = computed(() => {
 
 .monitor-summary-strip {
   display: inline-grid;
-  grid-template-columns: repeat(4, minmax(5.75rem, auto));
+  grid-template-columns: repeat(3, minmax(5.75rem, auto));
   gap: 0.14rem;
   flex: 0 0 auto;
   align-self: flex-start;

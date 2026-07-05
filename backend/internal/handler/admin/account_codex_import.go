@@ -39,9 +39,12 @@ type CodexSessionImportRequest struct {
 	UpdateExisting          *bool          `json:"update_existing"`
 	SkipDefaultGroupBind    *bool          `json:"skip_default_group_bind"`
 	ConfirmMixedChannelRisk *bool          `json:"confirm_mixed_channel_risk"`
+	DryRun                  *bool          `json:"dry_run"`
 }
 
 type CodexSessionImportResult struct {
+	BatchID  string                      `json:"batch_id,omitempty"`
+	DryRun   bool                        `json:"dry_run,omitempty"`
 	Total    int                         `json:"total"`
 	Created  int                         `json:"created"`
 	Updated  int                         `json:"updated"`
@@ -148,9 +151,13 @@ func (h *AccountHandler) ImportCodexSession(c *gin.Context) {
 }
 
 func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessionImportRequest, entries []codexImportEntry) (CodexSessionImportResult, error) {
+	batchID := buildCodexImportBatchID()
+	dryRun := req.DryRun != nil && *req.DryRun
 	result := CodexSessionImportResult{
-		Total: len(entries),
-		Items: make([]CodexSessionImportItem, 0, len(entries)),
+		BatchID: batchID,
+		DryRun:  dryRun,
+		Total:   len(entries),
+		Items:   make([]CodexSessionImportItem, 0, len(entries)),
 	}
 
 	existingAccounts, err := h.listAccountsFiltered(ctx, service.PlatformOpenAI, service.AccountTypeOAuth, "", "", "", 0, "", "created_at", "desc")
@@ -172,7 +179,7 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		priority = *req.Priority
 	}
 	credentialExtras := sanitizeCodexImportCredentialExtras(req.CredentialExtras)
-	skipDefaultGroupBind := false
+	skipDefaultGroupBind := true
 	if req.SkipDefaultGroupBind != nil {
 		skipDefaultGroupBind = *req.SkipDefaultGroupBind
 	}
@@ -217,6 +224,7 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		}
 		credentials := mergeCodexImportMap(item.Credentials, credentialExtras)
 		extra := mergeCodexImportMap(req.Extra, item.Extra)
+		extra["import_batch_id"] = batchID
 		for _, warning := range item.WarningTexts {
 			result.Warnings = append(result.Warnings, CodexSessionImportMessage{
 				Index:   entry.Index,
@@ -244,6 +252,17 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 		markCodexIdentitySeen(seenIdentity, item.IdentityKeys, entry.Index)
 
 		if existing := index.Find(item.IdentityKeys); existing != nil && updateExisting {
+			if dryRun {
+				result.Updated++
+				result.Items = append(result.Items, CodexSessionImportItem{
+					Index:     entry.Index,
+					Name:      accountName,
+					Action:    "updated",
+					AccountID: existing.ID,
+					Message:   "dry_run",
+				})
+				continue
+			}
 			mergedCredentials := mergeCodexImportCredentials(existing.Credentials, credentials, item)
 			mergedExtra := mergeCodexImportMap(existing.Extra, extra)
 			updateInput := &service.UpdateAccountInput{
@@ -298,6 +317,17 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 			continue
 		}
 
+		if dryRun {
+			result.Created++
+			result.Items = append(result.Items, CodexSessionImportItem{
+				Index:   entry.Index,
+				Name:    accountName,
+				Action:  "created",
+				Message: "dry_run",
+			})
+			continue
+		}
+
 		account, createErr := h.adminService.CreateAccount(ctx, &service.CreateAccountInput{
 			Name:                  accountName,
 			Notes:                 req.Notes,
@@ -348,6 +378,10 @@ func (h *AccountHandler) importCodexSessions(ctx context.Context, req CodexSessi
 	}
 
 	return result, nil
+}
+
+func buildCodexImportBatchID() string {
+	return fmt.Sprintf("codex-%s", time.Now().UTC().Format("20060102-150405.000000000"))
 }
 
 func parseCodexSessionImportEntries(req CodexSessionImportRequest) ([]codexImportEntry, error) {

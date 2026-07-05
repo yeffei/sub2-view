@@ -66,6 +66,25 @@ func TestShouldRefreshOpenAICodexSnapshot(t *testing.T) {
 	}
 }
 
+func TestCreateOpenAICodexSnapshotProbePayloadUsesOnlyHiAndOneToken(t *testing.T) {
+	t.Parallel()
+
+	payload := createOpenAICodexSnapshotProbePayload("gpt-5.4")
+
+	if got := payload["input"]; got != monitorLightweightPrompt {
+		t.Fatalf("input = %v, want %q", got, monitorLightweightPrompt)
+	}
+	if got := payload["max_output_tokens"]; got != monitorLightweightMaxTokens {
+		t.Fatalf("max_output_tokens = %v, want %d", got, monitorLightweightMaxTokens)
+	}
+	if _, exists := payload["instructions"]; exists {
+		t.Fatalf("snapshot probe must not send instructions: %#v", payload["instructions"])
+	}
+	if got := payload["stream"]; got != false {
+		t.Fatalf("stream = %v, want false", got)
+	}
+}
+
 func TestExtractOpenAICodexProbeUpdatesAccepts429WithCodexHeaders(t *testing.T) {
 	t.Parallel()
 

@@ -52,6 +52,7 @@ type UpstreamPoolMember struct {
 	AccountID                     int64
 	AccountName                   string
 	AccountPlatform               string
+	AccountType                   string
 	AccountStatus                 string
 	AccountSchedulable            bool
 	RuntimeStatus                 string
@@ -71,6 +72,10 @@ type UpstreamPoolMember struct {
 	Notes                         string
 	JoinedAt                      time.Time
 	UpdatedAt                     time.Time
+	SourceType                    string
+	SourceSetID                   *int64
+	SourceSetName                 string
+	Editable                      bool
 }
 
 type UpstreamPoolBinding struct {
@@ -86,6 +91,41 @@ type UpstreamPoolBinding struct {
 	Enabled          bool
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+type UpstreamAccountSet struct {
+	ID           int64
+	Name         string
+	Code         string
+	Platform     string
+	Description  string
+	Enabled      bool
+	AccountCount int
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type UpstreamAccountSetMember struct {
+	SetID           int64
+	AccountID       int64
+	AccountName     string
+	AccountPlatform string
+	AccountType     string
+	AccountStatus   string
+	AddedAt         time.Time
+}
+
+type UpstreamPoolMemberSet struct {
+	ID          int64
+	PoolID      int64
+	SetID       int64
+	SetName     string
+	SetCode     string
+	SetPlatform string
+	Enabled     bool
+	Notes       string
+	JoinedAt    time.Time
+	UpdatedAt   time.Time
 }
 
 type CreateUpstreamPoolInput struct {
@@ -146,13 +186,17 @@ type CreateUpstreamPoolMemberInput struct {
 }
 
 type UpdateUpstreamPoolMemberInput struct {
-	Enabled                *bool
-	SchedulableOverride    *bool
-	ManualDrained          *bool
-	Weight                 *int
-	PriorityOverride       *int
-	MaxConcurrencyOverride *int
-	Notes                  *string
+	Enabled                   *bool
+	SchedulableOverrideSet    bool
+	SchedulableOverride       *bool
+	ManualDrained             *bool
+	Weight                    *int
+	PriorityOverrideSet       bool
+	PriorityOverride          *int
+	MaxConcurrencyOverrideSet bool
+	MaxConcurrencyOverride    *int
+	NotesSet                  bool
+	Notes                     *string
 }
 
 type CreateUpstreamPoolBindingInput struct {
@@ -173,6 +217,37 @@ type UpdateUpstreamPoolBindingInput struct {
 	RequestPathScope []string
 	Priority         *int
 	Enabled          *bool
+}
+
+type CreateUpstreamAccountSetInput struct {
+	Name        string
+	Code        string
+	Platform    string
+	Description string
+	Enabled     bool
+}
+
+type UpdateUpstreamAccountSetInput struct {
+	Name        *string
+	Code        *string
+	Platform    *string
+	Description *string
+	Enabled     *bool
+}
+
+type AddUpstreamAccountSetMembersInput struct {
+	AccountIDs []int64
+}
+
+type CreateUpstreamPoolMemberSetInput struct {
+	SetID   int64
+	Enabled bool
+	Notes   string
+}
+
+type UpdateUpstreamPoolMemberSetInput struct {
+	Enabled *bool
+	Notes   *string
 }
 
 type UpstreamPoolResolvedBinding struct {
@@ -364,6 +439,19 @@ type UpstreamPoolRepository interface {
 	CreateUpstreamPoolMember(ctx context.Context, input *UpstreamPoolMember) (*UpstreamPoolMember, error)
 	UpdateUpstreamPoolMember(ctx context.Context, input *UpstreamPoolMember) (*UpstreamPoolMember, error)
 	DeleteUpstreamPoolMember(ctx context.Context, id int64) error
+	ListUpstreamAccountSets(ctx context.Context) ([]UpstreamAccountSet, error)
+	GetUpstreamAccountSetByID(ctx context.Context, id int64) (*UpstreamAccountSet, error)
+	CreateUpstreamAccountSet(ctx context.Context, input *UpstreamAccountSet) (*UpstreamAccountSet, error)
+	UpdateUpstreamAccountSet(ctx context.Context, input *UpstreamAccountSet) (*UpstreamAccountSet, error)
+	DeleteUpstreamAccountSet(ctx context.Context, id int64) error
+	ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error)
+	AddUpstreamAccountSetMembers(ctx context.Context, setID int64, accountIDs []int64) error
+	DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error
+	ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]UpstreamPoolMemberSet, error)
+	GetUpstreamPoolMemberSetByID(ctx context.Context, id int64) (*UpstreamPoolMemberSet, error)
+	CreateUpstreamPoolMemberSet(ctx context.Context, input *UpstreamPoolMemberSet) (*UpstreamPoolMemberSet, error)
+	UpdateUpstreamPoolMemberSet(ctx context.Context, input *UpstreamPoolMemberSet) (*UpstreamPoolMemberSet, error)
+	DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error
 	ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error)
 	GetUpstreamPoolBindingByID(ctx context.Context, id int64) (*UpstreamPoolBinding, error)
 	CreateUpstreamPoolBinding(ctx context.Context, input *UpstreamPoolBinding) (*UpstreamPoolBinding, error)

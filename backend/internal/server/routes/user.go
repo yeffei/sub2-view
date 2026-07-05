@@ -123,5 +123,11 @@ func RegisterUserRoutes(
 			monitors.GET("", h.ChannelMonitor.List)
 			monitors.GET("/:id/status", h.ChannelMonitor.GetStatus)
 		}
+
+		pools := authenticated.Group("/upstream-pools")
+		{
+			pools.GET("/health", h.UpstreamPoolHealth.List)
+			pools.GET("/:id/health", h.UpstreamPoolHealth.Get)
+		}
 	}
 }

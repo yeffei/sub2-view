@@ -4,7 +4,14 @@
  */
 
 import { apiClient } from '../client'
-import type { UpstreamPool, UpstreamPoolMember, UpstreamPoolBinding } from '@/types'
+import type {
+  UpstreamPool,
+  UpstreamPoolMember,
+  UpstreamPoolBinding,
+  UpstreamAccountSet,
+  UpstreamAccountSetMember,
+  UpstreamPoolMemberSet
+} from '@/types'
 
 interface ApiListResponse<T> {
   items: T[]
@@ -36,6 +43,96 @@ export async function getBindings(): Promise<UpstreamPoolBinding[]> {
     '/admin/upstream-pools/bindings'
   )
   return Array.isArray(data) ? data : data.items || []
+}
+
+export async function getAccountSets(): Promise<UpstreamAccountSet[]> {
+  const { data } = await apiClient.get<ApiListResponse<UpstreamAccountSet> | UpstreamAccountSet[]>(
+    '/admin/upstream-pools/account-sets'
+  )
+  return Array.isArray(data) ? data : data.items || []
+}
+
+export async function createAccountSet(payload: {
+  name: string
+  platform: string
+  description?: string
+  enabled?: boolean
+  code?: string
+}): Promise<UpstreamAccountSet> {
+  const { data } = await apiClient.post<UpstreamAccountSet>('/admin/upstream-pools/account-sets', payload)
+  return data
+}
+
+export async function updateAccountSet(setId: number, payload: {
+  name?: string
+  code?: string
+  platform?: string
+  description?: string
+  enabled?: boolean
+}): Promise<UpstreamAccountSet> {
+  const { data } = await apiClient.put<UpstreamAccountSet>(`/admin/upstream-pools/account-sets/${setId}`, payload)
+  return data
+}
+
+export async function removeAccountSet(setId: number): Promise<{ message: string }> {
+  const { data } = await apiClient.delete<{ message: string }>(`/admin/upstream-pools/account-sets/${setId}`)
+  return data
+}
+
+export async function getAccountSetMembers(setId: number): Promise<UpstreamAccountSetMember[]> {
+  const { data } = await apiClient.get<ApiListResponse<UpstreamAccountSetMember> | UpstreamAccountSetMember[]>(
+    `/admin/upstream-pools/account-sets/${setId}/members`
+  )
+  return Array.isArray(data) ? data : data.items || []
+}
+
+export async function addAccountSetMembers(setId: number, payload: {
+  account_ids: number[]
+}): Promise<{ message: string }> {
+  const { data } = await apiClient.post<{ message: string }>(
+    `/admin/upstream-pools/account-sets/${setId}/members`,
+    payload
+  )
+  return data
+}
+
+export async function removeAccountSetMember(setId: number, accountId: number): Promise<{ message: string }> {
+  const { data } = await apiClient.delete<{ message: string }>(
+    `/admin/upstream-pools/account-sets/${setId}/members/${accountId}`
+  )
+  return data
+}
+
+export async function getMemberSets(poolId: number): Promise<UpstreamPoolMemberSet[]> {
+  const { data } = await apiClient.get<ApiListResponse<UpstreamPoolMemberSet> | UpstreamPoolMemberSet[]>(
+    `/admin/upstream-pools/${poolId}/member-sets`
+  )
+  return Array.isArray(data) ? data : data.items || []
+}
+
+export async function createMemberSet(poolId: number, payload: {
+  set_id: number
+  enabled?: boolean
+  notes?: string | null
+}): Promise<UpstreamPoolMemberSet> {
+  const { data } = await apiClient.post<UpstreamPoolMemberSet>(`/admin/upstream-pools/${poolId}/member-sets`, payload)
+  return data
+}
+
+export async function updateMemberSet(memberSetId: number, payload: {
+  enabled?: boolean | null
+  notes?: string | null
+}): Promise<UpstreamPoolMemberSet> {
+  const { data } = await apiClient.put<UpstreamPoolMemberSet>(
+    `/admin/upstream-pools/member-sets/${memberSetId}`,
+    payload
+  )
+  return data
+}
+
+export async function removeMemberSet(memberSetId: number): Promise<{ message: string }> {
+  const { data } = await apiClient.delete<{ message: string }>(`/admin/upstream-pools/member-sets/${memberSetId}`)
+  return data
 }
 
 export async function create(payload: Partial<UpstreamPool> & { name: string; code: string; platform: string }): Promise<UpstreamPool> {
@@ -116,5 +213,30 @@ export async function removeBinding(bindingId: number): Promise<{ message: strin
   return data
 }
 
-const upstreamPoolsAPI = { list, getById, getMembers, getBindings, create, update, remove, createMember, updateMember, removeMember, createBinding, updateBinding, removeBinding }
+const upstreamPoolsAPI = {
+  list,
+  getById,
+  getMembers,
+  getBindings,
+  getAccountSets,
+  getAccountSetMembers,
+  getMemberSets,
+  create,
+  update,
+  remove,
+  createMember,
+  updateMember,
+  removeMember,
+  createBinding,
+  updateBinding,
+  removeBinding,
+  createAccountSet,
+  updateAccountSet,
+  removeAccountSet,
+  addAccountSetMembers,
+  removeAccountSetMember,
+  createMemberSet,
+  updateMemberSet,
+  removeMemberSet
+}
 export default upstreamPoolsAPI

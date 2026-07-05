@@ -29,7 +29,7 @@
         </div>
       </div>
 
-      <div class="order-2 flex items-center gap-1.5 sm:order-3 sm:gap-2">
+      <div class="order-2 flex items-center gap-2 sm:order-3 sm:gap-2.5">
         <LocaleSwitcher variant="public" />
         <RouterLink
           :to="isAuthenticated ? dashboardPath : '/login'"
@@ -40,11 +40,14 @@
         <button
           type="button"
           @click="toggleTheme"
-          class="public-site-tool public-site-tool-icon"
+          class="public-site-tool public-site-tool-public"
           :title="isDark ? '切换到纸面' : '切换到夜庭'"
         >
-          <Icon v-if="isDark" name="sun" size="md" />
-          <Icon v-else name="moon" size="md" />
+          <span class="public-site-tool-mark" aria-hidden="true">
+            <Icon v-if="isDark" name="sun" size="sm" :stroke-width="1.55" />
+            <Icon v-else name="courtyardMoon" size="sm" :stroke-width="1.55" />
+          </span>
+          <span class="public-site-tool-label">{{ isDark ? '纸面' : '夜庭' }}</span>
         </button>
         <RouterLink
           :to="isAuthenticated ? dashboardPath : '/login'"
@@ -111,6 +114,37 @@ function toggleTheme() {
 </script>
 
 <style scoped>
+.public-site-header {
+  --sst-public-tool-height: 2.28rem;
+  --sst-public-tool-gap: 0.42rem;
+  --sst-public-tool-border: rgba(142, 124, 95, 0.12);
+  --sst-public-tool-hover-border: rgba(167, 58, 42, 0.14);
+  --sst-public-tool-bg-top: rgba(255, 252, 247, 0.6);
+  --sst-public-tool-bg-bottom: rgba(245, 238, 228, 0.74);
+  --sst-public-tool-hover-top: rgba(255, 250, 244, 0.84);
+  --sst-public-tool-hover-bottom: rgba(242, 233, 220, 0.9);
+  --sst-public-tool-fg: #343831;
+  --sst-public-tool-kicker: #9d7852;
+  --sst-public-tool-label: #31352f;
+  --sst-public-tool-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.54),
+    0 6px 14px rgba(74, 56, 33, 0.045);
+  --sst-public-tool-hover-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 8px 16px rgba(108, 74, 41, 0.06);
+  --sst-public-tool-mark-size: 1.62rem;
+  --sst-public-tool-mark-radius: 0.58rem;
+  --sst-public-tool-mark-top: rgba(244, 238, 229, 0.94);
+  --sst-public-tool-mark-bottom: rgba(234, 224, 208, 0.9);
+  --sst-public-tool-mark-fg: #826446;
+  --sst-public-tool-mark-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    inset 0 0 0 1px rgba(182, 155, 122, 0.11);
+  --sst-public-tool-dot-size: 0.16rem;
+  --sst-public-tool-dot: rgba(167, 58, 42, 0.72);
+  --sst-public-tool-dot-shadow: 0 0 0 0.13rem rgba(167, 58, 42, 0.06);
+}
+
 .public-site-logo-shell {
   display: inline-grid;
   width: 2.5rem;
@@ -166,15 +200,80 @@ function toggleTheme() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.25rem;
-  border-radius: 999px;
-  color: #3b433d;
-  transition: color 180ms ease, background-color 180ms ease;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .public-site-tool:hover {
   color: #a73a2a;
-  background: rgba(216, 205, 185, 0.18);
+}
+
+.public-site-tool-public {
+  min-height: calc(var(--sst-public-tool-height) - 0.04rem);
+  gap: calc(var(--sst-public-tool-gap) - 0.05rem);
+  border-radius: 999px;
+  border: 1px solid rgba(154, 144, 129, 0.13);
+  padding: 0.2rem 0.54rem 0.2rem 0.3rem;
+  background:
+    linear-gradient(180deg, rgba(252, 249, 244, 0.54), rgba(240, 235, 227, 0.7));
+  color: #373a35;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.48),
+    0 5px 12px rgba(70, 58, 41, 0.038);
+}
+
+.public-site-tool-public:hover {
+  color: #3f413b;
+  border-color: rgba(160, 149, 134, 0.17);
+  background:
+    linear-gradient(180deg, rgba(254, 251, 246, 0.7), rgba(243, 238, 231, 0.82));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.54),
+    0 7px 14px rgba(70, 58, 41, 0.05);
+}
+
+.public-site-tool-public:focus-visible {
+  outline: none;
+  border-color: rgba(168, 156, 140, 0.2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 0 0 1px rgba(244, 239, 231, 0.42),
+    0 7px 14px rgba(70, 58, 41, 0.045);
+}
+
+.public-site-tool-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: calc(var(--sst-public-tool-mark-size) - 0.02rem);
+  height: calc(var(--sst-public-tool-mark-size) - 0.02rem);
+  border-radius: var(--sst-public-tool-mark-radius);
+  background: linear-gradient(180deg, rgba(244, 239, 231, 0.88), rgba(234, 228, 219, 0.84));
+  color: #8a6f4f;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.48),
+    inset 0 0 0 1px rgba(184, 171, 151, 0.09);
+}
+
+.public-site-tool-mark::after {
+  content: '';
+  position: absolute;
+  left: 0.34rem;
+  top: 0.34rem;
+  width: calc(var(--sst-public-tool-dot-size) - 0.01rem);
+  height: calc(var(--sst-public-tool-dot-size) - 0.01rem);
+  border-radius: 999px;
+  background: rgba(179, 97, 78, 0.58);
+  box-shadow: 0 0 0 0.12rem rgba(179, 97, 78, 0.045);
+}
+
+.public-site-tool-label {
+  min-width: 1.72rem;
+  font-size: 0.88rem;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: #353833;
+  text-align: left;
 }
 
 .public-site-tool-text {
@@ -226,8 +325,20 @@ function toggleTheme() {
 }
 
 @media (max-width: 767px) {
-  .public-site-tool-icon {
-    display: none;
+  .public-site-header {
+    --sst-public-tool-height: 2.14rem;
+    --sst-public-tool-gap: 0.36rem;
+    --sst-public-tool-mark-size: 1.48rem;
+    --sst-public-tool-mark-radius: 0.52rem;
+  }
+
+  .public-site-tool-public {
+    padding: 0.18rem 0.44rem 0.18rem 0.26rem;
+  }
+
+  .public-site-tool-label {
+    min-width: 1.52rem;
+    font-size: 0.8rem;
   }
 }
 
@@ -251,7 +362,80 @@ function toggleTheme() {
 
 :global(html.dark) .public-site-tool:hover {
   color: #ffd8bb;
-  background: rgba(216, 205, 185, 0.08);
+}
+
+:global(html.dark) .public-site-header {
+  --sst-public-tool-border: rgba(122, 108, 85, 0.28);
+  --sst-public-tool-hover-border: rgba(155, 125, 88, 0.34);
+  --sst-public-tool-bg-top: rgba(30, 31, 27, 0.82);
+  --sst-public-tool-bg-bottom: rgba(23, 25, 21, 0.92);
+  --sst-public-tool-hover-top: rgba(38, 36, 31, 0.88);
+  --sst-public-tool-hover-bottom: rgba(29, 28, 24, 0.94);
+  --sst-public-tool-fg: #dccfbc;
+  --sst-public-tool-kicker: #b99567;
+  --sst-public-tool-label: #ece0cd;
+  --sst-public-tool-shadow:
+    inset 0 1px 0 rgba(255, 243, 223, 0.035),
+    0 8px 18px rgba(0, 0, 0, 0.18);
+  --sst-public-tool-hover-shadow:
+    inset 0 1px 0 rgba(255, 243, 223, 0.045),
+    0 10px 20px rgba(0, 0, 0, 0.2);
+  --sst-public-tool-mark-top: rgba(60, 52, 42, 0.78);
+  --sst-public-tool-mark-bottom: rgba(42, 38, 31, 0.86);
+  --sst-public-tool-mark-fg: #d1ac7d;
+  --sst-public-tool-mark-shadow:
+    inset 0 1px 0 rgba(255, 243, 223, 0.045),
+    inset 0 0 0 1px rgba(201, 167, 122, 0.08);
+  --sst-public-tool-dot: rgba(177, 95, 72, 0.7);
+  --sst-public-tool-dot-shadow: 0 0 0 0.13rem rgba(167, 58, 42, 0.08);
+}
+
+:global(html.dark) .public-site-tool-public:hover {
+  color: #f0e4d2;
+}
+
+:global(html.dark) .public-site-tool-public {
+  border-color: rgba(112, 101, 81, 0.28);
+  background:
+    linear-gradient(180deg, rgba(31, 32, 28, 0.82), rgba(22, 24, 20, 0.92));
+  color: #d9cbb8;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.04),
+    0 5px 12px rgba(0, 0, 0, 0.18);
+}
+
+:global(html.dark) .public-site-tool-public:hover {
+  border-color: rgba(144, 118, 86, 0.34);
+  background:
+    linear-gradient(180deg, rgba(38, 36, 31, 0.88), rgba(29, 28, 24, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.05),
+    0 7px 14px rgba(0, 0, 0, 0.22);
+}
+
+:global(html.dark) .public-site-tool-public:focus-visible {
+  border-color: rgba(154, 128, 95, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.05),
+    0 0 0 1px rgba(181, 144, 100, 0.12),
+    0 7px 14px rgba(0, 0, 0, 0.22);
+}
+
+:global(html.dark) .public-site-tool-mark {
+  background: linear-gradient(180deg, rgba(58, 50, 41, 0.8), rgba(42, 38, 31, 0.88));
+  color: #d0ab7a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 251, 243, 0.06),
+    inset 0 0 0 1px rgba(201, 167, 122, 0.08);
+}
+
+:global(html.dark) .public-site-tool-mark::after {
+  background: rgba(177, 95, 72, 0.68);
+  box-shadow: 0 0 0 0.12rem rgba(177, 95, 72, 0.06);
+}
+
+:global(html.dark) .public-site-tool-label {
+  color: #e8dcc9;
 }
 
 :global(html.dark) .public-site-cta {
@@ -332,12 +516,55 @@ html.dark .sst-public-tone-legal .public-site-tool {
   color: #cdb892;
 }
 
-html.dark .public-site-tool:hover {
+html.dark .public-site-tool-public {
+  border-color: rgba(112, 101, 81, 0.28);
+  background: linear-gradient(180deg, rgba(31, 32, 28, 0.82), rgba(22, 24, 20, 0.92));
+  color: #d9cbb8;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.04),
+    0 5px 12px rgba(0, 0, 0, 0.18);
+}
+
+html.dark .public-site-tool-public:hover {
+  color: #f0e4d2;
+  border-color: rgba(144, 118, 86, 0.34);
+  background: linear-gradient(180deg, rgba(38, 36, 31, 0.88), rgba(29, 28, 24, 0.94));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.05),
+    0 7px 14px rgba(0, 0, 0, 0.22);
+}
+
+html.dark .public-site-tool-public:focus-visible {
+  border-color: rgba(154, 128, 95, 0.38);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.05),
+    0 0 0 1px rgba(181, 144, 100, 0.12),
+    0 7px 14px rgba(0, 0, 0, 0.22);
+}
+
+html.dark .public-site-tool-mark {
+  background: linear-gradient(180deg, rgba(58, 50, 41, 0.8), rgba(42, 38, 31, 0.88));
+  color: #d0ab7a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 251, 243, 0.06),
+    inset 0 0 0 1px rgba(201, 167, 122, 0.08);
+}
+
+html.dark .public-site-tool-mark::after {
+  background: rgba(177, 95, 72, 0.68);
+  box-shadow: 0 0 0 0.12rem rgba(177, 95, 72, 0.06);
+}
+
+html.dark .public-site-tool-label {
+  color: #e8dcc9;
+}
+
+html.dark .public-site-tool:not(.public-site-tool-public):hover {
   color: #f5ead8;
   background: rgba(255, 247, 235, 0.08);
 }
 
-html.dark .sst-public-tone-legal .public-site-tool:hover {
+html.dark .sst-public-tone-legal .public-site-tool:not(.public-site-tool-public):hover {
   color: #f1c27c;
   background: rgba(205, 163, 103, 0.1);
 }

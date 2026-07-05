@@ -13,11 +13,11 @@
     >
       {{ t('monitorCommon.maintenancePaused') }}
     </div>
-    <div v-else class="monitor-timeline-bars">
+    <div v-else class="monitor-timeline-bars" aria-hidden="true">
       <div
         v-for="(bar, idx) in displayBars"
         :key="idx"
-        class="monitor-timeline-bar rounded-sm"
+        class="monitor-timeline-bar"
         :class="bar.colorClass"
         :style="{ height: bar.heightPct + '%' }"
         :title="bar.title"
@@ -59,22 +59,21 @@ interface Bar {
   title: string
 }
 
-// 4 级高度 + 颜色双重编码：高=好+绿，短=坏+红，灰=未测试。
-// 长绿(正常) > 中黄(降级) > 短红(失败/系统错误) > 很短灰(未测试)。
+// 缩略水尺：正常保持低矮稳定，异常用更高的竹节提醒，灰色代表未采样。
 const STATUS_HEIGHT: Record<string, number> = {
-  operational: 100,
-  degraded: 65,
-  failed: 35,
-  error: 35,
-  empty: 15,
+  operational: 34,
+  degraded: 62,
+  failed: 86,
+  error: 86,
+  empty: 16,
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  operational: 'bg-[#51624f]',
-  degraded: 'bg-[#9b8155]',
-  failed: 'bg-[#a73a2a]',
-  error: 'bg-[#a73a2a]',
-  empty: 'bg-stone-300 dark:bg-dark-600',
+  operational: 'is-good',
+  degraded: 'is-warn',
+  failed: 'is-bad',
+  error: 'is-bad',
+  empty: 'is-empty',
 }
 
 const displayBars = computed<Bar[]>(() => {
@@ -116,18 +115,91 @@ const displayBars = computed<Bar[]>(() => {
 
 <style scoped>
 .monitor-timeline-bars {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(60, minmax(0, 1fr));
-  align-items: end;
-  gap: 2px;
+  align-items: center;
+  gap: 3px;
   width: 100%;
-  height: 18px;
+  height: 26px;
   min-width: 0;
   overflow: hidden;
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse at 50% 100%, rgba(81, 98, 79, 0.06), transparent 70%),
+    linear-gradient(90deg, rgba(190, 176, 148, 0.13), transparent 1px) 0 0 / 1.18rem 100%;
+  padding: 0 0.42rem;
+}
+
+.monitor-timeline-bars::before {
+  content: "";
+  position: absolute;
+  left: 0.45rem;
+  right: 0.45rem;
+  top: 56%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(122, 93, 58, 0.2), transparent);
+}
+
+.monitor-timeline-bars::after {
+  content: "";
+  position: absolute;
+  left: 0.45rem;
+  right: 0.45rem;
+  top: calc(56% + 0.3rem);
+  height: 0.22rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(81, 98, 79, 0.07), transparent);
 }
 
 .monitor-timeline-bar {
+  position: relative;
   min-width: 0;
+  align-self: center;
+  border-radius: 999px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0.18rem 0.55rem -0.45rem rgba(48, 38, 25, 0.5);
+}
+
+.monitor-timeline-bar::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 20%;
+  bottom: 20%;
+  width: 1px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+}
+
+.monitor-timeline-bar::after {
+  content: "";
+  position: absolute;
+  inset: 1px 22% auto;
+  height: 1px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.monitor-timeline-bar.is-good {
+  background: #64ad8e;
+  opacity: 0.9;
+}
+
+.monitor-timeline-bar.is-warn {
+  background: #bc8d48;
+  opacity: 0.96;
+}
+
+.monitor-timeline-bar.is-bad {
+  background: #a73a2a;
+  opacity: 0.98;
+}
+
+.monitor-timeline-bar.is-empty {
+  background: rgba(190, 176, 148, 0.34);
+  box-shadow: none;
 }
 
 @media (max-width: 640px) {

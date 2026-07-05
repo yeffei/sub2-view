@@ -25,6 +25,7 @@ export interface ChannelMonitor {
   api_key_decrypt_failed?: boolean
   primary_model: string
   extra_models: string[]
+  group_id: number | null
   group_name: string
   enabled: boolean
   interval_seconds: number
@@ -79,6 +80,7 @@ export interface CreateParams {
   api_key: string
   primary_model: string
   extra_models?: string[]
+  group_id?: number | null
   group_name?: string
   enabled?: boolean
   interval_seconds: number
@@ -91,6 +93,7 @@ export interface CreateParams {
 
 // Update request: api_key 空串 = 不修改；clear_template=true 时把 template_id 置空
 export type UpdateParams = Partial<CreateParams> & {
+  clear_group?: boolean
   clear_template?: boolean
 }
 

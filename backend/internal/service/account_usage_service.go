@@ -611,8 +611,7 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	if accessToken == "" {
 		return nil, fmt.Errorf("no access token available")
 	}
-	modelID := openaipkg.DefaultTestModel
-	payload := createOpenAITestPayload(modelID, true)
+	payload := createOpenAICodexSnapshotProbePayload(openaipkg.DefaultTestModel)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal openai probe payload: %w", err)
@@ -668,6 +667,16 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 		return updates, nil
 	}
 	return nil, nil
+}
+
+func createOpenAICodexSnapshotProbePayload(modelID string) map[string]any {
+	return map[string]any{
+		"model":             modelID,
+		"input":             monitorLightweightPrompt,
+		"stream":            false,
+		"store":             false,
+		"max_output_tokens": monitorLightweightMaxTokens,
+	}
 }
 
 func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, updates map[string]any) {

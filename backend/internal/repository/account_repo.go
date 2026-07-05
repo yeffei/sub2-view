@@ -703,7 +703,12 @@ func (r *accountRepository) ListWithFilters(ctx context.Context, params paginati
 		}
 	}
 	if search != "" {
-		q = q.Where(dbaccount.NameContainsFold(search))
+		q = q.Where(dbaccount.Or(
+			dbaccount.NameContainsFold(search),
+			dbpredicate.Account(func(s *entsql.Selector) {
+				s.Where(sqljson.ValueEQ(dbaccount.FieldExtra, search, sqljson.Path("import_batch_id")))
+			}),
+		))
 	}
 	if groupID == service.AccountListGroupUngrouped {
 		q = q.Where(dbaccount.Not(dbaccount.HasAccountGroups()))

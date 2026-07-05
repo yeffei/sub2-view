@@ -16,6 +16,8 @@ func TestNormalizeAccountTestMode(t *testing.T) {
 		{input: "default", want: AccountTestModeDefault},
 		{input: " compact ", want: AccountTestModeCompact},
 		{input: "COMPACT", want: AccountTestModeCompact},
+		{input: " lightweight ", want: AccountTestModeLightweight},
+		{input: "LIGHTWEIGHT", want: AccountTestModeLightweight},
 		{input: "unknown", want: AccountTestModeDefault},
 	}
 
@@ -23,6 +25,26 @@ func TestNormalizeAccountTestMode(t *testing.T) {
 		if got := normalizeAccountTestMode(tt.input); got != tt.want {
 			t.Fatalf("normalizeAccountTestMode(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestCreateOpenAICompactProbePayloadUsesMinimalViableBody(t *testing.T) {
+	payload := createOpenAICompactProbePayload(" gpt-5.4 ")
+
+	if got := payload["model"]; got != "gpt-5.4" {
+		t.Fatalf("model = %v, want gpt-5.4", got)
+	}
+	if got := payload["input"]; got != "OK" {
+		t.Fatalf("input = %v, want OK", got)
+	}
+	if got := payload["max_output_tokens"]; got != monitorLightweightMaxTokens {
+		t.Fatalf("max_output_tokens = %v, want %d", got, monitorLightweightMaxTokens)
+	}
+	if got := payload["store"]; got != false {
+		t.Fatalf("store = %v, want false", got)
+	}
+	if _, exists := payload["instructions"]; exists {
+		t.Fatalf("compact probe should not send instructions: %#v", payload["instructions"])
 	}
 }
 

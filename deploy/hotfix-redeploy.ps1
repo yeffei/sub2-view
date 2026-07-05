@@ -119,7 +119,7 @@ Invoke-Step -Name 'copy binary into container and restart' -Action {
     & docker cp $binaryPath "${ContainerName}:/app/sub2api.new"
     if ($LASTEXITCODE -ne 0) { throw 'docker cp failed.' }
 
-    & docker exec $ContainerName sh -lc "cp /app/sub2api /app/sub2api.bak-$backupSuffix && mv /app/sub2api.new /app/sub2api && chmod +x /app/sub2api"
+    & docker exec $ContainerName sh -lc "cp /app/sub2api /app/sub2api.bak-$backupSuffix && mv /app/sub2api.new /app/sub2api && chown sub2api:sub2api /app /app/sub2api && chmod +x /app/sub2api"
     if ($LASTEXITCODE -ne 0) { throw 'container binary swap failed.' }
 
     & docker restart $ContainerName

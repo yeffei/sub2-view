@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <div class="sst-admin-page">
+    <div class="sst-admin-page upstream-pools-night">
 
       <TablePageLayout>
         <template #filters>
@@ -147,6 +147,120 @@
         </template>
       </TablePageLayout>
 
+      <section class="sst-admin-panel mb-4 p-4">
+        <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">账号集合</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              先把同类 OAuth 账号放进集合，再把集合绑定到上游池成员。
+            </p>
+          </div>
+          <button class="btn btn-secondary btn-sm" @click="openAccountSetModal()">
+            新建账号集合
+          </button>
+        </div>
+        <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
+          <h4 class="text-sm font-semibold text-amber-900 dark:text-amber-100">如何使用账号集合</h4>
+          <p class="mt-1 text-xs leading-6 text-amber-800 dark:text-amber-200">
+            1. 先新建一个同平台集合。2. 把这批 OAuth 账号加入集合。3. 在下方“集合成员绑定”里把集合挂到目标上游池。4. 最后在“分组绑定”里让用户分组命中这个池。
+          </p>
+        </div>
+        <DataTable :columns="accountSetColumns" :data="accountSets" :loading="accountSetsLoading" row-key="id">
+          <template #cell-name="{ row, value }">
+            <div class="flex flex-col gap-1">
+              <button class="text-left font-medium text-primary-700 hover:underline dark:text-primary-300" @click="selectAccountSet(row)">
+                {{ value }}
+              </button>
+              <div class="text-xs text-gray-500 dark:text-gray-400">编码：{{ row.code }}</div>
+            </div>
+          </template>
+
+          <template #cell-platform="{ value }">
+            <span class="badge badge-gray">{{ platformLabel(value) }}</span>
+          </template>
+
+          <template #cell-enabled="{ value }">
+            <span :class="['badge', value ? 'badge-success' : 'badge-danger']">{{ value ? '启用' : '停用' }}</span>
+          </template>
+
+          <template #cell-account_count="{ value }">
+            <span class="font-mono text-sm">{{ value || 0 }}</span>
+          </template>
+
+          <template #cell-updated_at="{ value }">
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="flex flex-wrap gap-1">
+              <button class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700" @click="selectAccountSet(row)">
+                成员
+              </button>
+              <button class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700" @click="openAccountSetModal(row)">
+                编辑
+              </button>
+              <button class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20" @click="confirmDeleteAccountSet(row)">
+                删除
+              </button>
+            </div>
+          </template>
+
+          <template #empty>
+            <EmptyState title="暂无账号集合" description="先新建集合，再批量加入 OAuth 账号。" action-text="新建账号集合" @action="openAccountSetModal()" />
+          </template>
+        </DataTable>
+
+        <div v-if="selectedAccountSet" class="mt-4 rounded-2xl border border-gray-200 bg-white/80 p-3 dark:border-dark-700 dark:bg-dark-900/60">
+          <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedAccountSet.name }} · 集合成员</h4>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                当前集合平台：{{ platformLabel(selectedAccountSet.platform) }}，只会加入同平台账号。
+              </p>
+            </div>
+            <button class="btn btn-secondary btn-sm" :disabled="accountSetAvailableAccounts.length === 0" @click="addAccountsToSelectedSet()">
+              补齐当前平台 OAuth
+            </button>
+          </div>
+          <DataTable :columns="accountSetMemberColumns" :data="pagedAccountSetMembers" :loading="accountSetMembersLoading" :row-key="accountSetMemberRowKey">
+            <template #cell-account_name="{ row, value }">
+              <div class="flex flex-col gap-1">
+                <div class="font-medium text-gray-900 dark:text-white">{{ value || `账号 #${row.account_id}` }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">{{ row.account_type || '-' }} · {{ row.account_status || '-' }}</div>
+              </div>
+            </template>
+
+            <template #cell-account_platform="{ value }">
+              <span class="badge badge-gray">{{ platformLabel(value) }}</span>
+            </template>
+
+            <template #cell-added_at="{ value }">
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
+            </template>
+
+            <template #cell-actions="{ row }">
+              <button class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20" @click="confirmDeleteAccountSetMember(row)">
+                移除
+              </button>
+            </template>
+
+            <template #empty>
+              <EmptyState title="集合暂无成员" description="点击右上角把当前平台 OAuth 账号批量加入集合。" />
+            </template>
+          </DataTable>
+          <Pagination
+            v-if="accountSetMembersPagination.total > 0"
+            class="mt-3"
+            :page="accountSetMembersPagination.page"
+            :total="accountSetMembersPagination.total"
+            :page-size="accountSetMembersPagination.page_size"
+            :page-size-options="[10, 20, 50, 100]"
+            @update:page="handleAccountSetMembersPageChange"
+            @update:pageSize="handleAccountSetMembersPageSizeChange"
+          />
+        </div>
+      </section>
+
       <div class="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
         <section class="sst-admin-panel p-4">
           <div class="mb-3 flex items-center justify-between gap-2">
@@ -196,89 +310,188 @@
               错率 {{ formatRateThreshold(selectedPool.sticky_escape_error_rate_threshold) }}
             </span>
           </div>
-          <div class="mb-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3 text-xs leading-6 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
-            <div class="font-medium">恢复探针</div>
-            <div>
-              后台自动运行，这里没有手动按钮。只探“异常/可恢复”成员，正常成员不定时探测。探针走 compact 最小测试单元，尽量少耗 token。每 1 分钟扫描一次；成员 2 分钟内刚被使用过会先跳过。探测成功后，会自动清理临时故障/限流状态，并重新加入调度。
-            </div>
-          </div>
-          <div class="mb-3 rounded-2xl border border-gray-200 bg-gray-50/80 p-3 dark:border-dark-700 dark:bg-dark-900/40">
+          <div class="mb-3 rounded-2xl border border-gray-200 bg-white/80 p-3 dark:border-dark-700 dark:bg-dark-900/60">
             <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div class="text-sm font-semibold text-gray-900 dark:text-white">最近路由观测</div>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  看这个池最近 24 小时的 `routing.explanation`，确认阈值是否真的在影响选路。
-                </p>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <button
-                  class="btn btn-secondary btn-sm"
-                  :disabled="!selectedPool || !poolRoutingObservabilitySupported || poolRoutingObservability.loading"
-                  @click="selectedPool && loadPoolObservability(selectedPool)"
+              <div class="min-w-0 flex-1">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white">池运行概览</h4>
+                  <span :class="['badge', poolHealthStatusClass]">{{ poolHealthStatusLabel }}</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">成员状态、绑定覆盖与最近 24 小时选路</span>
+                </div>
+                <div
+                  v-if="poolHealthSignals.length > 0"
+                  class="mt-2 flex flex-wrap gap-2 text-[11px] overview-signal-list"
                 >
-                  <Icon name="refresh" size="sm" :class="poolRoutingObservability.loading ? 'animate-spin' : ''" class="mr-1" />
-                  刷新观测
-                </button>
-                <button
-                  class="btn btn-secondary btn-sm"
-                  :disabled="!selectedPool || !poolRoutingObservabilitySupported || poolRoutingObservability.loading"
-                  @click="openPoolObservabilityModal"
-                >
-                  查看明细
-                </button>
-              </div>
-            </div>
-
-            <div
-              v-if="!poolRoutingObservabilitySupported"
-              class="mt-3 rounded-xl border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400"
-            >
-              当前仅对 OpenAI 池提供这组路由观测。
-            </div>
-
-            <template v-else>
-              <div class="mt-3 grid gap-2 md:grid-cols-4">
-                <div class="rounded-xl border border-white/70 bg-white/90 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/70">
-                  <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">观测数</div>
-                  <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
-                    {{ poolRoutingObservability.total || poolRoutingObservability.logs.length }}
-                  </div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">最近 24 小时命中记录</div>
-                </div>
-                <div class="rounded-xl border border-white/70 bg-white/90 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/70">
-                  <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">粘性逃逸</div>
-                  <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ stickyEscapeCount }}</div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">{{ stickyEscapeReasonSummary }}</div>
-                </div>
-                <div class="rounded-xl border border-white/70 bg-white/90 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/70">
-                  <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">最近账号</div>
-                  <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ recentRoutedAccountSummary }}</div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">按最新路由记录去重</div>
-                </div>
-                <div class="rounded-xl border border-white/70 bg-white/90 px-3 py-2 dark:border-dark-700 dark:bg-dark-900/70">
-                  <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">最近时间</div>
-                  <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ latestRoutingLogAt }}</div>
-                  <div class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ poolRoutingObservability.loading ? '正在刷新…' : '按日志倒序展示' }}
-                  </div>
+                  <span
+                    v-for="signal in poolHealthSignals"
+                    :key="signal"
+                    class="rounded-full bg-amber-50 px-2 py-0.5 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200 overview-signal-chip"
+                  >
+                    {{ signal }}
+                  </span>
                 </div>
               </div>
-
-              <div
-                v-if="poolRoutingObservability.logs.length === 0 && !poolRoutingObservability.loading"
-                class="mt-3 rounded-xl border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400"
+              <button
+                class="btn btn-secondary btn-sm overview-refresh-button"
+                :disabled="!selectedPool || membersLoading || poolRoutingObservability.loading"
+                @click="refreshSelectedPoolHealth"
               >
-                最近 24 小时还没有这个池的路由解释日志。
+                <Icon name="refresh" size="sm" :class="(membersLoading || poolRoutingObservability.loading) ? 'animate-spin' : ''" class="mr-1" />
+                刷新概览
+              </button>
+            </div>
+
+            <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">调度就绪</div>
+                <div class="mt-2 text-3xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ poolHealth.readyMembers }}/{{ poolHealth.totalMembers }}</div>
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">健康 {{ poolHealth.healthyMembers }} · 排空 {{ poolHealth.drainedMembers }}</div>
               </div>
-            </template>
+              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">运行风险</div>
+                <div class="mt-2 text-3xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ poolHealth.blockedMembers + poolHealth.errorMembers }}</div>
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">熔断 {{ poolHealth.blockedMembers }} · 错误 {{ poolHealth.errorMembers }}</div>
+              </div>
+              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">最近命中</div>
+                <div class="mt-2 text-3xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ poolHealth.observedRoutes }}</div>
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">账号 {{ poolHealth.uniqueRoutedAccounts }} · 模型 {{ topObservedModelSummary }}</div>
+              </div>
+              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">调度集中度</div>
+                <div class="mt-2 truncate text-2xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ topRoutedAccountName }}</div>
+                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">{{ topRoutedAccountShare }} · 粘性逃逸 {{ poolHealth.stickyEscapes }}</div>
+              </div>
+            </div>
+
+            <div class="mt-3 grid gap-4 border-t border-gray-200/80 pt-3 dark:border-dark-700/80 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
+              <div class="min-w-0 xl:pr-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">绑定与命中</div>
+                  <span class="text-[11px] text-gray-500 dark:text-gray-400">覆盖 {{ poolModelCoverageRows.length }} 项</span>
+                </div>
+                <div class="space-y-3">
+                  <div class="min-w-0 rounded-xl bg-gray-50/55 px-3 py-3 dark:bg-dark-800/35 overview-subpanel">
+                    <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-subpanel-label">绑定覆盖</div>
+                    <div v-if="poolModelCoverageRows.length > 0" class="divide-y divide-gray-200/80 dark:divide-dark-700/70">
+                      <div
+                        v-for="row in poolModelCoverageRows.slice(0, 4)"
+                        :key="row.key"
+                        class="flex items-center justify-between gap-3 py-2 text-xs overview-coverage-row"
+                      >
+                        <div class="min-w-0">
+                          <div class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ row.label }}</div>
+                          <div class="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            <span class="h-1.5 w-1.5 rounded-full" :class="row.ready ? 'bg-emerald-500' : 'bg-rose-500'"></span>
+                            <span>{{ row.ready ? `${poolHealth.readyMembers} 个就绪账号` : '当前无就绪账号' }}</span>
+                          </div>
+                        </div>
+                        <span :class="['badge', row.ready ? 'badge-success' : 'badge-danger']">
+                          {{ row.ready ? '可调度' : '待恢复' }}
+                        </span>
+                      </div>
+                    </div>
+                    <div v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
+                      当前池还没有启用中的分组绑定。
+                    </div>
+                  </div>
+
+                  <div class="min-w-0 rounded-xl bg-gray-50/55 px-3 py-3 dark:bg-dark-800/35 overview-subpanel">
+                    <div class="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">最近账号命中</div>
+                    <div v-if="poolRoutedAccountRows.length > 0" class="space-y-2">
+                      <div
+                        v-for="row in poolRoutedAccountRows.slice(0, 2)"
+                        :key="row.accountId"
+                        class="text-xs overview-hit-row"
+                      >
+                        <div class="flex items-center justify-between gap-2">
+                          <span class="min-w-0 truncate text-gray-700 dark:text-gray-200">{{ row.label }}</span>
+                          <span class="font-mono text-gray-500 dark:text-gray-400">{{ row.count }}</span>
+                        </div>
+                        <div class="mt-1 h-1.5 rounded-full bg-gray-200 dark:bg-dark-700">
+                          <div class="h-1.5 rounded-full bg-primary-500" :style="{ width: `${row.percent}%` }"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-else class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400">
+                      最近 24 小时还没有账号命中记录。
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="min-w-0 xl:border-l xl:border-gray-200/80 xl:pl-4 dark:xl:border-dark-700/80 overview-diagnostic-panel">
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">路由诊断</div>
+                  <button
+                    v-if="poolRoutingObservabilitySupported"
+                    class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-800 overview-detail-button"
+                    :disabled="!selectedPool || poolRoutingObservability.loading"
+                    @click="openPoolObservabilityModal"
+                  >
+                    查看明细
+                  </button>
+                </div>
+                <div
+                  v-if="!poolRoutingObservabilitySupported"
+                  class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                >
+                  当前仅对 OpenAI 池提供路由观测。
+                </div>
+                <template v-else>
+                  <div class="grid gap-4 sm:grid-cols-3">
+                    <div class="min-w-0">
+                      <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">粘性逃逸</div>
+                      <div class="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{{ stickyEscapeCount }}</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">{{ stickyEscapeReasonSummary }}</div>
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">最近账号</div>
+                      <div class="mt-1 break-words text-sm font-medium leading-5 text-gray-900 dark:text-white">{{ recentRoutedAccountSummary }}</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">按最新记录去重</div>
+                    </div>
+                    <div class="min-w-0 sm:pl-4">
+                      <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">最近时间</div>
+                      <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ latestRoutingLogAt }}</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">{{ poolRoutingObservability.loading ? '正在刷新…' : '24h 观测窗口' }}</div>
+                    </div>
+                  </div>
+                  <div
+                    v-if="poolRoutingObservability.logs.length === 0 && !poolRoutingObservability.loading"
+                    class="mt-2 rounded-lg border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400"
+                  >
+                    最近 24 小时还没有这个池的路由解释日志。
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
-          <DataTable :columns="memberColumns" :data="members" :loading="membersLoading" row-key="id">
+          <div class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+            <span class="font-medium">恢复探针</span>
+            <span>自动探测异常/可恢复成员；每分钟扫描，近 2 分钟内刚用过的成员先跳过；成功后自动恢复调度。</span>
+          </div>
+          <DataTable :columns="memberColumns" :data="members" :loading="membersLoading" :row-key="poolMemberRowKey">
             <template #cell-account_name="{ row, value }">
               <div class="flex flex-col gap-1">
                 <div class="max-w-[320px] whitespace-normal break-words font-medium leading-6 text-gray-900 dark:text-white">
                   {{ formatPoolMemberAccountName(value, row.account_id) }}
                 </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ row.account_platform || '未知平台' }}</div>
+                <div class="flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{{ row.account_platform || '未知平台' }}</span>
+                  <span>·</span>
+                  <span>{{ row.account_type || '-' }}</span>
+                </div>
+              </div>
+            </template>
+
+            <template #cell-source_type="{ row }">
+              <div class="flex flex-col gap-1">
+                <span :class="['inline-flex w-fit rounded px-2 py-0.5 text-xs', row.source_type === 'account_set' ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200' : 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-200']">
+                  {{ row.source_type === 'account_set' ? '来自集合' : '直接成员' }}
+                </span>
+                <span v-if="row.source_type === 'account_set'" class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ row.source_set_name || `集合 #${row.source_set_id || '-'}` }}
+                </span>
               </div>
             </template>
 
@@ -338,22 +551,66 @@
 
             <template #cell-actions="{ row }">
               <div class="flex gap-1">
-                <button class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700" @click="openMemberModal(row)">
+                <button
+                  class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-dark-700"
+                  :disabled="row.editable === false"
+                  @click="openMemberModal(row)"
+                >
                   编辑
                 </button>
-                <button class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20" @click="confirmDeleteMember(row)">
+                <button
+                  class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/20"
+                  :disabled="row.editable === false"
+                  @click="confirmDeleteMember(row)"
+                >
                   删除
                 </button>
               </div>
             </template>
 
             <template #empty>
-              <EmptyState title="暂无成员" description="先把账号加入当前上游池。" action-text="添加成员" @action="openMemberModal()" />
+              <EmptyState title="暂无成员" description="先把账号或账号集合加入当前上游池。" action-text="添加成员" @action="openMemberModal()" />
             </template>
           </DataTable>
         </section>
 
         <section class="sst-admin-panel p-4">
+          <div class="mb-4 rounded-2xl border border-gray-200 bg-white/80 p-3 dark:border-dark-700 dark:bg-dark-900/60">
+            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 class="text-base font-semibold text-gray-900 dark:text-white">集合成员绑定</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400">把账号集合直接挂到当前池，运行时自动展开。</p>
+              </div>
+              <button class="btn btn-secondary btn-sm self-start md:self-auto" :disabled="!selectedPool" @click="openMemberSetManagerModal">
+                管理集合绑定
+              </button>
+            </div>
+            <div class="mt-3 grid gap-3 sm:grid-cols-3">
+              <div class="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/45">
+                <div class="text-[11px] text-gray-500 dark:text-gray-400">已绑定集合</div>
+                <div class="mt-1 font-mono text-lg font-semibold text-gray-900 dark:text-white">{{ memberSets.length }}</div>
+              </div>
+              <div class="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/45">
+                <div class="text-[11px] text-gray-500 dark:text-gray-400">启用绑定</div>
+                <div class="mt-1 font-mono text-lg font-semibold text-gray-900 dark:text-white">{{ enabledMemberSetCount }}</div>
+              </div>
+              <div class="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/45">
+                <div class="text-[11px] text-gray-500 dark:text-gray-400">空集合</div>
+                <div :class="['mt-1 font-mono text-lg font-semibold', emptyBoundMemberSets.length > 0 ? 'text-amber-700 dark:text-amber-200' : 'text-gray-900 dark:text-white']">
+                  {{ emptyBoundMemberSets.length }}
+                </div>
+              </div>
+            </div>
+            <div
+              v-if="emptyBoundMemberSets.length > 0"
+              class="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
+            >
+              已绑定但为空的集合：
+              {{ emptyBoundMemberSets.map(item => item.set_name || `集合 #${item.set_id}`).join(' / ') }}。
+              这些集合当前不会为池提供可用成员。
+            </div>
+          </div>
+
           <div class="mb-3 flex items-center justify-between gap-2">
             <div>
               <h3 class="text-base font-semibold text-gray-900 dark:text-white">绑定</h3>
@@ -674,6 +931,155 @@
       </form>
     </BaseDialog>
 
+    <BaseDialog :show="showAccountSetModal" :title="editingAccountSet ? '编辑账号集合' : '新建账号集合'" width="wide" @close="closeAccountSetModal">
+      <form class="space-y-4" @submit.prevent="submitAccountSet">
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">集合名称</label>
+            <p class="field-hint">建议按用途或账号来源命名。</p>
+            <input v-model="accountSetForm.name" class="input" />
+          </div>
+          <div v-if="editingAccountSet">
+            <label class="input-label">集合编码</label>
+            <p class="field-hint">系统生成的唯一标识，创建后不再手动修改。</p>
+            <input :value="accountSetForm.code" class="input bg-gray-50 text-gray-500 dark:bg-dark-800 dark:text-gray-400" readonly />
+          </div>
+          <div v-else class="rounded-xl border border-dashed border-gray-200 px-3 py-3 dark:border-dark-700">
+            <label class="input-label">集合编码</label>
+            <p class="field-hint mb-0">保存时由系统自动生成，无需手动填写。</p>
+          </div>
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">平台</label>
+            <p class="field-hint">集合成员必须和这里的平台一致。</p>
+            <Select v-model="accountSetForm.platform" :options="platformOptions" />
+          </div>
+          <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-dark-600">
+            <span>
+              <span class="block text-sm">启用</span>
+              <span class="field-hint mb-0 block">停用后，绑定它的池不会再展开这个集合。</span>
+            </span>
+            <Toggle :model-value="accountSetForm.enabled" @update:modelValue="accountSetForm.enabled = $event" />
+          </label>
+        </div>
+        <div>
+          <label class="input-label">备注</label>
+          <p class="field-hint">说明这批账号的来源或用途。</p>
+          <textarea v-model="accountSetForm.description" rows="2" class="input" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="btn btn-secondary" @click="closeAccountSetModal">取消</button>
+          <button type="submit" class="btn btn-primary" :disabled="submitting">保存</button>
+        </div>
+      </form>
+    </BaseDialog>
+
+    <BaseDialog
+      :show="showMemberSetManagerModal"
+      :title="selectedPool ? `${selectedPool.name} · 集合绑定管理` : '集合绑定管理'"
+      width="extra-wide"
+      @close="closeMemberSetManagerModal"
+    >
+      <div class="space-y-4">
+        <div class="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-dark-700 dark:bg-dark-900/50 md:flex-row md:items-center md:justify-between">
+          <div class="min-w-0">
+            <div class="text-sm font-semibold text-gray-900 dark:text-white">集合成员绑定</div>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">把账号集合挂到当前池，运行时会自动展开为池成员。</p>
+          </div>
+          <button class="btn btn-primary btn-sm self-start md:self-auto" :disabled="!selectedPool" @click="openMemberSetEditor()">
+            绑定集合
+          </button>
+        </div>
+        <div
+          v-if="emptyBoundMemberSets.length > 0"
+          class="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100"
+        >
+          已绑定但为空的集合：
+          {{ emptyBoundMemberSets.map(item => item.set_name || `集合 #${item.set_id}`).join(' / ') }}。
+          这些集合当前不会为池提供可用成员。
+        </div>
+        <DataTable :columns="memberSetColumns" :data="memberSets" :loading="memberSetsLoading" row-key="id">
+          <template #cell-set_name="{ row, value }">
+            <div class="flex flex-col gap-1">
+              <div class="font-medium text-gray-900 dark:text-white">{{ value || `集合 #${row.set_id}` }}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400">编码：{{ row.set_code }}</div>
+              <div v-if="getAccountSetMemberCount(row.set_id) === 0" class="text-xs text-amber-700 dark:text-amber-200">
+                当前集合为空，不会展开出成员
+              </div>
+            </div>
+          </template>
+
+          <template #cell-set_platform="{ value }">
+            <span class="badge badge-gray">{{ platformLabel(value) }}</span>
+          </template>
+
+          <template #cell-account_count="{ row }">
+            <div class="flex flex-col gap-1">
+              <span class="font-mono text-sm text-gray-900 dark:text-white">{{ getAccountSetMemberCount(row.set_id) }}</span>
+              <span
+                v-if="getAccountSetMemberCount(row.set_id) === 0"
+                class="inline-flex w-fit rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+              >
+                空集合
+              </span>
+            </div>
+          </template>
+
+          <template #cell-enabled="{ value }">
+            <span :class="['badge', value ? 'badge-success' : 'badge-danger']">{{ value ? '启用' : '停用' }}</span>
+          </template>
+
+          <template #cell-updated_at="{ value }">
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="flex gap-1">
+              <button class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700" @click="openMemberSetEditor(row)">
+                编辑
+              </button>
+              <button class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20" @click="confirmDeleteMemberSet(row)">
+                删除
+              </button>
+            </div>
+          </template>
+
+          <template #empty>
+            <EmptyState title="暂无集合绑定" description="先选择集合，再把它绑定到当前池。" action-text="绑定集合" @action="openMemberSetEditor()" />
+          </template>
+        </DataTable>
+      </div>
+    </BaseDialog>
+
+    <BaseDialog :show="showMemberSetModal" :title="editingMemberSet ? '编辑集合绑定' : '绑定集合到池'" width="wide" @close="closeMemberSetModal">
+      <form class="space-y-4" @submit.prevent="submitMemberSet">
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">账号集合</label>
+            <p class="field-hint">绑定后，池运行时会自动展开其中账号。</p>
+            <Select v-model="memberSetForm.set_id" :options="accountSetOptionsForPool" />
+          </div>
+          <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-dark-600">
+            <span>
+              <span class="block text-sm">启用</span>
+              <span class="field-hint mb-0 block">关闭后保留绑定配置，但不参与展开。</span>
+            </span>
+            <Toggle :model-value="memberSetForm.enabled" @update:modelValue="memberSetForm.enabled = $event" />
+          </label>
+        </div>
+        <div>
+          <label class="input-label">备注</label>
+          <p class="field-hint">可记录这个绑定的用途。</p>
+          <textarea v-model="memberSetForm.notes" rows="2" class="input" />
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" class="btn btn-secondary" @click="closeMemberSetModal">取消</button>
+          <button type="submit" class="btn btn-primary" :disabled="submitting">保存</button>
+        </div>
+      </form>
+    </BaseDialog>
+
     <BaseDialog :show="showBindingModal" :title="editingBinding ? '编辑绑定' : '添加绑定'" width="wide" @close="closeBindingModal">
       <form class="space-y-4" @submit.prevent="submitBinding">
         <div class="grid gap-4 md:grid-cols-2">
@@ -739,7 +1145,16 @@ import Toggle from '@/components/common/Toggle.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import type { OpsSystemLog } from '@/api/admin/ops'
-import type { Account, AdminGroup, UpstreamPool, UpstreamPoolBinding, UpstreamPoolMember } from '@/types'
+import type {
+  Account,
+  AdminGroup,
+  UpstreamAccountSet,
+  UpstreamAccountSetMember,
+  UpstreamPool,
+  UpstreamPoolBinding,
+  UpstreamPoolMember,
+  UpstreamPoolMemberSet
+} from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatDateTime } from '@/utils/format'
 import { useAppStore } from '@/stores'
@@ -792,6 +1207,20 @@ type BindingForm = {
   enabled: boolean
 }
 
+type AccountSetForm = {
+  name: string
+  code: string
+  platform: string
+  description: string
+  enabled: boolean
+}
+
+type MemberSetForm = {
+  set_id: number | null
+  enabled: boolean
+  notes: string
+}
+
 type PoolRoutingObservabilityState = {
   loading: boolean
   total: number
@@ -803,13 +1232,21 @@ const loading = ref(false)
 const submitting = ref(false)
 const pools = ref<UpstreamPool[]>([])
 const members = ref<UpstreamPoolMember[]>([])
+const accountSets = ref<UpstreamAccountSet[]>([])
+const accountSetMembers = ref<UpstreamAccountSetMember[]>([])
+const memberSets = ref<UpstreamPoolMemberSet[]>([])
 const bindings = ref<UpstreamPoolBinding[]>([])
 const allGroups = ref<AdminGroup[]>([])
 const syncableAccounts = ref<SyncableAccount[]>([])
 const selectedPool = ref<UpstreamPool | null>(null)
+const selectedAccountSet = ref<UpstreamAccountSet | null>(null)
 const membersLoading = ref(false)
+const accountSetsLoading = ref(false)
+const accountSetMembersLoading = ref(false)
+const memberSetsLoading = ref(false)
 const bindingsLoading = ref(false)
 const syncingMembers = ref(false)
+const accountSetMembersPagination = ref({ page: 1, page_size: 10, total: 0 })
 const poolRoutingObservability = ref<PoolRoutingObservabilityState>({
   loading: false,
   total: 0,
@@ -822,10 +1259,15 @@ let poolObservabilityRequestToken = 0
 
 const showPoolModal = ref(false)
 const showMemberModal = ref(false)
+const showAccountSetModal = ref(false)
+const showMemberSetManagerModal = ref(false)
+const showMemberSetModal = ref(false)
 const showBindingModal = ref(false)
 const showPoolObservabilityModal = ref(false)
 const editingPool = ref<UpstreamPool | null>(null)
 const editingMember = ref<UpstreamPoolMember | null>(null)
+const editingAccountSet = ref<UpstreamAccountSet | null>(null)
+const editingMemberSet = ref<UpstreamPoolMemberSet | null>(null)
 const editingBinding = ref<UpstreamPoolBinding | null>(null)
 
 function openPoolObservabilityModal() {
@@ -863,6 +1305,20 @@ const memberForm = ref<MemberForm>({
   weight: 100,
   priority_override: null,
   max_concurrency_override: null,
+  notes: '',
+})
+
+const accountSetForm = ref<AccountSetForm>({
+  name: '',
+  code: '',
+  platform: 'openai',
+  description: '',
+  enabled: true,
+})
+
+const memberSetForm = ref<MemberSetForm>({
+  set_id: null,
+  enabled: true,
   notes: '',
 })
 
@@ -937,6 +1393,157 @@ const latestRoutingLogAt = computed(() => {
   const latest = poolRoutingObservability.value.logs[0]
   return latest ? formatCompactDateTime(latest.created_at) : '-'
 })
+const selectedPoolBindings = computed(() =>
+  bindings.value.filter(binding => binding.pool_id === selectedPool.value?.id)
+)
+const selectedPoolEnabledBindings = computed(() =>
+  selectedPoolBindings.value.filter(binding => binding.enabled)
+)
+const accountSetCountMap = computed(() =>
+  new Map(accountSets.value.map(item => [item.id, item.account_count || 0]))
+)
+const emptyBoundMemberSets = computed(() =>
+  memberSets.value.filter(item => item.enabled && (accountSetCountMap.value.get(item.set_id) || 0) === 0)
+)
+const enabledMemberSetCount = computed(() => memberSets.value.filter(item => item.enabled).length)
+const poolHealth = computed(() => {
+  const totalMembers = members.value.length
+  const healthyMembers = members.value.filter(member => member.runtime_status === 'healthy').length
+  const readyMembers = members.value.filter(isPoolMemberReady).length
+  const drainedMembers = members.value.filter(member => member.manual_drained).length
+  const disabledMembers = members.value.filter(member => !member.enabled || member.schedulable_override === false || member.account_schedulable === false).length
+  const blockedMembers = members.value.filter(member =>
+    ['rate_limited', 'overloaded', 'temp_unschedulable'].includes(String(member.runtime_status || ''))
+  ).length
+  const errorMembers = members.value.filter(member => member.runtime_status === 'error_recovering').length
+  const logs = poolRoutingObservability.value.logs
+  const routedAccountIds = new Set<number>()
+  let stickyEscapes = 0
+  for (const log of logs) {
+    if (typeof log.account_id === 'number' && log.account_id > 0) {
+      routedAccountIds.add(log.account_id)
+    }
+    if (getLogExtraBool(log, 'sticky_escape_triggered')) {
+      stickyEscapes += 1
+    }
+  }
+  return {
+    totalMembers,
+    healthyMembers,
+    readyMembers,
+    drainedMembers,
+    disabledMembers,
+    blockedMembers,
+    errorMembers,
+    observedRoutes: poolRoutingObservability.value.total || logs.length,
+    uniqueRoutedAccounts: routedAccountIds.size,
+    stickyEscapes,
+  }
+})
+const poolHealthStatusLabel = computed(() => {
+  if (!selectedPool.value) return '未选择'
+  if (!selectedPool.value.enabled) return '已停用'
+  if (poolHealth.value.totalMembers === 0) return '空池'
+  if (poolHealth.value.readyMembers === 0) return '不可调度'
+  if (poolHealth.value.blockedMembers > 0 || poolHealth.value.errorMembers > 0) return '有风险'
+  return '健康'
+})
+const poolHealthStatusClass = computed(() => {
+  switch (poolHealthStatusLabel.value) {
+    case '健康':
+      return 'badge-success'
+    case '有风险':
+      return 'badge-warning'
+    case '不可调度':
+    case '空池':
+      return 'badge-danger'
+    default:
+      return 'badge-gray'
+  }
+})
+const poolRoutedAccountRows = computed(() => {
+  const counts = new Map<number, { accountId: number; label: string; count: number; latestAt: string }>()
+  for (const log of poolRoutingObservability.value.logs) {
+    const accountId = typeof log.account_id === 'number' ? log.account_id : 0
+    if (!accountId) continue
+    const current = counts.get(accountId)
+    if (current) {
+      current.count += 1
+      continue
+    }
+    counts.set(accountId, {
+      accountId,
+      label: formatObservabilityAccountLabel(accountId),
+      count: 1,
+      latestAt: log.created_at,
+    })
+  }
+  const max = Math.max(...Array.from(counts.values()).map(row => row.count), 1)
+  return Array.from(counts.values())
+    .sort((left, right) => right.count - left.count)
+    .map(row => ({
+      ...row,
+      percent: Math.max(6, Math.round((row.count / max) * 100)),
+    }))
+})
+const topRoutedAccountName = computed(() => {
+  const top = poolRoutedAccountRows.value[0]
+  return top ? top.label : '-'
+})
+const topRoutedAccountShare = computed(() => {
+  const top = poolRoutedAccountRows.value[0]
+  if (!top) return '-'
+  const total = poolRoutingObservability.value.logs.length || top.count
+  return formatPercent(top.count / total)
+})
+const topObservedModelSummary = computed(() => {
+  const counts = new Map<string, number>()
+  for (const log of poolRoutingObservability.value.logs) {
+    const model = String(log.model || getLogExtraString(log, 'model') || '').trim()
+    if (!model) continue
+    counts.set(model, (counts.get(model) || 0) + 1)
+  }
+  const top = Array.from(counts.entries()).sort((left, right) => right[1] - left[1])[0]
+  return top ? top[0] : '-'
+})
+const poolModelCoverageRows = computed(() => {
+  if (!selectedPool.value) return []
+  if (selectedPoolEnabledBindings.value.length === 0) return []
+  const rows: Array<{ key: string; label: string; ready: boolean }> = []
+  const seen = new Set<string>()
+  for (const binding of selectedPoolEnabledBindings.value) {
+    const models = (binding.models || []).map(model => model.trim()).filter(Boolean)
+    if (models.length === 0) {
+      if (!seen.has('*')) {
+        rows.push({ key: '*', label: '全部模型', ready: poolHealth.value.readyMembers > 0 })
+        seen.add('*')
+      }
+      continue
+    }
+    for (const model of models) {
+      const key = model.toLowerCase()
+      if (seen.has(key)) continue
+      rows.push({ key, label: model, ready: poolHealth.value.readyMembers > 0 })
+      seen.add(key)
+    }
+  }
+  return rows
+})
+const poolHealthSignals = computed(() => {
+  const signals: string[] = []
+  if (!selectedPool.value) return signals
+  if (!selectedPool.value.enabled) signals.push('池已停用')
+  if (poolHealth.value.totalMembers === 0) signals.push('还没有成员账号')
+  if (poolHealth.value.readyMembers === 0 && poolHealth.value.totalMembers > 0) signals.push('当前没有可调度成员')
+  if (poolHealth.value.blockedMembers > 0) signals.push(`${poolHealth.value.blockedMembers} 个成员处于限流/过载/临时熔断`)
+  if (poolHealth.value.errorMembers > 0) signals.push(`${poolHealth.value.errorMembers} 个成员错误待恢复`)
+  if (selectedPoolEnabledBindings.value.length === 0) signals.push('没有启用中的分组绑定')
+  const top = poolRoutedAccountRows.value[0]
+  if (top && poolRoutingObservability.value.logs.length >= 10 && top.count / poolRoutingObservability.value.logs.length >= 0.8) {
+    signals.push('最近调度集中在单个账号')
+  }
+  return signals
+})
 
 const poolColumns = [
   { key: 'name', label: '池' },
@@ -952,10 +1559,36 @@ const poolColumns = [
 
 const memberColumns = [
   { key: 'account_name', label: '账号' },
+  { key: 'source_type', label: '来源' },
   { key: 'enabled', label: '状态' },
   { key: 'runtime_status', label: '运行态' },
   { key: 'manual_drained', label: '排空' },
   { key: 'weight', label: '权重' },
+  { key: 'updated_at', label: '更新时间' },
+  { key: 'actions', label: '操作' },
+]
+
+const accountSetColumns = [
+  { key: 'name', label: '集合' },
+  { key: 'platform', label: '平台' },
+  { key: 'enabled', label: '状态' },
+  { key: 'account_count', label: '账号数' },
+  { key: 'updated_at', label: '更新时间' },
+  { key: 'actions', label: '操作' },
+]
+
+const accountSetMemberColumns = [
+  { key: 'account_name', label: '账号' },
+  { key: 'account_platform', label: '平台' },
+  { key: 'added_at', label: '加入时间' },
+  { key: 'actions', label: '操作' },
+]
+
+const memberSetColumns = [
+  { key: 'set_name', label: '集合' },
+  { key: 'set_platform', label: '平台' },
+  { key: 'account_count', label: '账号数' },
+  { key: 'enabled', label: '状态' },
   { key: 'updated_at', label: '更新时间' },
   { key: 'actions', label: '操作' },
 ]
@@ -1027,6 +1660,13 @@ const formatPoolMemberAccountName = (value?: string | null, accountID?: number) 
   return `${text.slice(0, atIndex + 1)}\u200b${text.slice(atIndex + 1)}`
 }
 
+const poolMemberRowKey = (row: UpstreamPoolMember) =>
+  `${row.source_type || 'direct'}:${row.source_set_id || 0}:${row.account_id}:${row.id || 0}`
+
+const accountSetMemberRowKey = (row: UpstreamAccountSetMember) => `${row.set_id}:${row.account_id}`
+
+const getAccountSetMemberCount = (setID: number) => accountSetCountMap.value.get(setID) || 0
+
 const formatThresholdMs = (value?: number | null) => {
   if (!value || value <= 0) return '-'
   return `${Math.round(value)}ms`
@@ -1036,6 +1676,19 @@ const formatRateThreshold = (value?: number | null) => {
   if (typeof value !== 'number' || Number.isNaN(value) || value < 0) return '-'
   return value.toFixed(2)
 }
+
+const formatPercent = (value?: number | null) => {
+  if (typeof value !== 'number' || Number.isNaN(value) || value < 0) return '-'
+  return `${Math.round(value * 100)}%`
+}
+
+const isPoolMemberReady = (member: UpstreamPoolMember) => (
+  member.enabled &&
+  !member.manual_drained &&
+  member.schedulable_override !== false &&
+  member.account_schedulable !== false &&
+  member.runtime_status === 'healthy'
+)
 
 const formatStickyEscapeReason = (value?: string | null) => {
   switch (String(value || '').trim()) {
@@ -1118,10 +1771,21 @@ const pagedPools = computed(() => {
   return filteredPools.value.slice(start, start + pagination.value.page_size)
 })
 
+const pagedAccountSetMembers = computed(() => {
+  const start = (accountSetMembersPagination.value.page - 1) * accountSetMembersPagination.value.page_size
+  return accountSetMembers.value.slice(start, start + accountSetMembersPagination.value.page_size)
+})
+
 const availablePoolAccounts = computed(() => {
   const platform = selectedPool.value?.platform
   if (!platform) return []
   return syncableAccounts.value.filter(account => account.platform === platform)
+})
+
+const accountSetAvailableAccounts = computed(() => {
+  const platform = selectedAccountSet.value?.platform
+  if (!platform) return []
+  return syncableAccounts.value.filter(account => account.platform === platform && account.type === 'oauth')
 })
 
 const accountOptions = computed(() =>
@@ -1130,6 +1794,16 @@ const accountOptions = computed(() =>
     label: `${account.name} · ${platformLabel(account.platform)} · ${account.type === 'apikey' ? 'API Key' : account.type}`,
   }))
 )
+
+const accountSetOptionsForPool = computed(() => {
+  const platform = selectedPool.value?.platform
+  return accountSets.value
+    .filter((item) => !platform || item.platform === platform)
+    .map((item) => ({
+      value: item.id,
+      label: `${item.name} · ${platformLabel(item.platform)} · ${item.account_count || 0} 个账号`,
+    }))
+})
 
 const groupOptions = computed(() =>
   allGroups.value.map((group) => ({
@@ -1191,23 +1865,45 @@ function resetBindingForm() {
   }
 }
 
+function resetAccountSetForm() {
+  accountSetForm.value = {
+    name: '',
+    code: '',
+    platform: selectedPool.value?.platform ?? 'openai',
+    description: '',
+    enabled: true,
+  }
+}
+
+function resetMemberSetForm() {
+  memberSetForm.value = {
+    set_id: null,
+    enabled: true,
+    notes: '',
+  }
+}
+
 async function loadAll() {
   loading.value = true
+  accountSetsLoading.value = true
   try {
-    const [poolList, groupList, accountList, bindingList] = await Promise.all([
+    const [poolList, groupList, accountList, bindingList, accountSetList] = await Promise.all([
       adminAPI.upstreamPools.list(),
       adminAPI.groups.getAllIncludingInactive(),
       loadSyncableAccounts(),
       adminAPI.upstreamPools.getBindings(),
+      adminAPI.upstreamPools.getAccountSets(),
     ])
     pools.value = poolList
     allGroups.value = groupList
     syncableAccounts.value = accountList
     bindings.value = bindingList
+    accountSets.value = accountSetList
     pagination.value.total = filteredPools.value.length
     if (poolList.length === 0) {
       selectedPool.value = null
       members.value = []
+      memberSets.value = []
       poolRoutingObservability.value = { loading: false, total: 0, logs: [] }
     } else if (selectedPool.value) {
       const nextSelected = poolList.find(pool => pool.id === selectedPool.value?.id)
@@ -1215,10 +1911,20 @@ async function loadAll() {
     } else {
       selectPool(poolList[0])
     }
+    if (accountSetList.length === 0) {
+      selectedAccountSet.value = null
+      accountSetMembers.value = []
+    } else if (selectedAccountSet.value) {
+      const nextSelectedSet = accountSetList.find(item => item.id === selectedAccountSet.value?.id)
+      selectAccountSet(nextSelectedSet || accountSetList[0])
+    } else {
+      selectAccountSet(accountSetList[0])
+    }
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '加载上游池失败'))
   } finally {
     loading.value = false
+    accountSetsLoading.value = false
   }
 }
 
@@ -1230,6 +1936,33 @@ async function loadMembers(poolId: number) {
     appStore.showError(extractApiErrorMessage(error, '加载成员失败'))
   } finally {
     membersLoading.value = false
+  }
+}
+
+async function loadMemberSets(poolId: number) {
+  memberSetsLoading.value = true
+  try {
+    memberSets.value = await adminAPI.upstreamPools.getMemberSets(poolId)
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '加载集合绑定失败'))
+  } finally {
+    memberSetsLoading.value = false
+  }
+}
+
+async function loadAccountSetMembers(setId: number) {
+  accountSetMembersLoading.value = true
+  try {
+    accountSetMembers.value = await adminAPI.upstreamPools.getAccountSetMembers(setId)
+    accountSetMembersPagination.value.total = accountSetMembers.value.length
+    const totalPages = Math.max(1, Math.ceil(accountSetMembers.value.length / accountSetMembersPagination.value.page_size))
+    if (accountSetMembersPagination.value.page > totalPages) {
+      accountSetMembersPagination.value.page = totalPages
+    }
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '加载集合成员失败'))
+  } finally {
+    accountSetMembersLoading.value = false
   }
 }
 
@@ -1249,8 +1982,15 @@ function selectPool(pool: UpstreamPool) {
   bindingForm.value.pool_id = pool.id
   bindingForm.value.platform = pool.platform
   loadMembers(pool.id)
+  loadMemberSets(pool.id)
   loadPoolObservability(pool)
   pagination.value.total = filteredPools.value.length
+}
+
+function selectAccountSet(item: UpstreamAccountSet) {
+  selectedAccountSet.value = item
+  accountSetMembersPagination.value.page = 1
+  loadAccountSetMembers(item.id)
 }
 
 async function loadPoolObservability(pool: UpstreamPool) {
@@ -1288,6 +2028,15 @@ async function loadPoolObservability(pool: UpstreamPool) {
   }
 }
 
+async function refreshSelectedPoolHealth() {
+  if (!selectedPool.value) return
+  await Promise.all([
+    loadMembers(selectedPool.value.id),
+    loadMemberSets(selectedPool.value.id),
+    loadPoolObservability(selectedPool.value),
+  ])
+}
+
 function openPoolModal(pool?: UpstreamPool | null) {
   editingPool.value = pool ?? null
   if (pool) {
@@ -1322,6 +2071,10 @@ function closePoolModal() {
 
 function openMemberModal(member?: UpstreamPoolMember | null) {
   if (!selectedPool.value) return
+  if (member && member.editable === false) {
+    appStore.showError('集合展开成员不能直接编辑，请编辑集合绑定或直接成员配置')
+    return
+  }
   editingMember.value = member ?? null
   if (member) {
     memberForm.value = {
@@ -1343,6 +2096,65 @@ function openMemberModal(member?: UpstreamPoolMember | null) {
 function closeMemberModal() {
   showMemberModal.value = false
   editingMember.value = null
+}
+
+function openAccountSetModal(item?: UpstreamAccountSet | null) {
+  editingAccountSet.value = item ?? null
+  if (item) {
+    accountSetForm.value = {
+      name: item.name,
+      code: item.code,
+      platform: item.platform,
+      description: item.description || '',
+      enabled: item.enabled,
+    }
+  } else {
+    resetAccountSetForm()
+  }
+  showAccountSetModal.value = true
+}
+
+function closeAccountSetModal() {
+  showAccountSetModal.value = false
+  editingAccountSet.value = null
+}
+
+function openMemberSetManagerModal() {
+  if (!selectedPool.value) return
+  showMemberSetManagerModal.value = true
+}
+
+function closeMemberSetManagerModal() {
+  showMemberSetManagerModal.value = false
+}
+
+function openMemberSetEditor(item?: UpstreamPoolMemberSet | null) {
+  showMemberSetManagerModal.value = false
+  openMemberSetModal(item)
+}
+
+function openMemberSetModal(item?: UpstreamPoolMemberSet | null) {
+  if (!selectedPool.value) return
+  editingMemberSet.value = item ?? null
+  if (item) {
+    memberSetForm.value = {
+      set_id: item.set_id,
+      enabled: item.enabled,
+      notes: item.notes || '',
+    }
+  } else {
+    resetMemberSetForm()
+    memberSetForm.value.set_id = selectedAccountSet.value?.id ?? null
+  }
+  showMemberSetModal.value = true
+}
+
+function closeMemberSetModal() {
+  showMemberSetModal.value = false
+  editingMemberSet.value = null
+  if (selectedPool.value) {
+    showMemberSetManagerModal.value = true
+  }
 }
 
 function openBindingModal(binding?: UpstreamPoolBinding | null) {
@@ -1420,6 +2232,64 @@ async function submitMember() {
     await loadBindings()
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '保存成员失败'))
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function submitAccountSet() {
+  submitting.value = true
+  try {
+    const payload = {
+      name: accountSetForm.value.name,
+      platform: accountSetForm.value.platform,
+      enabled: accountSetForm.value.enabled,
+      description: accountSetForm.value.description || undefined,
+      ...(editingAccountSet.value ? { code: accountSetForm.value.code } : {}),
+    }
+    if (editingAccountSet.value) {
+      await adminAPI.upstreamPools.updateAccountSet(editingAccountSet.value.id, payload)
+      appStore.showSuccess('账号集合已更新')
+    } else {
+      await adminAPI.upstreamPools.createAccountSet(payload)
+      appStore.showSuccess('账号集合已创建')
+    }
+    closeAccountSetModal()
+    await loadAll()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '保存账号集合失败'))
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function submitMemberSet() {
+  if (!selectedPool.value || !memberSetForm.value.set_id) {
+    appStore.showError('请选择账号集合')
+    return
+  }
+  submitting.value = true
+  try {
+    const payload = {
+      set_id: memberSetForm.value.set_id,
+      enabled: memberSetForm.value.enabled,
+      notes: memberSetForm.value.notes || null,
+    }
+    if (editingMemberSet.value) {
+      await adminAPI.upstreamPools.updateMemberSet(editingMemberSet.value.id, {
+        enabled: payload.enabled,
+        notes: payload.notes,
+      })
+      appStore.showSuccess('集合绑定已更新')
+    } else {
+      await adminAPI.upstreamPools.createMemberSet(selectedPool.value.id, payload)
+      appStore.showSuccess('集合已绑定到当前池')
+    }
+    closeMemberSetModal()
+    await loadMemberSets(selectedPool.value.id)
+    await loadMembers(selectedPool.value.id)
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '保存集合绑定失败'))
   } finally {
     submitting.value = false
   }
@@ -1531,6 +2401,33 @@ async function addMissingSelectedPoolMembers() {
   }
 }
 
+async function addAccountsToSelectedSet() {
+  if (!selectedAccountSet.value) return
+  const existing = new Set(accountSetMembers.value.map(item => item.account_id))
+  const targetIDs = accountSetAvailableAccounts.value
+    .map(account => account.id)
+    .filter(accountID => !existing.has(accountID))
+  if (targetIDs.length === 0) {
+    appStore.showError('当前没有可加入的新 OAuth 账号')
+    return
+  }
+  submitting.value = true
+  try {
+    await adminAPI.upstreamPools.addAccountSetMembers(selectedAccountSet.value.id, {
+      account_ids: targetIDs,
+    })
+    appStore.showSuccess(`已加入 ${targetIDs.length} 个账号`)
+    await Promise.all([
+      loadAccountSetMembers(selectedAccountSet.value.id),
+      loadAll(),
+    ])
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '加入账号集合失败'))
+  } finally {
+    submitting.value = false
+  }
+}
+
 async function submitBinding() {
   if (!bindingForm.value.group_id || !bindingForm.value.pool_id) {
     appStore.showError('请选择分组和上游池')
@@ -1579,7 +2476,26 @@ async function confirmDeletePool(pool: UpstreamPool) {
   }
 }
 
+async function confirmDeleteAccountSet(item: UpstreamAccountSet) {
+  if (!window.confirm(`确定删除账号集合「${item.name}」吗？`)) return
+  try {
+    await adminAPI.upstreamPools.removeAccountSet(item.id)
+    appStore.showSuccess('账号集合已删除')
+    if (selectedAccountSet.value?.id === item.id) {
+      selectedAccountSet.value = null
+      accountSetMembers.value = []
+    }
+    await loadAll()
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '删除账号集合失败'))
+  }
+}
+
 async function confirmDeleteMember(member: UpstreamPoolMember) {
+  if (member.editable === false) {
+    appStore.showError('集合展开成员不能直接删除，请去删除集合绑定或从集合里移除账号')
+    return
+  }
   if (!window.confirm(`确定删除成员 #${member.id} 吗？`)) return
   try {
     await adminAPI.upstreamPools.removeMember(member.id)
@@ -1587,6 +2503,38 @@ async function confirmDeleteMember(member: UpstreamPoolMember) {
     if (selectedPool.value) await loadMembers(selectedPool.value.id)
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '删除成员失败'))
+  }
+}
+
+async function confirmDeleteAccountSetMember(item: UpstreamAccountSetMember) {
+  if (!selectedAccountSet.value) return
+  if (!window.confirm(`确定将账号「${item.account_name || item.account_id}」从集合中移除吗？`)) return
+  try {
+    await adminAPI.upstreamPools.removeAccountSetMember(selectedAccountSet.value.id, item.account_id)
+    appStore.showSuccess('集合成员已移除')
+    await Promise.all([
+      loadAccountSetMembers(selectedAccountSet.value.id),
+      loadAll(),
+      selectedPool.value ? loadMembers(selectedPool.value.id) : Promise.resolve(),
+    ])
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '移除集合成员失败'))
+  }
+}
+
+async function confirmDeleteMemberSet(item: UpstreamPoolMemberSet) {
+  if (!window.confirm(`确定删除集合绑定「${item.set_name || item.set_id}」吗？`)) return
+  try {
+    await adminAPI.upstreamPools.removeMemberSet(item.id)
+    appStore.showSuccess('集合绑定已删除')
+    if (selectedPool.value) {
+      await Promise.all([
+        loadMemberSets(selectedPool.value.id),
+        loadMembers(selectedPool.value.id),
+      ])
+    }
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '删除集合绑定失败'))
   }
 }
 
@@ -1623,6 +2571,16 @@ function handlePageSizeChange(pageSize: number) {
   pagination.value.page = 1
 }
 
+function handleAccountSetMembersPageChange(page: number) {
+  accountSetMembersPagination.value.page = page
+}
+
+function handleAccountSetMembersPageSizeChange(pageSize: number) {
+  accountSetMembersPagination.value.page_size = pageSize
+  accountSetMembersPagination.value.page = 1
+  accountSetMembersPagination.value.total = accountSetMembers.value.length
+}
+
 async function loadSyncableAccounts() {
   const result: SyncableAccount[] = []
   let page = 1
@@ -1650,6 +2608,14 @@ watch(filteredPools, () => {
   pagination.value.total = filteredPools.value.length
 })
 
+watch(accountSetMembers, () => {
+  accountSetMembersPagination.value.total = accountSetMembers.value.length
+  const totalPages = Math.max(1, Math.ceil(accountSetMembers.value.length / accountSetMembersPagination.value.page_size))
+  if (accountSetMembersPagination.value.page > totalPages) {
+    accountSetMembersPagination.value.page = totalPages
+  }
+})
+
 onMounted(loadAll)
 </script>
 
@@ -1661,8 +2627,332 @@ onMounted(loadAll)
   color: rgb(107 114 128);
 }
 
-:global(.dark) .field-hint {
-  color: rgb(156 163 175);
+.overview-refresh-button {
+  min-height: 2.5rem;
+  padding-inline: 0.95rem;
 }
+
+.overview-metric-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.overview-metric-label {
+  letter-spacing: 0.12em;
+}
+
+.overview-metric-value {
+  letter-spacing: 0;
+}
+
+.overview-metric-meta {
+  line-height: 1.45;
+}
+
+.overview-subpanel {
+  border: 1px solid rgba(215, 200, 166, 0.2);
+}
+
+.overview-hit-row {
+  padding-bottom: 0.1rem;
+}
+
+.overview-diagnostic-panel {
+  position: relative;
+}
+
+.overview-detail-button {
+  border: 1px solid rgba(215, 200, 166, 0.22);
+}
+
+
 </style>
 
+<style>
+.dark .upstream-pools-night {
+  --upstream-night-bg: #0b100d;
+  --upstream-night-panel: rgba(17, 22, 17, 0.92);
+  --upstream-night-panel-soft: rgba(24, 29, 23, 0.86);
+  --upstream-night-panel-raised: rgba(31, 34, 28, 0.9);
+  --upstream-night-line: rgba(229, 220, 198, 0.16);
+  --upstream-night-line-strong: rgba(229, 220, 198, 0.24);
+  --upstream-night-text: #f1eadb;
+  --upstream-night-muted: #b9b09d;
+  --upstream-night-subtle: #8f8878;
+  --upstream-night-cyan: #41d7c7;
+  --upstream-night-cyan-soft: rgba(65, 215, 199, 0.16);
+  --upstream-night-amber: #d8bd72;
+  --upstream-night-control: rgba(35, 43, 35, 0.94);
+  --upstream-night-control-hover: rgba(43, 52, 42, 0.96);
+  color: var(--upstream-night-text);
+  background:
+    radial-gradient(circle at top left, rgba(216, 189, 114, 0.08), transparent 34%),
+    radial-gradient(circle at top right, rgba(65, 215, 199, 0.05), transparent 28%),
+    linear-gradient(180deg, rgba(10, 13, 10, 0.96), rgba(9, 11, 9, 0.98));
+}
+
+.dark .upstream-pools-night .field-hint {
+  color: rgb(156 163 175);
+}
+
+.dark .upstream-pools-night .sst-admin-panel,
+.dark .upstream-pools-night .sst-admin-panel {
+  border-color: var(--upstream-night-line) !important;
+  background:
+    linear-gradient(180deg, rgba(229, 220, 198, 0.035), rgba(229, 220, 198, 0.012)),
+    var(--upstream-night-panel);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.dark .upstream-pools-night .rounded-2xl,
+.dark .upstream-pools-night .rounded-xl {
+  border-color: var(--upstream-night-line) !important;
+}
+
+.dark .upstream-pools-night .bg-white\/80,
+.dark .upstream-pools-night .bg-white\/85,
+.dark .upstream-pools-night .bg-white\/90,
+.dark .upstream-pools-night .bg-white\/70,
+.dark .upstream-pools-night .bg-gray-50\/55,
+.dark .upstream-pools-night .bg-gray-50\/65,
+.dark .upstream-pools-night .bg-gray-50\/70,
+.dark .upstream-pools-night .bg-gray-50\/80,
+.dark .upstream-pools-night .dark\:bg-dark-900\/40,
+.dark .upstream-pools-night .dark\:bg-dark-900\/50,
+.dark .upstream-pools-night .dark\:bg-dark-900\/60,
+.dark .upstream-pools-night .dark\:bg-dark-900\/70,
+.dark .upstream-pools-night .dark\:bg-dark-800\/35,
+.dark .upstream-pools-night .dark\:bg-dark-800\/55,
+.dark .upstream-pools-night .dark\:bg-dark-800\/50,
+.dark .upstream-pools-night .dark\:bg-dark-800\/60 {
+  background-color: var(--upstream-night-panel-soft) !important;
+}
+
+.dark .upstream-pools-night .text-gray-900,
+.dark .upstream-pools-night .dark\:text-white,
+.dark .upstream-pools-night .dark\:text-gray-100 {
+  color: var(--upstream-night-text);
+}
+
+.dark .upstream-pools-night .text-gray-700,
+.dark .upstream-pools-night .dark\:text-gray-200,
+.dark .upstream-pools-night .dark\:text-gray-300 {
+  color: #d8cfbd;
+}
+
+.dark .upstream-pools-night .text-gray-500,
+.dark .upstream-pools-night .dark\:text-gray-400,
+.dark .upstream-pools-night .dark\:text-dark-400 {
+  color: var(--upstream-night-muted);
+}
+
+.dark .upstream-pools-night .text-gray-400,
+.dark .upstream-pools-night .dark\:text-gray-500 {
+  color: var(--upstream-night-subtle);
+}
+
+.dark .upstream-pools-night .border-gray-200,
+.dark .upstream-pools-night .border-gray-300,
+.dark .upstream-pools-night .border-white\/70,
+.dark .upstream-pools-night .dark\:border-dark-700,
+.dark .upstream-pools-night .dark\:border-dark-600 {
+  border-color: var(--upstream-night-line) !important;
+}
+
+.dark .upstream-pools-night .bg-gray-100,
+.dark .upstream-pools-night .dark\:bg-dark-700,
+.dark .upstream-pools-night .dark\:bg-dark-800 {
+  background-color: rgba(229, 220, 198, 0.08) !important;
+}
+
+.dark .upstream-pools-night .bg-primary-50,
+.dark .upstream-pools-night .dark\:bg-primary-950\/20,
+.dark .upstream-pools-night .dark\:bg-primary-950\/30 {
+  background-color: var(--upstream-night-cyan-soft) !important;
+}
+
+.dark .upstream-pools-night .text-primary-700,
+.dark .upstream-pools-night .dark\:text-primary-100,
+.dark .upstream-pools-night .dark\:text-primary-200,
+.dark .upstream-pools-night .dark\:text-primary-300 {
+  color: #8ee9dc;
+}
+
+.dark .upstream-pools-night .border-primary-200,
+.dark .upstream-pools-night .dark\:border-primary-900\/40 {
+  border-color: rgba(65, 215, 199, 0.28) !important;
+}
+
+.dark .upstream-pools-night .bg-amber-50\/80,
+.dark .upstream-pools-night .bg-amber-100,
+.dark .upstream-pools-night .dark\:bg-amber-950\/20,
+.dark .upstream-pools-night .dark\:bg-amber-900\/20 {
+  background-color: rgba(144, 105, 42, 0.18) !important;
+}
+
+.dark .upstream-pools-night .border-amber-200,
+.dark .upstream-pools-night .dark\:border-amber-900\/40 {
+  border-color: rgba(216, 189, 114, 0.28) !important;
+}
+
+.dark .upstream-pools-night .text-amber-900,
+.dark .upstream-pools-night .text-amber-800,
+.dark .upstream-pools-night .dark\:text-amber-100,
+.dark .upstream-pools-night .dark\:text-amber-200 {
+  color: #f1dfaa;
+}
+
+.dark .upstream-pools-night .badge-gray {
+  background-color: rgba(229, 220, 198, 0.12);
+  color: #cfc5b2;
+}
+
+.dark .upstream-pools-night .badge-success {
+  background-color: rgba(20, 148, 104, 0.22);
+  color: #69e0b4;
+}
+
+.dark .upstream-pools-night .badge-warning {
+  background-color: rgba(180, 117, 28, 0.24);
+  color: #f1c46f;
+}
+
+.dark .upstream-pools-night .badge-danger {
+  background-color: rgba(174, 48, 45, 0.24);
+  color: #ff9a92;
+}
+
+.dark .upstream-pools-night .btn.btn-secondary,
+.dark .upstream-pools-night button.rounded,
+.dark .upstream-pools-night select,
+.dark .upstream-pools-night input:not([type='checkbox']):not([type='radio']),
+.dark .upstream-pools-night textarea {
+  border-color: var(--upstream-night-line-strong) !important;
+  background-color: var(--upstream-night-control) !important;
+  color: var(--upstream-night-text) !important;
+}
+
+.dark .upstream-pools-night .btn.btn-secondary:hover,
+.dark .upstream-pools-night button.rounded:hover,
+.dark .upstream-pools-night select:hover,
+.dark .upstream-pools-night input:not([type='checkbox']):not([type='radio']):hover,
+.dark .upstream-pools-night textarea:hover {
+  background-color: var(--upstream-night-control-hover) !important;
+}
+
+.dark .upstream-pools-night select option {
+  background-color: #182017;
+  color: var(--upstream-night-text);
+}
+
+.dark .upstream-pools-night .table-wrapper {
+  border: 1px solid var(--upstream-night-line);
+  border-radius: 0.75rem;
+  background: var(--upstream-night-panel);
+}
+
+.dark .upstream-pools-night .table-wrapper table {
+  color: var(--upstream-night-text);
+}
+
+.dark .upstream-pools-night .table-wrapper .table-header,
+.dark .upstream-pools-night .sticky-header-cell {
+  background-color: #23241d !important;
+  color: #cfc5b2;
+}
+
+.dark .upstream-pools-night .table-body {
+  background-color: var(--upstream-night-bg) !important;
+}
+
+.dark .upstream-pools-night .table-body tr {
+  background-color: rgba(13, 18, 14, 0.92) !important;
+}
+
+.dark .upstream-pools-night .table-body tr:hover,
+.dark .upstream-pools-night tbody tr:hover .sticky-col {
+  background-color: rgba(33, 42, 32, 0.95) !important;
+}
+
+.dark .upstream-pools-night tbody .sticky-col {
+  background-color: #10160f !important;
+}
+
+.dark .upstream-pools-night .sticky-col-right {
+  background-color: #151a14 !important;
+}
+
+.dark .upstream-pools-night .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+.dark .upstream-pools-night .dark\:divide-dark-700 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--upstream-night-line) !important;
+}
+
+.dark .upstream-pools-night .table-wrapper::-webkit-scrollbar-track {
+  background-color: rgba(229, 220, 198, 0.08) !important;
+}
+
+.dark .upstream-pools-night .table-wrapper::-webkit-scrollbar-thumb {
+  background-color: rgba(207, 197, 178, 0.72) !important;
+}
+
+.dark .upstream-pools-night .overview-metric-card {
+  background:
+    linear-gradient(180deg, rgba(229, 220, 198, 0.035), rgba(229, 220, 198, 0.012)),
+    var(--upstream-night-panel-raised) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 0 0 1px rgba(229, 220, 198, 0.04);
+}
+
+.dark .upstream-pools-night .overview-metric-label {
+  color: #9e9788;
+}
+
+.dark .upstream-pools-night .overview-metric-meta {
+  color: #b5ac99;
+}
+
+.dark .upstream-pools-night .overview-subpanel {
+  background: rgba(24, 30, 24, 0.72) !important;
+  border: 1px solid rgba(229, 220, 198, 0.08);
+}
+
+.dark .upstream-pools-night .overview-subpanel-label {
+  color: #8f8878;
+}
+
+.dark .upstream-pools-night .overview-hit-row .text-gray-700,
+.dark .upstream-pools-night .overview-hit-row .dark\:text-gray-200 {
+  color: #ddd4c2;
+}
+
+.dark .upstream-pools-night .overview-diagnostic-panel {
+  background: linear-gradient(180deg, rgba(20, 26, 20, 0.32), rgba(20, 26, 20, 0.12));
+  border-radius: 1rem;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+
+.dark .upstream-pools-night .overview-detail-button {
+  background: rgba(29, 35, 29, 0.88) !important;
+  color: #d8cfbd !important;
+  border-color: rgba(229, 220, 198, 0.16);
+}
+
+.dark .upstream-pools-night .overview-detail-button:hover {
+  background: rgba(41, 49, 41, 0.96) !important;
+  color: var(--upstream-night-text) !important;
+}
+
+.dark .upstream-pools-night .overview-signal-chip {
+  background: rgba(112, 72, 18, 0.22) !important;
+  color: #f0d99b !important;
+}
+
+.dark .upstream-pools-night .h-1\.5.bg-gray-200 {
+  background-color: rgba(229, 220, 198, 0.13);
+}
+
+.dark .upstream-pools-night .h-1\.5.bg-primary-500 {
+  background-color: var(--upstream-night-cyan);
+}
+</style>

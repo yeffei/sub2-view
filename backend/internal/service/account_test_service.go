@@ -1690,6 +1690,12 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 // RunTestBackgroundWithMode executes an account test in-memory using the
 // requested test mode, then parses the captured SSE output.
 func (s *AccountTestService) RunTestBackgroundWithMode(ctx context.Context, accountID int64, modelID string, mode string) (*ScheduledTestResult, error) {
+	if normalizeAccountTestMode(mode) == AccountTestModeLightweight {
+		if result, ok, err := s.runLightweightBackgroundTest(ctx, accountID, modelID); ok || err != nil {
+			return result, err
+		}
+	}
+
 	startedAt := time.Now()
 
 	w := httptest.NewRecorder()
@@ -1718,6 +1724,63 @@ func (s *AccountTestService) RunTestBackgroundWithMode(ctx context.Context, acco
 		StartedAt:    startedAt,
 		FinishedAt:   finishedAt,
 	}, nil
+}
+
+func (s *AccountTestService) runLightweightBackgroundTest(ctx context.Context, accountID int64, modelID string) (*ScheduledTestResult, bool, error) {
+	startedAt := time.Now()
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, true, err
+	}
+	target, ok := lightweightAccountProbeTarget(account, modelID)
+	if !ok {
+		return nil, false, nil
+	}
+	check := runAccountProbeTarget(ctx, target)
+	finishedAt := time.Now()
+	result := &ScheduledTestResult{
+		Status:     "failed",
+		StartedAt:  startedAt,
+		FinishedAt: finishedAt,
+		CreatedAt:  finishedAt,
+	}
+	if check != nil {
+		result.ErrorMessage = check.Message
+		if check.LatencyMs != nil {
+			result.LatencyMs = int64(*check.LatencyMs)
+		}
+		if isRoutableMonitorStatus(check.Status) {
+			result.Status = "success"
+		}
+	}
+	return result, true, nil
+}
+
+func lightweightAccountProbeTarget(account *Account, modelID string) (accountProbeTarget, bool) {
+	if account == nil || account.Type != AccountTypeAPIKey {
+		return accountProbeTarget{}, false
+	}
+	provider := account.Platform
+	model := strings.TrimSpace(modelID)
+	if model == "" {
+		model = probeModelForPool(provider, nil)
+	}
+	model = strings.TrimSpace(account.GetMappedModel(model))
+	if model == "" {
+		return accountProbeTarget{}, false
+	}
+	endpoint, apiKey := accountProbeEndpointAndKey(account)
+	if strings.TrimSpace(endpoint) == "" || strings.TrimSpace(apiKey) == "" {
+		return accountProbeTarget{}, false
+	}
+	return accountProbeTarget{
+		AccountID: account.ID,
+		Provider:  provider,
+		Model:     model,
+		Endpoint:  endpoint,
+		APIKey:    apiKey,
+		APIMode:   accountProbeAPIMode(account),
+	}, true
 }
 
 // parseTestSSEOutput extracts response text and error message from captured SSE output.

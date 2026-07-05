@@ -133,6 +133,58 @@ func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamPoolMember(ctx context.Context
 	return nil
 }
 
+func (r stubOpenAIUpstreamPoolRepo) ListUpstreamAccountSets(ctx context.Context) ([]UpstreamAccountSet, error) {
+	return nil, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetUpstreamAccountSetByID(ctx context.Context, id int64) (*UpstreamAccountSet, error) {
+	return nil, ErrUpstreamPoolNotFound
+}
+
+func (r stubOpenAIUpstreamPoolRepo) CreateUpstreamAccountSet(ctx context.Context, input *UpstreamAccountSet) (*UpstreamAccountSet, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) UpdateUpstreamAccountSet(ctx context.Context, input *UpstreamAccountSet) (*UpstreamAccountSet, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamAccountSet(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error) {
+	return nil, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) AddUpstreamAccountSetMembers(ctx context.Context, setID int64, accountIDs []int64) error {
+	return nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error {
+	return nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]UpstreamPoolMemberSet, error) {
+	return nil, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) GetUpstreamPoolMemberSetByID(ctx context.Context, id int64) (*UpstreamPoolMemberSet, error) {
+	return nil, ErrUpstreamPoolNotFound
+}
+
+func (r stubOpenAIUpstreamPoolRepo) CreateUpstreamPoolMemberSet(ctx context.Context, input *UpstreamPoolMemberSet) (*UpstreamPoolMemberSet, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) UpdateUpstreamPoolMemberSet(ctx context.Context, input *UpstreamPoolMemberSet) (*UpstreamPoolMemberSet, error) {
+	return input, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error {
+	return nil
+}
+
 func (r stubOpenAIUpstreamPoolRepo) ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error) {
 	return nil, nil
 }

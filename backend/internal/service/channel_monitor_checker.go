@@ -42,6 +42,9 @@ func newSSRFSafeHTTPClient(timeout time.Duration) *http.Client {
 type CheckOptions struct {
 	// APIMode 仅对 OpenAI provider 生效；空串等同 chat_completions。
 	APIMode string
+	// Lightweight 用于账号/上游池自动探针：只发极短输入、限制 1 个输出 token。
+	// 该模式只做可用性确认，不做 challenge 文本校验，避免周期探测消耗过多 token。
+	Lightweight bool
 	// ExtraHeaders 用户自定义 HTTP 头（merge 到 adapter 默认 headers，用户优先）。
 	ExtraHeaders map[string]string
 	// BodyOverrideMode: off | merge | replace
@@ -62,7 +65,7 @@ func runCheckForModel(ctx context.Context, provider, endpoint, apiKey, model str
 		CheckedAt: time.Now(),
 	}
 
-	challenge := generateChallenge()
+	challenge := generateChallengeForOptions(opts)
 	mode := bodyOverrideMode(opts)
 
 	start := time.Now()
@@ -85,13 +88,14 @@ func runCheckForModel(ctx context.Context, provider, endpoint, apiKey, model str
 		return res
 	}
 
-	// Replace 模式：跳过 challenge 校验（用户 body 是静态的，challenge 没法嵌入）。
+	// Replace / lightweight 模式：跳过 challenge 校验。
+	// lightweight 只用于账号/上游池可用性探针，请求体已压到 Hi + 1 output token。
 	// 改用「HTTP 2xx + 响应文本（adapter.textPath 抽取）非空」作为 operational 判定。
 	// 响应文本为空则降级为 failed（视为上游回了 200 但没实际内容）。
-	if mode == MonitorBodyOverrideModeReplace {
+	if mode == MonitorBodyOverrideModeReplace || isLightweightCheck(opts) {
 		if strings.TrimSpace(respText) == "" {
 			res.Status = MonitorStatusFailed
-			res.Message = truncateMessage("replace-mode: upstream returned 2xx with empty text")
+			res.Message = truncateMessage("probe returned 2xx with empty text")
 			return res
 		}
 		return finalizeOperationalOrDegraded(res, latency, latencyMs)
@@ -126,6 +130,31 @@ func bodyOverrideMode(opts *CheckOptions) string {
 	return opts.BodyOverrideMode
 }
 
+func isLightweightCheck(opts *CheckOptions) bool {
+	return opts != nil && opts.Lightweight
+}
+
+func generateChallengeForOptions(opts *CheckOptions) monitorChallenge {
+	if isLightweightCheck(opts) {
+		return monitorChallenge{Prompt: monitorLightweightPrompt, Expected: monitorLightweightPrompt}
+	}
+	return generateChallenge()
+}
+
+func monitorMaxTokensForOptions(opts *CheckOptions) int {
+	if isLightweightCheck(opts) {
+		return monitorLightweightMaxTokens
+	}
+	return monitorChallengeMaxTokens
+}
+
+func monitorInstructionsForOptions(opts *CheckOptions) string {
+	if isLightweightCheck(opts) {
+		return ""
+	}
+	return monitorChallengeInstructions
+}
+
 // pingEndpointOrigin 对 endpoint 的 origin (scheme://host) 发起 HEAD 请求，返回耗时。
 // 失败时返回 nil（不影响主状态判定）。
 func pingEndpointOrigin(ctx context.Context, endpoint string) *int {
@@ -157,7 +186,7 @@ func pingEndpointOrigin(ctx context.Context, endpoint string) *int {
 // 加新 provider 只需要在 providerAdapters 里增加一个条目，无需触碰 callProvider / validateProvider。
 type providerAdapter struct {
 	buildPath    func(model string) string
-	buildBody    func(model, prompt string) ([]byte, error)
+	buildBody    func(model, prompt string, opts *CheckOptions) ([]byte, error)
 	buildHeaders func(apiKey string) map[string]string
 	textPath     string // gjson 提取响应文本的 path
 }
@@ -169,11 +198,11 @@ var providerAdapters = map[string]providerAdapter{
 	MonitorProviderOpenAI: providerOpenAIChatAdapter,
 	MonitorProviderAnthropic: {
 		buildPath: func(string) string { return providerAnthropicPath },
-		buildBody: func(model, prompt string) ([]byte, error) {
+		buildBody: func(model, prompt string, opts *CheckOptions) ([]byte, error) {
 			return json.Marshal(map[string]any{
 				"model":      model,
 				"messages":   []map[string]string{{"role": "user", "content": prompt}},
-				"max_tokens": monitorChallengeMaxTokens,
+				"max_tokens": monitorMaxTokensForOptions(opts),
 			})
 		},
 		buildHeaders: func(apiKey string) map[string]string {
@@ -187,12 +216,12 @@ var providerAdapters = map[string]providerAdapter{
 	MonitorProviderGemini: {
 		// Gemini 把 model 名写在 URL path 上：/v1beta/models/{model}:generateContent
 		buildPath: func(model string) string { return fmt.Sprintf(providerGeminiPathTemplate, model) },
-		buildBody: func(_, prompt string) ([]byte, error) {
+		buildBody: func(_ string, prompt string, opts *CheckOptions) ([]byte, error) {
 			return json.Marshal(map[string]any{
 				"contents": []map[string]any{
 					{"parts": []map[string]any{{"text": prompt}}},
 				},
-				"generationConfig": map[string]any{"maxOutputTokens": monitorChallengeMaxTokens},
+				"generationConfig": map[string]any{"maxOutputTokens": monitorMaxTokensForOptions(opts)},
 			})
 		},
 		// 使用 x-goog-api-key header 而不是 ?key= query，避免 *url.Error 把 key 回填到错误日志。
@@ -206,13 +235,13 @@ var providerAdapters = map[string]providerAdapter{
 //nolint:gochecknoglobals // 适配器表是只读静态数据，初始化后不变更。
 var providerOpenAIChatAdapter = providerAdapter{
 	buildPath: func(string) string { return providerOpenAIPath },
-	buildBody: func(model, prompt string) ([]byte, error) {
+	buildBody: func(model, prompt string, opts *CheckOptions) ([]byte, error) {
 		return json.Marshal(map[string]any{
-			"model":      model,
-			"messages":   []map[string]string{{"role": "user", "content": prompt}},
-			"max_tokens": monitorChallengeMaxTokens,
+			"model":       model,
+			"messages":    []map[string]string{{"role": "user", "content": prompt}},
+			"max_tokens":  monitorMaxTokensForOptions(opts),
 			"temperature": 0,
-			"stream":     false,
+			"stream":      false,
 		})
 	},
 	buildHeaders: func(apiKey string) map[string]string {
@@ -224,15 +253,18 @@ var providerOpenAIChatAdapter = providerAdapter{
 //nolint:gochecknoglobals // 适配器表是只读静态数据，初始化后不变更。
 var providerOpenAIResponsesAdapter = providerAdapter{
 	buildPath: func(string) string { return providerOpenAIResponsesPath },
-	buildBody: func(model, prompt string) ([]byte, error) {
-		return json.Marshal(map[string]any{
+	buildBody: func(model, prompt string, opts *CheckOptions) ([]byte, error) {
+		body := map[string]any{
 			"model":             model,
-			"instructions":      "Reply with the exact same single word from the input. Do not add punctuation or extra words.",
 			"input":             prompt,
-			"max_output_tokens": monitorChallengeMaxTokens,
+			"max_output_tokens": monitorMaxTokensForOptions(opts),
 			"temperature":       0,
 			"stream":            false,
-		})
+		}
+		if instructions := monitorInstructionsForOptions(opts); instructions != "" {
+			body["instructions"] = instructions
+		}
+		return json.Marshal(body)
 	},
 	buildHeaders: func(apiKey string) map[string]string {
 		return map[string]string{"Authorization": "Bearer " + apiKey}
@@ -286,7 +318,110 @@ func callProvider(ctx context.Context, provider, endpoint, apiKey, model, prompt
 	if provider == MonitorProviderOpenAI && apiMode == MonitorAPIModeResponses {
 		return extractOpenAIResponsesText(respBytes), string(respBytes), status, nil
 	}
+	if provider == MonitorProviderOpenAI {
+		return extractOpenAIChatText(respBytes), string(respBytes), status, nil
+	}
 	return gjson.GetBytes(respBytes, adapter.textPath).String(), string(respBytes), status, nil
+}
+
+// extractOpenAIChatText 尽量从 OpenAI-compatible chat/completions 响应中提取最终文本。
+// 兼容三类常见变体：
+//   - 标准 chat_completions JSON（choices[].message.content / choices[].text）
+//   - responses 风格 JSON（output_text / output[].content[].text / response.output...）
+//   - text/event-stream / NDJSON 终态事件（response.completed / response.output_text.delta）
+func extractOpenAIChatText(respBytes []byte) string {
+	if text := extractOpenAIChatJSONText(respBytes); strings.TrimSpace(text) != "" {
+		return text
+	}
+	return extractOpenAIChatSSEText(respBytes)
+}
+
+func extractOpenAIChatJSONText(respBytes []byte) string {
+	if text := strings.TrimSpace(gjson.GetBytes(respBytes, "output_text").String()); text != "" {
+		return text
+	}
+	if text := strings.TrimSpace(gjson.GetBytes(respBytes, "response.output_text").String()); text != "" {
+		return text
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(respBytes, &payload); err != nil {
+		return ""
+	}
+	return extractOpenAITextFromPayload(payload)
+}
+
+func extractOpenAITextFromPayload(payload map[string]any) string {
+	if len(payload) == 0 {
+		return ""
+	}
+
+	if response, ok := payload["response"].(map[string]any); ok {
+		if text := extractOpenAITextFromPayload(response); strings.TrimSpace(text) != "" {
+			return text
+		}
+	}
+
+	if choices, ok := payload["choices"].([]any); ok {
+		for _, choice := range choices {
+			choiceMap, ok := choice.(map[string]any)
+			if !ok {
+				continue
+			}
+			if msg, ok := choiceMap["message"].(map[string]any); ok {
+				if text := strings.TrimSpace(extractTextFromContent(msg["content"])); text != "" {
+					return text
+				}
+			}
+			if delta, ok := choiceMap["delta"].(map[string]any); ok {
+				if text := strings.TrimSpace(extractTextFromContent(delta["content"])); text != "" {
+					return text
+				}
+			}
+			if text := strings.TrimSpace(stringFromAny(choiceMap["text"])); text != "" {
+				return text
+			}
+		}
+	}
+
+	if output, ok := payload["output"]; ok {
+		if encoded, err := json.Marshal(map[string]any{"output": output}); err == nil {
+			if text := strings.TrimSpace(extractOpenAIResponsesText(encoded)); text != "" {
+				return text
+			}
+		}
+	}
+
+	return ""
+}
+
+func extractOpenAIChatSSEText(respBytes []byte) string {
+	var deltas []string
+	lines := bytes.Split(respBytes, []byte("\n"))
+	for _, line := range lines {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			continue
+		}
+		if bytes.HasPrefix(line, []byte("data:")) {
+			line = bytes.TrimSpace(bytes.TrimPrefix(line, []byte("data:")))
+		}
+		if len(line) == 0 || bytes.Equal(line, []byte("[DONE]")) || line[0] != '{' {
+			continue
+		}
+
+		var event map[string]any
+		if err := json.Unmarshal(line, &event); err != nil {
+			continue
+		}
+		if text := strings.TrimSpace(extractOpenAITextFromPayload(event)); text != "" {
+			return text
+		}
+		if delta, ok := event["delta"].(string); ok && strings.TrimSpace(delta) != "" {
+			deltas = append(deltas, delta)
+		}
+	}
+	return strings.Join(deltas, "")
 }
 
 // extractOpenAIResponsesText 聚合 Responses API 的最终 assistant 文本。
@@ -375,7 +510,7 @@ func buildRequestBody(adapter providerAdapter, provider, apiMode, model, prompt 
 		return body, nil
 	}
 
-	defaultBody, err := adapter.buildBody(model, prompt)
+	defaultBody, err := adapter.buildBody(model, prompt, opts)
 	if err != nil {
 		return nil, fmt.Errorf("marshal default body: %w", err)
 	}

@@ -150,14 +150,29 @@ type BulkUpdateAccountsRequest struct {
 	ConfirmMixedChannelRisk *bool                     `json:"confirm_mixed_channel_risk"` // 用户确认混合渠道风险
 }
 
+type SyncUpstreamRateMultiplierResponse struct {
+	Account        *dto.Account                  `json:"account"`
+	RateMultiplier float64                       `json:"rate_multiplier"`
+	Source         string                        `json:"source"`
+	Upstream       UpstreamRateMultiplierMetaDTO `json:"upstream"`
+}
+
+type UpstreamRateMultiplierMetaDTO struct {
+	Platform         string `json:"platform"`
+	GroupID          *int64 `json:"group_id,omitempty"`
+	GroupName        string `json:"group_name,omitempty"`
+	RateSource       string `json:"rate_source"`
+	SubscriptionType string `json:"subscription_type,omitempty"`
+}
+
 type BulkUpdateAccountFilters struct {
-	Platform    string `json:"platform"`
-	Type        string `json:"type"`
-	Status      string `json:"status"`
+	Platform      string `json:"platform"`
+	Type          string `json:"type"`
+	Status        string `json:"status"`
 	AnomalyReason string `json:"anomaly_reason"`
-	Group       string `json:"group"`
-	Search      string `json:"search"`
-	PrivacyMode string `json:"privacy_mode"`
+	Group         string `json:"group"`
+	Search        string `json:"search"`
+	PrivacyMode   string `json:"privacy_mode"`
 }
 
 // CheckMixedChannelRequest represents check mixed channel risk request
@@ -170,7 +185,7 @@ type CheckMixedChannelRequest struct {
 // AccountWithConcurrency extends Account with real-time concurrency info
 type AccountWithConcurrency struct {
 	*dto.Account
-	CurrentConcurrency int `json:"current_concurrency"`
+	CurrentConcurrency int                   `json:"current_concurrency"`
 	Health             *AccountHealthSummary `json:"health,omitempty"`
 	// 以下字段仅对 Anthropic OAuth/SetupToken 账号有效，且仅在启用相应功能时返回
 	CurrentWindowCost *float64 `json:"current_window_cost,omitempty"` // 当前窗口费用
@@ -1744,13 +1759,13 @@ func toServiceBulkUpdateAccountFilters(filters *BulkUpdateAccountFilters) *servi
 		return nil
 	}
 	return &service.BulkUpdateAccountFilters{
-		Platform:    filters.Platform,
-		Type:        filters.Type,
-		Status:      filters.Status,
+		Platform:      filters.Platform,
+		Type:          filters.Type,
+		Status:        filters.Status,
 		AnomalyReason: filters.AnomalyReason,
-		Group:       filters.Group,
-		Search:      filters.Search,
-		PrivacyMode: filters.PrivacyMode,
+		Group:         filters.Group,
+		Search:        filters.Search,
+		PrivacyMode:   filters.PrivacyMode,
 	}
 }
 
@@ -2291,6 +2306,68 @@ func (h *AccountHandler) SyncUpstreamModels(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"models": models})
+}
+
+// SyncUpstreamRateMultiplier pulls the effective billing multiplier from a
+// compatible upstream gateway and stores it as this local account's cost rate.
+// POST /api/v1/admin/accounts/:id/rate-multiplier/sync-upstream
+func (h *AccountHandler) SyncUpstreamRateMultiplier(c *gin.Context) {
+	accountID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	account, err := h.adminService.GetAccount(c.Request.Context(), accountID)
+	if err != nil {
+		response.NotFound(c, "Account not found")
+		return
+	}
+
+	if h.accountTestService == nil {
+		response.InternalError(c, "Account test service is not configured")
+		return
+	}
+
+	meta, err := h.accountTestService.FetchCompatibleUpstreamAccountMeta(c.Request.Context(), account)
+	if err != nil {
+		var syncErr *service.UpstreamAccountMetaSyncError
+		if errors.As(err, &syncErr) {
+			switch syncErr.Kind {
+			case service.UpstreamAccountMetaSyncErrorConfiguration, service.UpstreamAccountMetaSyncErrorUnsupported:
+				response.BadRequest(c, syncErr.SafeMessage())
+			default:
+				slog.Warn("sync_upstream_rate_multiplier_failed", "account_id", accountID, "kind", syncErr.Kind)
+				response.Error(c, http.StatusBadGateway, syncErr.SafeMessage())
+			}
+			return
+		}
+
+		slog.Warn("sync_upstream_rate_multiplier_failed", "account_id", accountID)
+		response.Error(c, http.StatusBadGateway, "Failed to sync upstream rate multiplier")
+		return
+	}
+
+	updated, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
+		RateMultiplier: &meta.RateMultiplier,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, SyncUpstreamRateMultiplierResponse{
+		Account:        dto.AccountFromService(updated),
+		RateMultiplier: meta.RateMultiplier,
+		Source:         "compatible_upstream",
+		Upstream: UpstreamRateMultiplierMetaDTO{
+			Platform:         meta.Platform,
+			GroupID:          meta.GroupID,
+			GroupName:        meta.GroupName,
+			RateSource:       meta.RateSource,
+			SubscriptionType: meta.SubscriptionType,
+		},
+	})
 }
 
 // SyncUpstreamModelsPreview handles syncing live supported models using provided credentials (no account ID needed).

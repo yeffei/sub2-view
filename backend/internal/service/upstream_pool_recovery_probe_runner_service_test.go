@@ -4,13 +4,17 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai_compat"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
@@ -229,6 +233,58 @@ func (r *upstreamPoolRecoveryProbeRepoStub) DeleteUpstreamPoolMember(ctx context
 	return nil
 }
 
+func (r *upstreamPoolRecoveryProbeRepoStub) ListUpstreamAccountSets(ctx context.Context) ([]UpstreamAccountSet, error) {
+	return nil, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) GetUpstreamAccountSetByID(ctx context.Context, id int64) (*UpstreamAccountSet, error) {
+	return nil, ErrUpstreamPoolNotFound
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) CreateUpstreamAccountSet(ctx context.Context, input *UpstreamAccountSet) (*UpstreamAccountSet, error) {
+	return input, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) UpdateUpstreamAccountSet(ctx context.Context, input *UpstreamAccountSet) (*UpstreamAccountSet, error) {
+	return input, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) DeleteUpstreamAccountSet(ctx context.Context, id int64) error {
+	return nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error) {
+	return nil, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) AddUpstreamAccountSetMembers(ctx context.Context, setID int64, accountIDs []int64) error {
+	return nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) DeleteUpstreamAccountSetMember(ctx context.Context, setID, accountID int64) error {
+	return nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]UpstreamPoolMemberSet, error) {
+	return nil, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) GetUpstreamPoolMemberSetByID(ctx context.Context, id int64) (*UpstreamPoolMemberSet, error) {
+	return nil, ErrUpstreamPoolNotFound
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) CreateUpstreamPoolMemberSet(ctx context.Context, input *UpstreamPoolMemberSet) (*UpstreamPoolMemberSet, error) {
+	return input, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) UpdateUpstreamPoolMemberSet(ctx context.Context, input *UpstreamPoolMemberSet) (*UpstreamPoolMemberSet, error) {
+	return input, nil
+}
+
+func (r *upstreamPoolRecoveryProbeRepoStub) DeleteUpstreamPoolMemberSet(ctx context.Context, id int64) error {
+	return nil
+}
+
 func (r *upstreamPoolRecoveryProbeRepoStub) ListUpstreamPoolBindings(ctx context.Context) ([]UpstreamPoolBinding, error) {
 	return nil, nil
 }
@@ -300,12 +356,56 @@ func (s *upstreamPoolRecoveryProbeRateLimitStub) RecoverAccountAfterSuccessfulTe
 	return &SuccessfulTestRecoveryResult{ClearedError: true, ClearedRateLimit: true}, nil
 }
 
+type upstreamPoolRecoveryProbeHTTPHandler struct {
+	mu       sync.Mutex
+	requests []map[string]any
+}
+
+func (h *upstreamPoolRecoveryProbeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer func() { _ = r.Body.Close() }()
+	var body map[string]any
+	_ = json.NewDecoder(r.Body).Decode(&body)
+
+	h.mu.Lock()
+	h.requests = append(h.requests, body)
+	h.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if r.URL.Path == providerOpenAIResponsesPath {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"output": []map[string]any{
+				{"type": "message", "content": []map[string]any{{"type": "output_text", "text": "Hi"}}},
+			},
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"choices": []map[string]any{
+			{"message": map[string]any{"content": "Hi"}},
+		},
+	})
+}
+
+func (h *upstreamPoolRecoveryProbeHTTPHandler) bodies() []map[string]any {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	out := make([]map[string]any, len(h.requests))
+	copy(out, h.requests)
+	return out
+}
+
 func TestUpstreamPoolRecoveryProbeRunnerService_ProbesRecoverablePoolMembers(t *testing.T) {
+	swapMonitorHTTPClient(t)
+	httpHandler := &upstreamPoolRecoveryProbeHTTPHandler{}
+	httpServer := httptest.NewServer(httpHandler)
+	t.Cleanup(httpServer.Close)
+
 	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
 		accounts: map[int64]*Account{
-			101: {ID: 101, Status: StatusError, Schedulable: true, Platform: PlatformOpenAI},
-			102: {ID: 102, Status: StatusActive, Schedulable: true, Platform: PlatformOpenAI},
-			103: {ID: 103, Status: StatusActive, Schedulable: true, Platform: PlatformOpenAI, RateLimitResetAt: ptrTimeUpstreamPoolRecoveryProbe(time.Now().Add(10 * time.Minute))},
+			101: {ID: 101, Status: StatusError, Schedulable: true, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-test", "base_url": httpServer.URL}},
+			102: {ID: 102, Status: StatusActive, Schedulable: true, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-test", "base_url": httpServer.URL}},
+			103: {ID: 103, Status: StatusActive, Schedulable: true, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-test", "base_url": httpServer.URL}, RateLimitResetAt: ptrTimeUpstreamPoolRecoveryProbe(time.Now().Add(10 * time.Minute))},
 		},
 	}
 	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
@@ -330,9 +430,59 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ProbesRecoverablePoolMembers(t *
 
 	svc.runScheduled()
 
-	require.ElementsMatch(t, []int64{101, 103}, testSvc.calls)
-	require.ElementsMatch(t, []string{AccountTestModeCompact, AccountTestModeCompact}, testSvc.modes)
-	require.Equal(t, []int64{101}, rateLimitSvc.calls)
+	require.Empty(t, testSvc.calls)
+	require.Empty(t, testSvc.modes)
+	require.ElementsMatch(t, []int64{101, 103}, rateLimitSvc.calls)
+
+	bodies := httpHandler.bodies()
+	require.Len(t, bodies, 2)
+	for _, body := range bodies {
+		messages, _ := body["messages"].([]any)
+		require.Len(t, messages, 1)
+		msg, _ := messages[0].(map[string]any)
+		require.Equal(t, monitorLightweightPrompt, strings.TrimSpace(stringFromAny(msg["content"])))
+		require.Equal(t, float64(monitorLightweightMaxTokens), body["max_tokens"])
+	}
+}
+
+func TestUpstreamPoolRecoveryProbeRunnerService_ResponsesProbeUsesOnlyHiAndOneToken(t *testing.T) {
+	swapMonitorHTTPClient(t)
+	httpHandler := &upstreamPoolRecoveryProbeHTTPHandler{}
+	httpServer := httptest.NewServer(httpHandler)
+	t.Cleanup(httpServer.Close)
+
+	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
+		accounts: map[int64]*Account{
+			111: {
+				ID:           111,
+				Status:       StatusError,
+				Schedulable:  true,
+				Platform:     PlatformOpenAI,
+				Type:         AccountTypeAPIKey,
+				Credentials:  map[string]any{"api_key": "sk-test", "base_url": httpServer.URL},
+				Extra:        map[string]any{openai_compat.ExtraKeyResponsesSupported: true},
+				ErrorMessage: "runtime error",
+			},
+		},
+	}
+	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
+		pools:   []UpstreamPool{{ID: 1, Enabled: true, Platform: PlatformOpenAI}},
+		members: map[int64][]UpstreamPoolMember{1: {{AccountID: 111, Enabled: true}}},
+	}
+	testSvc := &upstreamPoolRecoveryProbeTestSvc{}
+	rateLimitSvc := &upstreamPoolRecoveryProbeRateLimitStub{}
+	svc := NewUpstreamPoolRecoveryProbeRunnerService(upstreamRepo, accountRepo, testSvc, rateLimitSvc, &config.Config{})
+
+	svc.runScheduled()
+
+	require.Empty(t, testSvc.calls)
+	require.Equal(t, []int64{111}, rateLimitSvc.calls)
+
+	bodies := httpHandler.bodies()
+	require.Len(t, bodies, 1)
+	require.Equal(t, monitorLightweightPrompt, strings.TrimSpace(stringFromAny(bodies[0]["input"])))
+	require.Equal(t, float64(monitorLightweightMaxTokens), bodies[0]["max_output_tokens"])
+	require.NotContains(t, bodies[0], "instructions")
 }
 
 func TestUpstreamPoolRecoveryProbeRunnerService_SkipsHealthyAccount(t *testing.T) {
@@ -366,6 +516,7 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ExtendsTempUnschedOnFailedProbe(
 				Status:                  StatusActive,
 				Schedulable:             true,
 				Platform:                PlatformOpenAI,
+				Type:                    AccountTypeAPIKey,
 				TempUnschedulableUntil:  ptrTimeUpstreamPoolRecoveryProbe(now.Add(30 * time.Second)),
 				TempUnschedulableReason: `{"matched_keyword":"pool_mode_5xx"}`,
 				LastUsedAt:              ptrTimeUpstreamPoolRecoveryProbe(now.Add(-10 * time.Minute)),
@@ -384,11 +535,12 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ExtendsTempUnschedOnFailedProbe(
 
 	svc.runScheduled()
 
-	require.Equal(t, []int64{301}, testSvc.calls)
+	require.Empty(t, testSvc.calls)
+	require.Empty(t, testSvc.modes)
 	require.Empty(t, rateLimitSvc.calls)
 	require.Equal(t, []int64{301}, accountRepo.tempUnschedIDs)
 	require.Len(t, accountRepo.tempReasons, 1)
-	require.Contains(t, accountRepo.tempReasons[0], "probe_failed")
+	require.Contains(t, accountRepo.tempReasons[0], "probe_error")
 	require.NotNil(t, accountRepo.accounts[301].TempUnschedulableUntil)
 	require.True(t, accountRepo.accounts[301].TempUnschedulableUntil.After(now.Add(time.Minute)))
 }
@@ -402,6 +554,7 @@ func TestUpstreamPoolRecoveryProbeRunnerService_UsesPolicyFailedProbeExtension(t
 				Status:                  StatusActive,
 				Schedulable:             true,
 				Platform:                PlatformOpenAI,
+				Type:                    AccountTypeAPIKey,
 				TempUnschedulableUntil:  ptrTimeUpstreamPoolRecoveryProbe(now.Add(30 * time.Second)),
 				TempUnschedulableReason: `{"matched_keyword":"pool_mode_5xx"}`,
 				LastUsedAt:              ptrTimeUpstreamPoolRecoveryProbe(now.Add(-10 * time.Minute)),
