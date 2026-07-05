@@ -138,6 +138,51 @@ func TestAccountTestService_OpenAISuccessPersistsSnapshotFromHeaders(t *testing.
 	require.Contains(t, recorder.Body.String(), "test_complete")
 }
 
+func TestAccountTestService_AnthropicAPIKeyBearerAuthScheme(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, recorder := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"content_block_delta","delta":{"text":"ok"}}
+
+data: {"type":"message_stop"}
+
+`))
+
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{
+		httpUpstream: upstream,
+		cfg: &config.Config{
+			Security: config.SecurityConfig{
+				URLAllowlist: config.URLAllowlistConfig{Enabled: false},
+			},
+		},
+	}
+	account := &Account{
+		ID:          91,
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeAPIKey,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "ollama-key",
+			"base_url": "https://ollama.com",
+		},
+		Extra: map[string]any{
+			"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+		},
+	}
+
+	err := svc.testClaudeAccountConnection(ctx, account, "claude-opus-4-8")
+
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "https://ollama.com/v1/messages?beta=true", upstream.requests[0].URL.String())
+	require.Equal(t, "Bearer ollama-key", upstream.requests[0].Header.Get("Authorization"))
+	require.Empty(t, upstream.requests[0].Header.Get("x-api-key"))
+	require.Contains(t, recorder.Body.String(), `"type":"content","text":"ok"`)
+	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
+}
+
 func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
