@@ -1,6 +1,6 @@
 <template>
-  <footer class="relative z-10 px-5 pb-10 sm:px-8">
-    <div class="public-site-footer-shell mx-auto flex max-w-7xl flex-col gap-3 border-t border-zen-paperLine/70 pt-5 text-[0.92rem] text-zen-mist dark:border-zen-nightLine dark:text-zen-stone sm:flex-row sm:items-center sm:justify-between">
+  <footer class="relative z-10 px-5 pb-2 sm:px-8 sm:pb-2.5">
+    <div class="public-site-footer-shell mx-auto flex max-w-7xl flex-col gap-3 border-t border-zen-paperLine/70 pt-4 text-[0.92rem] text-zen-mist dark:border-zen-nightLine dark:text-zen-stone sm:flex-row sm:items-center sm:justify-between">
       <div class="footer-note">{{ brandName }} · 统一入口，安静流转。</div>
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
         <RouterLink to="/terms" class="footer-link">条款</RouterLink>
@@ -86,5 +86,51 @@ html.dark .sst-home .footer-link {
 
 html.dark .sst-home .footer-link:hover {
   color: #efc183;
+}
+
+html.dark .sst-public .public-site-footer-shell,
+html.dark .sst-public.sst-public-tone-pricing .public-site-footer-shell,
+html.dark .sst-public.sst-public-tone-docs .public-site-footer-shell,
+html.dark .sst-public.sst-public-tone-legal .public-site-footer-shell {
+  border-top-color: rgba(173, 145, 104, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 243, 223, 0.02);
+}
+
+html.dark .sst-public .footer-note,
+html.dark .sst-public.sst-public-tone-pricing .footer-note,
+html.dark .sst-public.sst-public-tone-docs .footer-note,
+html.dark .sst-public.sst-public-tone-legal .footer-note {
+  color: #aa9980;
+}
+
+html.dark .sst-public .footer-link,
+html.dark .sst-public.sst-public-tone-pricing .footer-link,
+html.dark .sst-public.sst-public-tone-docs .footer-link,
+html.dark .sst-public.sst-public-tone-legal .footer-link {
+  color: #bda17a;
+}
+
+html.dark .sst-public .footer-link:hover,
+html.dark .sst-public.sst-public-tone-pricing .footer-link:hover,
+html.dark .sst-public.sst-public-tone-docs .footer-link:hover,
+html.dark .sst-public.sst-public-tone-legal .footer-link:hover {
+  color: #efc183;
+}
+
+html:not(.dark) .sst-public .public-site-footer-shell {
+  border-top-color: rgba(154, 128, 92, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 249, 239, 0.52);
+}
+
+html:not(.dark) .sst-public .footer-note {
+  color: #7a6a53;
+}
+
+html:not(.dark) .sst-public .footer-link {
+  color: #8f6f43;
+}
+
+html:not(.dark) .sst-public .footer-link:hover {
+  color: #a73a2a;
 }
 </style>

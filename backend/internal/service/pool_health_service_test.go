@@ -102,7 +102,7 @@ func TestPoolHealthServingStatusIgnoresPartialUnschedulableMembers(t *testing.T)
 	require.Equal(t, 50.0, detail.Availability7d)
 }
 
-func TestPoolHealthServingStatusIgnoresFailedProbeWhenHealthyMemberExists(t *testing.T) {
+func TestPoolHealthUsesFailedProbeOverHealthyMemberState(t *testing.T) {
 	now := time.Now().UTC()
 	pool := UpstreamPool{ID: 1, Name: "OpenAI Pool", Platform: PlatformOpenAI, Enabled: true}
 	bindings := []UpstreamPoolBinding{
@@ -122,7 +122,7 @@ func TestPoolHealthServingStatusIgnoresFailedProbeWhenHealthyMemberExists(t *tes
 
 	detail := buildPoolHealthDetail(pool, bindings, members, accountsByID, facts)
 
-	require.Equal(t, MonitorStatusOperational, detail.Status)
+	require.Equal(t, MonitorStatusFailed, detail.Status)
 	require.Equal(t, 2, detail.HealthyMemberCount)
 	require.Equal(t, 2, detail.TotalMemberCount)
 }

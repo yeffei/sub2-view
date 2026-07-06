@@ -103,3 +103,29 @@ func TestLogRoutingExplanationErrorUsesWarnLevel(t *testing.T) {
 		t.Fatalf("error field = %v, want no available accounts", got)
 	}
 }
+
+func TestNewPoolRoutingExplanationIncludesPoolFields(t *testing.T) {
+	explanation := newPoolRoutingExplanation("anthropic", "selection", "load_balance", &Account{
+		ID:   12,
+		Type: AccountTypeAPIKey,
+	}, 3, &UpstreamPoolResolvedBinding{
+		Pool: &UpstreamPool{
+			ID:   7,
+			Code: "claude-code",
+			Name: "Claude Code",
+		},
+	})
+
+	if explanation.Engine != "anthropic" {
+		t.Fatalf("engine = %q, want anthropic", explanation.Engine)
+	}
+	if explanation.SelectedAccountID != 12 {
+		t.Fatalf("selected account = %d, want 12", explanation.SelectedAccountID)
+	}
+	if explanation.CandidateCount != 3 {
+		t.Fatalf("candidate count = %d, want 3", explanation.CandidateCount)
+	}
+	if explanation.PoolID != 7 || explanation.PoolCode != "claude-code" || explanation.PoolName != "Claude Code" {
+		t.Fatalf("pool fields = (%d, %q, %q), want (7, claude-code, Claude Code)", explanation.PoolID, explanation.PoolCode, explanation.PoolName)
+	}
+}

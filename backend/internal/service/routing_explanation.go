@@ -140,6 +140,25 @@ func newOpenAIRoutingExplanation(
 	return explanation
 }
 
+func newPoolRoutingExplanation(engine, layer, reason string, account *Account, candidateCount int, resolved *UpstreamPoolResolvedBinding) RoutingExplanation {
+	explanation := RoutingExplanation{
+		Engine:         strings.TrimSpace(engine),
+		Layer:          strings.TrimSpace(layer),
+		Reason:         strings.TrimSpace(reason),
+		CandidateCount: candidateCount,
+	}
+	if account != nil {
+		explanation.SelectedAccountID = account.ID
+		explanation.SelectedAccountType = strings.TrimSpace(account.Type)
+	}
+	if resolved != nil && resolved.Pool != nil {
+		explanation.PoolID = resolved.Pool.ID
+		explanation.PoolCode = strings.TrimSpace(resolved.Pool.Code)
+		explanation.PoolName = strings.TrimSpace(resolved.Pool.Name)
+	}
+	return explanation
+}
+
 func cloneStringIntMap(input map[string]int) map[string]int {
 	if len(input) == 0 {
 		return nil

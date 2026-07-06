@@ -17,7 +17,7 @@
           class="pricing-platform-tab"
           :class="[activePlatform === platform.key ? 'is-active' : '', platformTabClass(platform.key)]"
           :aria-pressed="activePlatform === platform.key"
-          @click="activePlatform = platform.key"
+          @click="selectPlatform(platform.key)"
         >
           <span class="pricing-platform-icon">{{ platform.icon }}</span>
           <span class="pricing-platform-label">{{ platform.label }}</span>
@@ -25,10 +25,13 @@
       </div>
 
       <article class="pricing-ledger overflow-hidden rounded-[1.2rem] border border-zen-paperLine/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.66)_0%,rgba(251,245,236,0.78)_100%)] shadow-paper dark:border-[rgba(86,92,80,0.58)] dark:bg-[linear-gradient(180deg,rgba(13,15,13,0.98)_0%,rgba(24,21,18,0.96)_100%)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
-        <div class="pricing-group-grid px-4 py-4 sm:px-5 sm:py-5">
-          <template v-if="activePlatform === 'codex'">
+        <div
+          class="pricing-group-grid px-4 py-4 sm:px-5 sm:py-5"
+          :class="{ 'pricing-group-grid--single': activeGroups.length === 1 }"
+        >
+          <template v-if="activeGroups.length > 0">
             <section
-              v-for="group in codexGroups"
+              v-for="group in activeGroups"
               :key="group.key"
               class="pricing-group-card"
               :class="[group.key === activeGroupKey ? 'is-active' : '', groupCardClass(group.key)]"
@@ -49,7 +52,10 @@
           </section>
         </div>
 
-        <div v-if="activePlatform === 'codex'" class="pricing-table-wrap border-t border-zen-paperLine/70 bg-[linear-gradient(180deg,rgba(255,252,247,0.40)_0%,rgba(249,241,231,0.58)_100%)] dark:border-[rgba(72,78,69,0.78)] dark:bg-[linear-gradient(180deg,rgba(17,19,16,0.82)_0%,rgba(33,26,22,0.72)_100%)]">
+        <div
+          v-if="activeHasPricingRows"
+          class="pricing-table-wrap border-t border-zen-paperLine/70 bg-[linear-gradient(180deg,rgba(255,252,247,0.40)_0%,rgba(249,241,231,0.58)_100%)] dark:border-[rgba(72,78,69,0.78)] dark:bg-[linear-gradient(180deg,rgba(17,19,16,0.82)_0%,rgba(33,26,22,0.72)_100%)]"
+        >
           <div class="overflow-x-auto">
             <table class="pricing-table w-full">
               <thead>
@@ -57,11 +63,12 @@
                   <th>模型 ID</th>
                   <th>输入价格</th>
                   <th>输出价格</th>
+                  <th v-if="activePlatform === 'claude'">缓存写入</th>
                   <th>缓存读取</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr v-for="item in codexModels" :key="item.name">
+              <tbody v-if="activePlatform === 'codex'">
+                <tr v-for="item in activeModels" :key="item.name">
                   <td data-label="模型">
                     <div class="pricing-model-cell">
                       <div class="pricing-model-name-row">
@@ -77,6 +84,29 @@
                   </td>
                   <td class="pricing-value-cell" data-label="缓存读取">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.cacheReadPrice, activeGroup.multiplier)) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
+                  </td>
+                </tr>
+              </tbody>
+              <tbody v-if="activePlatform === 'claude'">
+                <tr v-for="item in activeClaudeCodeModels" :key="item.name">
+                  <td data-label="模型">
+                    <div class="pricing-model-cell">
+                      <div class="pricing-model-name-row">
+                        <span class="pricing-model-name-text">{{ item.name }}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="pricing-value-cell" data-label="输入价格">
+                    <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.inputPrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
+                  </td>
+                  <td class="pricing-value-cell" data-label="输出价格">
+                    <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.outputPrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
+                  </td>
+                  <td class="pricing-value-cell" data-label="缓存写入">
+                    <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.cacheWritePrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
+                  </td>
+                  <td class="pricing-value-cell" data-label="缓存读取">
+                    <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.cacheReadPrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
                 </tr>
               </tbody>
@@ -107,7 +137,9 @@ interface GroupRow {
   multiplier: number
 }
 
-const activePlatform = ref<'claude' | 'codex'>('codex')
+type PlatformKey = 'claude' | 'codex'
+
+const activePlatform = ref<PlatformKey>('codex')
 const activeGroupKey = ref('codex-plus')
 const perMillionScale = 1_000_000
 
@@ -127,9 +159,40 @@ const codexGroups: GroupRow[] = [
   { key: 'codex-plus', name: 'Codex Plus', subtitle: '0.16x', rateText: '0.16x', multiplier: 0.16 },
   { key: 'codex-pro', name: 'Codex Pro', subtitle: '0.45x', rateText: '0.45x', multiplier: 0.45 },
 ]
-const activeGroup = computed(() => codexGroups.find(group => group.key === activeGroupKey.value) || codexGroups[0])
 
-function platformTabClass(key: 'claude' | 'codex') {
+const claudeCodeGroups: GroupRow[] = [
+  { key: 'claude-code-max', name: 'CC MAX', subtitle: '1.8x', rateText: '1.8x', multiplier: 1.8 },
+]
+
+const claudeCodeModels = [
+  { name: 'claude-fable-5', inputPrice: 10e-6, outputPrice: 50e-6, cacheWritePrice: 12.5e-6, cacheReadPrice: 1e-6 },
+  { name: 'claude-opus-4-8', inputPrice: 5e-6, outputPrice: 25e-6, cacheWritePrice: 6.25e-6, cacheReadPrice: 0.5e-6 },
+  { name: 'claude-opus-4-7', inputPrice: 5e-6, outputPrice: 25e-6, cacheWritePrice: 6.25e-6, cacheReadPrice: 0.5e-6 },
+  { name: 'claude-opus-4-6', inputPrice: 5e-6, outputPrice: 25e-6, cacheWritePrice: 6.25e-6, cacheReadPrice: 0.5e-6 },
+]
+
+const groupsByPlatform: Record<PlatformKey, GroupRow[]> = {
+  claude: claudeCodeGroups,
+  codex: codexGroups,
+}
+
+const modelsByPlatform: Record<PlatformKey, ModelRow[]> = {
+  claude: [],
+  codex: codexModels,
+}
+
+const activeGroups = computed(() => groupsByPlatform[activePlatform.value])
+const activeModels = computed(() => modelsByPlatform[activePlatform.value])
+const activeGroup = computed(() => activeGroups.value.find(group => group.key === activeGroupKey.value) || activeGroups.value[0] || codexGroups[0])
+const activeClaudeCodeModels = computed(() => (activePlatform.value === 'claude' ? claudeCodeModels : []))
+const activeHasPricingRows = computed(() => activePlatform.value === 'codex' ? activeModels.value.length > 0 : activeClaudeCodeModels.value.length > 0)
+
+function selectPlatform(key: PlatformKey) {
+  activePlatform.value = key
+  activeGroupKey.value = groupsByPlatform[key][0]?.key || ''
+}
+
+function platformTabClass(key: PlatformKey) {
   if (activePlatform.value === key) {
     return 'border-[rgba(188,93,31,0.35)] bg-[rgba(188,93,31,0.08)] text-zen-ink shadow-[0_8px_18px_rgba(167,58,42,0.08)] dark:border-[rgba(188,93,31,0.42)] dark:bg-[linear-gradient(135deg,rgba(56,41,29,0.94),rgba(28,31,24,0.96))] dark:text-zen-paper dark:shadow-[0_12px_28px_rgba(0,0,0,0.2)]'
   }
@@ -145,10 +208,10 @@ function groupCardClass(key: string) {
   return 'hover:border-[rgba(188,93,31,0.24)] hover:bg-[rgba(188,93,31,0.03)] dark:border-[rgba(78,84,73,0.64)] dark:bg-[rgba(23,25,20,0.84)] dark:hover:border-[rgba(188,93,31,0.28)] dark:hover:bg-[rgba(41,31,24,0.84)]'
 }
 
-function formatUsdPrice(value: number | null) {
+function formatUsdPrice(value: number | null, minimumFractionDigits = 0) {
   if (value == null) return '-'
   const formatted = new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 0,
+    minimumFractionDigits,
     maximumFractionDigits: 2,
   }).format(value * perMillionScale)
   return `$${formatted}`
@@ -295,6 +358,7 @@ function scalePrice(value: number | null, multiplier: number): number | null {
 
 .pricing-ledger { position: relative; }
 .pricing-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 0.7rem; }
+.pricing-group-grid--single { grid-template-columns: minmax(15rem, min(100%, 30rem)); }
 .pricing-group-card { border: 1px solid rgba(216, 205, 185, 0.62); border-radius: 1rem; background: rgba(255, 252, 247, 0.22); padding: 0.72rem 0.92rem; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); backdrop-filter: blur(12px); transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease; }
 .pricing-group-card.is-active { border-color: rgba(196, 136, 68, 0.38); background: linear-gradient(135deg, rgba(255, 249, 241, 0.95), rgba(243, 234, 222, 0.92)); box-shadow: 0 12px 28px rgba(136, 103, 62, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5); transform: translateY(-1px); }
 .pricing-group-head { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
@@ -304,6 +368,7 @@ function scalePrice(value: number | null, multiplier: number): number | null {
 .pricing-group-badge { flex-shrink: 0; border-radius: 999px; border: 1px solid rgba(190, 150, 92, 0.28); background: rgba(205, 170, 112, 0.12); color: #9a7344; padding: 0.22rem 0.5rem; font-size: 0.76rem; font-weight: 400; }
 
 .pricing-table { border-collapse: separate; border-spacing: 0; min-width: 720px; }
+.pricing-table:has(th:nth-child(5)) { min-width: 900px; }
 .pricing-table th, .pricing-table td { padding: 1rem 1.1rem; border-top: 1px solid rgba(216, 205, 185, 0.38); text-align: left; vertical-align: top; }
 .pricing-table thead th { border-top: 1px solid rgba(216, 205, 185, 0.38); color: #8f734c; font-size: 0.76rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; }
 .pricing-model-cell { min-width: 10rem; }
@@ -619,5 +684,151 @@ html.dark .pricing-page .pricing-table tbody tr:hover {
   html.dark .pricing-page .pricing-table td::before {
     color: #b8af9a;
   }
+}
+
+html.dark .pricing-page .pricing-ledger {
+  border-color: rgba(155, 126, 86, 0.26) !important;
+  background:
+    linear-gradient(180deg, rgba(24, 27, 22, 0.88), rgba(34, 29, 23, 0.78)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px) !important;
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(245, 225, 194, 0.055) !important;
+}
+
+html.dark .pricing-page .pricing-table-wrap {
+  border-top-color: rgba(155, 126, 86, 0.22) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 226, 184, 0.035), transparent 44%),
+    linear-gradient(90deg, rgba(206, 151, 82, 0.025), transparent 28%, transparent 72%, rgba(206, 151, 82, 0.02)) !important;
+}
+
+html.dark .pricing-page .pricing-platform-tab,
+html.dark .pricing-page .pricing-group-card {
+  border-color: rgba(155, 126, 86, 0.24) !important;
+  background:
+    linear-gradient(180deg, rgba(23, 26, 21, 0.88), rgba(14, 16, 13, 0.94)),
+    radial-gradient(circle at 84% 14%, rgba(174, 102, 45, 0.08), transparent 26%) !important;
+  color: #d4c4ad !important;
+  box-shadow: inset 0 1px 0 rgba(255, 238, 210, 0.05) !important;
+}
+
+html.dark .pricing-page .pricing-platform-tab:hover,
+html.dark .pricing-page .pricing-group-card:hover {
+  border-color: rgba(194, 126, 74, 0.36) !important;
+  background:
+    linear-gradient(180deg, rgba(39, 32, 26, 0.94), rgba(18, 21, 17, 0.96)),
+    radial-gradient(circle at 84% 14%, rgba(194, 126, 74, 0.12), transparent 26%) !important;
+  color: #f3e1c7 !important;
+}
+
+html.dark .pricing-page .pricing-platform-tab.is-active,
+html.dark .pricing-page .pricing-group-card.is-active {
+  border-color: rgba(194, 126, 74, 0.5) !important;
+  background:
+    linear-gradient(135deg, rgba(58, 40, 28, 0.96), rgba(20, 24, 19, 0.96)),
+    radial-gradient(circle at 84% 14%, rgba(194, 126, 74, 0.14), transparent 26%) !important;
+  color: #f7ead4 !important;
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 238, 210, 0.06) !important;
+}
+
+html.dark .pricing-page .pricing-group-name,
+html.dark .pricing-page .pricing-model-name-text {
+  color: #f3e1c7 !important;
+}
+
+html.dark .pricing-page .pricing-group-note,
+html.dark .pricing-page .pricing-table thead th {
+  color: #d0baa0 !important;
+}
+
+html.dark .pricing-page .pricing-group-badge {
+  border-color: rgba(194, 126, 74, 0.24) !important;
+  background: rgba(194, 126, 74, 0.13) !important;
+  color: #efc183 !important;
+}
+
+html.dark .pricing-page .pricing-price-main {
+  color: #efab69 !important;
+}
+
+html.dark .pricing-page .public-cta {
+  border-color: rgba(155, 126, 86, 0.28) !important;
+  background:
+    linear-gradient(135deg, rgba(24, 27, 22, 0.84), rgba(35, 29, 23, 0.66)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px),
+    rgba(13, 15, 13, 0.5) !important;
+  box-shadow:
+    0 24px 54px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(245, 225, 194, 0.055) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-ledger {
+  border-color: rgba(154, 128, 92, 0.16) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.038), transparent 18%, rgba(144, 113, 76, 0.024) 82%, transparent),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
+    rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 14px 34px rgba(84, 57, 31, 0.05),
+    inset 0 1px 0 rgba(255, 249, 239, 0.6),
+    inset 0 -1px 0 rgba(140, 111, 76, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-table-wrap {
+  border-top-color: rgba(154, 128, 92, 0.14) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.16), transparent 42%),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.026), transparent 30%, transparent 70%, rgba(144, 113, 76, 0.018)) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-platform-tab,
+html:not(.dark) .pricing-page .pricing-group-card {
+  border-color: rgba(190, 168, 134, 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.6), rgba(244, 235, 220, 0.36)),
+    radial-gradient(circle at 84% 14%, rgba(196, 136, 68, 0.06), transparent 26%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-platform-tab:hover,
+html:not(.dark) .pricing-page .pricing-group-card:hover {
+  border-color: rgba(196, 136, 68, 0.32) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.82), rgba(244, 235, 220, 0.48)),
+    radial-gradient(circle at 84% 14%, rgba(196, 136, 68, 0.08), transparent 26%) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-platform-tab.is-active,
+html:not(.dark) .pricing-page .pricing-group-card.is-active {
+  border-color: rgba(196, 136, 68, 0.42) !important;
+  background:
+    linear-gradient(135deg, rgba(255, 249, 241, 0.95), rgba(243, 234, 222, 0.84)),
+    radial-gradient(circle at 84% 14%, rgba(196, 136, 68, 0.1), transparent 26%) !important;
+  box-shadow: 0 12px 28px rgba(136, 103, 62, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-table th,
+html:not(.dark) .pricing-page .pricing-table td {
+  border-top-color: rgba(190, 168, 134, 0.32) !important;
+}
+
+html:not(.dark) .pricing-page .pricing-table tbody tr:hover {
+  background: rgba(188, 93, 31, 0.035) !important;
+}
+
+html:not(.dark) .pricing-page .public-cta {
+  border-color: rgba(176, 150, 118, 0.44) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
+    rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 14px 34px rgba(84, 57, 31, 0.06),
+    inset 0 1px 0 rgba(255, 249, 239, 0.62) !important;
 }
 </style>

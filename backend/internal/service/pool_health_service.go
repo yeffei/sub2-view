@@ -432,13 +432,13 @@ func combinePoolMemberAndProbeStatus(memberStatus, probeStatus string) string {
 	if memberStatus == MonitorStatusError || memberStatus == MonitorStatusFailed {
 		return memberStatus
 	}
-	if memberStatus == MonitorStatusOperational {
-		return MonitorStatusOperational
+	if !isRoutableMonitorStatus(probeStatus) {
+		return probeStatus
 	}
-	if isRoutableMonitorStatus(probeStatus) && isRoutableMonitorStatus(memberStatus) {
-		return MonitorStatusOperational
+	if memberStatus != MonitorStatusOperational {
+		return memberStatus
 	}
-	return MonitorStatusDegraded
+	return probeStatus
 }
 
 func buildPoolHealthLines(

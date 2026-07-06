@@ -240,23 +240,25 @@ func isUpstreamPoolRecoverySupportedAccount(account *Account) bool {
 }
 
 func runUpstreamPoolRecoveryLightweightProbe(ctx context.Context, account *Account) *ScheduledTestResult {
-	if account == nil || account.Platform != PlatformOpenAI || account.Type != AccountTypeAPIKey {
+	if account == nil || account.Type != AccountTypeAPIKey {
 		return nil
 	}
-	endpoint := account.GetOpenAIBaseURL()
-	apiKey := account.GetOpenAIApiKey()
+	endpoint, apiKey := accountProbeEndpointAndKey(account)
 	if strings.TrimSpace(endpoint) == "" || strings.TrimSpace(apiKey) == "" {
 		return nil
 	}
 
-	model := account.GetMappedModel(probeModelForPool(PlatformOpenAI, nil))
-	opts := &CheckOptions{Lightweight: true}
+	model := account.GetMappedModel(probeModelForPool(account.Platform, nil))
+	opts := &CheckOptions{
+		Lightweight:      true,
+		APIKeyAuthScheme: accountProbeAuthScheme(account),
+	}
 	if openai_compat.ResolveResponsesSupport(account.Extra) == openai_compat.ResponsesSupportYes {
 		opts.APIMode = MonitorAPIModeResponses
 	}
 
 	started := time.Now()
-	check := runCheckForModel(ctx, MonitorProviderOpenAI, endpoint, apiKey, model, opts)
+	check := runCheckForModel(ctx, account.Platform, endpoint, apiKey, model, opts)
 	finished := time.Now()
 	status := "failed"
 	if check != nil && (check.Status == MonitorStatusOperational || check.Status == MonitorStatusDegraded) {

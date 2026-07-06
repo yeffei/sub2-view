@@ -2350,8 +2350,13 @@ func (s *OpenAIGatewayService) getResolvedPoolMemberConfigs(ctx context.Context,
 	var memberIDs map[int64]struct{}
 	var memberConfigs map[int64]UpstreamPoolResolvedMemberConfig
 	if hasBinding {
-		memberIDs = resolved.MemberIDs
-		memberConfigs = resolved.MemberConfigs
+		if resolved.Pool.Enabled {
+			memberIDs = resolved.MemberIDs
+			memberConfigs = resolved.MemberConfigs
+		} else {
+			memberIDs = map[int64]struct{}{}
+			memberConfigs = map[int64]UpstreamPoolResolvedMemberConfig{}
+		}
 	}
 	if memberIDs == nil {
 		memberIDs = map[int64]struct{}{}

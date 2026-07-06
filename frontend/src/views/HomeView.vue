@@ -15,6 +15,7 @@
   <div v-else class="sst-home min-h-screen overflow-hidden" :class="{ 'is-dark': isDark }" :style="homeBackgroundStyle">
     <div class="sst-bg" aria-hidden="true"></div>
     <div class="sst-paper" aria-hidden="true"></div>
+    <div class="sst-paper-fibers" aria-hidden="true"></div>
 
     <PublicSiteHeader />
 
@@ -284,7 +285,10 @@ onMounted(() => {
 
 :global(html.dark) .sst-home,
 .sst-home.is-dark {
-  background: #0b0d0c;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(83, 59, 33, 0.16), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(106, 54, 28, 0.12), transparent 30%),
+    #0c0d0b;
 }
 
 .sst-bg {
@@ -292,57 +296,93 @@ onMounted(() => {
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(90deg, rgba(244, 239, 228, 0.9) 0%, rgba(244, 239, 228, 0.48) 42%, rgba(244, 239, 228, 0.08) 100%),
-    linear-gradient(180deg, rgba(244, 239, 228, 0.04) 0%, rgba(244, 239, 228, 0.18) 55%, rgba(244, 239, 228, 0.38) 100%),
+    radial-gradient(ellipse at 18% 10%, rgba(255, 253, 247, 0.46), transparent 36%),
+    radial-gradient(ellipse at 82% 20%, rgba(226, 209, 176, 0.22), transparent 34%),
+    linear-gradient(90deg, rgba(244, 239, 228, 0.94) 0%, rgba(244, 239, 228, 0.58) 42%, rgba(244, 239, 228, 0.14) 100%),
+    linear-gradient(180deg, rgba(251, 246, 236, 0.2) 0%, rgba(244, 239, 228, 0.18) 55%, rgba(231, 219, 200, 0.44) 100%),
     var(--sst-home-bg);
-  background-size: cover, cover, cover;
-  background-position: center, center, center bottom;
+  background-size: cover, cover, cover, cover, cover;
+  background-position: center, center, center, center, center bottom;
   opacity: 1;
 }
 
 :global(html.dark) .sst-bg,
 .sst-home.is-dark .sst-bg {
   background-image:
-    linear-gradient(90deg, rgba(8, 10, 9, 0.92) 0%, rgba(10, 12, 11, 0.58) 42%, rgba(10, 12, 11, 0.28) 100%),
-    linear-gradient(180deg, rgba(10, 12, 11, 0.18) 0%, rgba(10, 12, 11, 0.24) 52%, rgba(10, 12, 11, 0.48) 100%),
-    radial-gradient(circle at 16% 22%, rgba(176, 132, 81, 0.08), transparent 28%),
-    radial-gradient(circle at 82% 18%, rgba(88, 59, 29, 0.08), transparent 24%),
+    radial-gradient(ellipse at 18% 12%, rgba(222, 180, 116, 0.1), transparent 34%),
+    radial-gradient(ellipse at 82% 12%, rgba(164, 82, 42, 0.13), transparent 30%),
+    linear-gradient(90deg, rgba(8, 10, 9, 0.96) 0%, rgba(10, 12, 10, 0.72) 42%, rgba(10, 12, 10, 0.34) 100%),
+    linear-gradient(180deg, rgba(13, 15, 12, 0.22) 0%, rgba(13, 15, 12, 0.32) 52%, rgba(8, 9, 8, 0.7) 100%),
     var(--sst-home-bg);
-  background-size: cover, cover, cover;
-  background-position: center, center, center bottom;
-  filter: grayscale(0.18) brightness(0.62) sepia(0.08) saturate(0.82);
+  background-size: cover, cover, cover, cover, cover;
+  background-position: center, center, center, center, center bottom;
+  filter: grayscale(0.08) brightness(0.58) sepia(0.12) saturate(0.95);
 }
 
 .sst-paper {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.16;
+  opacity: 0.22;
   background-image:
-    linear-gradient(rgba(31, 35, 32, 0.022) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(31, 35, 32, 0.018) 1px, transparent 1px);
-  background-size: 128px 128px, 128px 128px;
+    linear-gradient(rgba(90, 77, 57, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 77, 57, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0 49.6%, rgba(144, 113, 76, 0.04) 49.8% 50%, transparent 50.2% 100%);
+  background-size: 132px 132px, 132px 132px, min(78rem, 92vw) 100%;
+  background-position: center top, center top, center top;
 }
 
 .sst-paper::after {
   content: '';
   position: absolute;
   inset: 0;
-  opacity: 0.22;
+  opacity: 0.3;
   background-image:
-    radial-gradient(circle at 14% 18%, rgba(31, 35, 32, 0.06) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 72% 42%, rgba(31, 35, 32, 0.045) 0 1px, transparent 1.5px);
-  background-size: 34px 41px, 48px 57px;
+    radial-gradient(circle at 14% 18%, rgba(92, 74, 48, 0.07) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 72% 42%, rgba(92, 74, 48, 0.05) 0 0.9px, transparent 1.5px),
+    linear-gradient(90deg, rgba(87, 67, 42, 0.055), transparent 5%, transparent 95%, rgba(87, 67, 42, 0.045)),
+    linear-gradient(180deg, rgba(255, 254, 250, 0.24), transparent 15%, transparent 76%, rgba(126, 99, 63, 0.08));
+  background-size: 34px 41px, 48px 57px, 100% 100%, 100% 100%;
+}
+
+.sst-paper-fibers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  background-image:
+    repeating-linear-gradient(7deg, transparent 0 12px, rgba(113, 93, 62, 0.035) 12px 13px, transparent 13px 31px),
+    repeating-linear-gradient(96deg, transparent 0 18px, rgba(255, 255, 255, 0.24) 18px 19px, transparent 19px 44px);
+  background-size: 240px 180px, 180px 220px;
 }
 
 :global(html.dark) .sst-paper,
 .sst-home.is-dark .sst-paper {
-  opacity: 0.05;
+  opacity: 0.11;
+  background-image:
+    linear-gradient(rgba(239, 217, 179, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(239, 217, 179, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0 49.6%, rgba(217, 165, 94, 0.06) 49.8% 50%, transparent 50.2% 100%);
 }
 
 :global(html.dark) .sst-paper::after,
 .sst-home.is-dark .sst-paper::after {
-  opacity: 0.06;
+  opacity: 0.13;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(241, 217, 177, 0.06) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 72% 42%, rgba(241, 217, 177, 0.04) 0 0.9px, transparent 1.5px),
+    linear-gradient(90deg, rgba(255, 226, 176, 0.045), transparent 5%, transparent 95%, rgba(255, 226, 176, 0.036)),
+    linear-gradient(180deg, rgba(255, 236, 202, 0.05), transparent 16%, transparent 76%, rgba(0, 0, 0, 0.26));
+}
+
+:global(html.dark) .sst-paper-fibers,
+.sst-home.is-dark .sst-paper-fibers {
+  opacity: 0.09;
+  mix-blend-mode: screen;
+  background-image:
+    repeating-linear-gradient(7deg, transparent 0 12px, rgba(236, 203, 154, 0.04) 12px 13px, transparent 13px 31px),
+    repeating-linear-gradient(96deg, transparent 0 18px, rgba(255, 238, 210, 0.05) 18px 19px, transparent 19px 44px);
 }
 
 .home-title {
@@ -363,20 +403,23 @@ onMounted(() => {
 
 :global(html.dark) .home-title,
 .sst-home.is-dark .home-title {
-  color: #f4e8d7;
-  text-shadow: 0 1px 0 rgba(255, 243, 223, 0.06), 0 0 18px rgba(140, 92, 43, 0.06);
+  color: #f7ead4;
+  text-shadow:
+    0 1px 0 rgba(255, 243, 223, 0.08),
+    0 18px 44px rgba(0, 0, 0, 0.38),
+    0 0 22px rgba(176, 120, 57, 0.08);
 }
 
 :global(html.dark) .home-lead,
 .sst-home.is-dark .home-lead {
-  color: #e6d8c2;
+  color: #eadbc4;
 }
 
 :global(html.dark) .home-copy,
 :global(html.dark) .quiet-words,
 .sst-home.is-dark .home-copy,
 .sst-home.is-dark .quiet-words {
-  color: #cdbca4;
+  color: #d4c4ad;
 }
 
 .home-primary-cta {
@@ -407,16 +450,27 @@ onMounted(() => {
 
 :global(html.dark) .home-primary-cta,
 .sst-home.is-dark .home-primary-cta {
-  border-color: rgba(214, 176, 122, 0.12);
-  background: linear-gradient(135deg, rgba(236, 224, 204, 0.94), rgba(204, 183, 157, 0.9));
+  border-color: rgba(236, 208, 166, 0.22);
+  background:
+    linear-gradient(135deg, rgba(242, 229, 207, 0.98), rgba(208, 185, 154, 0.94)),
+    radial-gradient(circle at 82% 20%, rgba(180, 104, 49, 0.14), transparent 28%);
   color: #241c16;
+  box-shadow:
+    0 18px 38px rgba(0, 0, 0, 0.26),
+    0 0 0 1px rgba(255, 238, 210, 0.04),
+    inset 0 1px 0 rgba(255, 248, 236, 0.3);
 }
 
 :global(html.dark) .home-secondary-cta,
 .sst-home.is-dark .home-secondary-cta {
-  border-color: rgba(92, 84, 70, 0.5);
-  background: rgba(15, 18, 16, 0.92);
-  color: #ece0cb;
+  border-color: rgba(142, 118, 86, 0.48);
+  background:
+    linear-gradient(180deg, rgba(23, 26, 21, 0.94), rgba(14, 16, 13, 0.96)),
+    radial-gradient(circle at 84% 14%, rgba(174, 102, 45, 0.1), transparent 26%);
+  color: #efe2cf;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 238, 210, 0.06),
+    0 14px 30px rgba(0, 0, 0, 0.2);
 }
 
 .hero-visual {
@@ -474,14 +528,15 @@ onMounted(() => {
 }
 
 .sst-home.is-dark .hero-logo-image {
-  --hero-logo-opacity: 0.86;
+  --hero-logo-opacity: 0.9;
   filter:
-    brightness(0.88)
-    contrast(0.98)
-    sepia(0.08)
-    saturate(0.86)
-    drop-shadow(0 1px 0 rgba(246, 227, 195, 0.08))
-    drop-shadow(0 20px 34px rgba(0, 0, 0, 0.18));
+    brightness(0.96)
+    contrast(1.02)
+    sepia(0.1)
+    saturate(0.9)
+    drop-shadow(0 1px 0 rgba(246, 227, 195, 0.1))
+    drop-shadow(0 24px 42px rgba(0, 0, 0, 0.28))
+    drop-shadow(0 0 18px rgba(176, 120, 57, 0.08));
 }
 
 .hero-glyph-notes {
@@ -627,13 +682,15 @@ onMounted(() => {
   border: 1px solid rgba(154, 128, 92, 0.15);
   border-radius: 1.02rem;
   background:
-    linear-gradient(180deg, rgba(252, 248, 240, 0.92), rgba(244, 235, 220, 0.72)),
-    linear-gradient(90deg, rgba(144, 113, 76, 0.022), transparent 18%, rgba(144, 113, 76, 0.015) 82%, transparent),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.038), transparent 18%, rgba(144, 113, 76, 0.024) 82%, transparent),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
     rgba(255, 255, 255, 0.28);
   box-shadow:
-    0 10px 24px rgba(84, 57, 31, 0.035),
-    inset 0 1px 0 rgba(255, 249, 239, 0.52),
-    inset 0 -1px 0 rgba(140, 111, 76, 0.05);
+    0 14px 34px rgba(84, 57, 31, 0.05),
+    inset 0 1px 0 rgba(255, 249, 239, 0.6),
+    inset 0 -1px 0 rgba(140, 111, 76, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   overflow: hidden;
 }
 
@@ -645,7 +702,8 @@ onMounted(() => {
   background:
     linear-gradient(180deg, rgba(167, 58, 42, 0.028), transparent 22%),
     repeating-linear-gradient(90deg, transparent 0 28px, rgba(128, 98, 66, 0.018) 28px 29px),
-    radial-gradient(circle at 78% 18%, rgba(173, 134, 78, 0.08), transparent 18%);
+    radial-gradient(circle at 78% 18%, rgba(173, 134, 78, 0.08), transparent 18%),
+    radial-gradient(circle at 8% 12%, rgba(255, 255, 255, 0.2), transparent 22%);
 }
 
 .notice-intro,
@@ -785,6 +843,9 @@ onMounted(() => {
   grid-template-columns: minmax(0, 2.28fr) repeat(3, minmax(0, 1fr));
   gap: 0;
   border-top: 1px solid rgba(161, 139, 106, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.16), transparent 42%),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.026), transparent 30%, transparent 70%, rgba(144, 113, 76, 0.018));
 }
 
 .value-item {
@@ -880,6 +941,7 @@ onMounted(() => {
   gap: 0.9rem 1.6rem;
   padding: 0.96rem 0.1rem 0;
   border-top: 1px solid rgba(161, 139, 106, 0.08);
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.12), transparent);
 }
 
 .home-capability-note {
@@ -945,52 +1007,56 @@ onMounted(() => {
 
 :global(html.dark) .home-notice-ribbon,
 .sst-home.is-dark .home-notice-ribbon {
-  border-color: rgba(125, 100, 66, 0.18);
+  border-color: rgba(155, 126, 86, 0.26);
   background:
-    linear-gradient(135deg, rgba(18, 20, 17, 0.72), rgba(28, 24, 20, 0.52)),
-    rgba(16, 18, 16, 0.44);
+    linear-gradient(135deg, rgba(24, 27, 22, 0.82), rgba(35, 29, 23, 0.62)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px),
+    rgba(13, 15, 13, 0.5);
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.14),
-    inset 0 1px 0 rgba(245, 225, 194, 0.035);
+    0 22px 48px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(245, 225, 194, 0.055),
+    inset 0 -1px 0 rgba(130, 88, 46, 0.12);
 }
 
 :global(html.dark) .home-notice-ribbon::before,
 .sst-home.is-dark .home-notice-ribbon::before {
   background:
-    linear-gradient(180deg, rgba(167, 58, 42, 0.04), transparent 24%),
-    radial-gradient(circle at 82% 18%, rgba(176, 124, 58, 0.08), transparent 20%);
+    linear-gradient(180deg, rgba(188, 93, 31, 0.055), transparent 24%),
+    repeating-linear-gradient(90deg, transparent 0 28px, rgba(224, 188, 132, 0.018) 28px 29px),
+    radial-gradient(circle at 82% 18%, rgba(198, 139, 70, 0.12), transparent 20%),
+    radial-gradient(circle at 8% 12%, rgba(255, 235, 196, 0.045), transparent 22%);
 }
 
 :global(html.dark) .notice-intro,
 .sst-home.is-dark .notice-intro,
 :global(html.dark) .notice-item,
 .sst-home.is-dark .notice-item {
-  border-color: rgba(125, 100, 66, 0.18);
+  border-color: rgba(155, 126, 86, 0.24);
 }
 
 :global(html.dark) .notice-kicker,
 .sst-home.is-dark .notice-kicker,
 :global(html.dark) .notice-item-index,
 .sst-home.is-dark .notice-item-index {
-  color: #cfa86a;
+  color: #d9b372;
 }
 
 :global(html.dark) .notice-intro p,
 .sst-home.is-dark .notice-intro p,
 :global(html.dark) .notice-item-copy p,
 .sst-home.is-dark .notice-item-copy p {
-  color: #c8b59b;
+  color: #d2bea2;
 }
 
 :global(html.dark) .notice-item-copy h2,
 .sst-home.is-dark .notice-item-copy h2 {
-  color: #f4e7d6;
+  color: #f6e8d2;
 }
 
 :global(html.dark) .notice-item-seal,
 .sst-home.is-dark .notice-item-seal {
-  background: #b87f42;
-  box-shadow: 0 0 0 3px rgba(184, 127, 66, 0.08);
+  background: linear-gradient(135deg, #c27e4a, #9e452d);
+  box-shadow: 0 0 0 3px rgba(194, 126, 74, 0.09), 0 0 14px rgba(194, 126, 74, 0.1);
 }
 
 :global(html.dark) .notice-item:hover,
@@ -1005,26 +1071,29 @@ onMounted(() => {
 .sst-home.is-dark .home-values-board,
 :global(html.dark) .home-provider-panel,
 .sst-home.is-dark .home-provider-panel {
-  border-color: rgba(125, 100, 66, 0.16);
+  border-color: rgba(155, 126, 86, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 226, 184, 0.035), transparent 44%),
+    linear-gradient(90deg, rgba(206, 151, 82, 0.025), transparent 28%, transparent 72%, rgba(206, 151, 82, 0.02));
 }
 
 :global(html.dark) .value-index,
 .sst-home.is-dark .value-index,
 :global(html.dark) .providers-kicker,
 .sst-home.is-dark .providers-kicker {
-  color: #cfa86a;
+  color: #d8b171;
 }
 
 :global(html.dark) .value-item h2,
 .sst-home.is-dark .value-item h2,
 :global(html.dark) .provider-item,
 .sst-home.is-dark .provider-item {
-  color: #f0dfc7;
+  color: #f3e1c7;
 }
 
 :global(html.dark) .value-item-primary::after,
 .sst-home.is-dark .value-item-primary::after {
-  background: linear-gradient(90deg, rgba(184, 127, 66, 0.28), rgba(184, 127, 66, 0.02));
+  background: linear-gradient(90deg, rgba(198, 139, 70, 0.36), rgba(198, 139, 70, 0.02));
   opacity: 0.75;
 }
 
@@ -1032,7 +1101,7 @@ onMounted(() => {
 .sst-home.is-dark .value-item p,
 :global(html.dark) .capability-copy,
 .sst-home.is-dark .capability-copy {
-  color: #c8b59b;
+  color: #d0baa0;
 }
 
 :global(html.dark) .value-dot,
@@ -1041,8 +1110,8 @@ onMounted(() => {
 .sst-home.is-dark .capability-dot,
 :global(html.dark) .provider-item::before,
 .sst-home.is-dark .provider-item::before {
-  background: #b87f42;
-  color: #b87f42;
+  background: #c27e4a;
+  color: #c27e4a;
 }
 
 @keyframes heroAxisReveal {

@@ -937,6 +937,23 @@ export interface AccountHealthSummary {
   next_action?: string
 }
 
+export interface AccountMonitorSummaryLine {
+  kind: string
+  provider: string
+  model: string
+  status: string
+  latency_ms?: number | null
+  ping_latency_ms?: number | null
+  checked_at: string
+}
+
+export interface AccountMonitorSummary {
+  status: string
+  label: string
+  last_checked_at?: string | null
+  lines: AccountMonitorSummaryLine[]
+}
+
 export interface Account {
   id: number
   name: string
@@ -960,6 +977,7 @@ export interface Account {
   concurrency: number
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
+  monitor?: AccountMonitorSummary | null
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   status: 'active' | 'inactive' | 'error'

@@ -6,11 +6,12 @@
   >
     <div class="sst-public-bg" aria-hidden="true"></div>
     <div class="sst-public-paper" aria-hidden="true"></div>
+    <div class="sst-public-fibers" aria-hidden="true"></div>
     <div class="sst-public-wash" aria-hidden="true"></div>
 
     <PublicSiteHeader :nav-items="publicNavItems" />
 
-    <main class="relative z-10 px-5 pb-20 sm:px-8">
+    <main class="relative z-10 px-5 pb-10 sm:px-8 sm:pb-12">
       <section class="mx-auto grid max-w-7xl gap-12 py-12 lg:grid-cols-[minmax(0,1.03fr)_minmax(21rem,0.97fr)] lg:gap-16 lg:py-18">
         <div class="public-copy-block max-w-3xl">
           <div class="mb-7 flex items-center gap-4">
@@ -55,7 +56,7 @@
         <slot />
       </section>
 
-      <section class="mx-auto mt-10 max-w-7xl sm:mt-12">
+      <section v-if="showCta" class="public-cta-section mx-auto mt-8 max-w-7xl sm:mt-10">
         <div class="public-cta card-glass relative overflow-hidden rounded-[1.6rem] px-6 py-7 sm:px-8 sm:py-9">
           <div class="public-cta-mark" aria-hidden="true"></div>
           <div class="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -106,12 +107,14 @@ const props = withDefaults(defineProps<{
   highlights?: string[]
   tone?: 'default' | 'pricing' | 'faq' | 'docs' | 'legal'
   authenticatedActionLabel?: string
+  showCta?: boolean
 }>(), {
   eyebrow: 'SST',
   description: '',
   highlights: () => [],
   tone: 'default',
   authenticatedActionLabel: '进入控制台',
+  showCta: true,
 })
 
 const route = useRoute()
@@ -150,6 +153,8 @@ onMounted(() => {
 <style scoped>
 .sst-public {
   position: relative;
+  display: flex;
+  flex-direction: column;
   background-color: var(--sst-public-page-bg);
   color: var(--sst-public-page-fg);
   --sst-public-page-bg: #f4efe4;
@@ -181,19 +186,36 @@ onMounted(() => {
   --sst-public-dark-glow-b: rgba(167, 92, 48, 0.14);
 }
 
+.sst-public > main {
+  flex: 0 0 auto;
+}
+
+.sst-public > :deep(footer) {
+  flex: 0 0 auto;
+  margin-top: auto;
+}
+
 :global(html.dark) .sst-public,
 .sst-public.is-dark {
-  background: #111310;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(83, 59, 33, 0.16), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(106, 54, 28, 0.12), transparent 30%),
+    #0c0d0b;
   color: #f2e7d7;
-  --sst-public-panel-bg: linear-gradient(180deg, rgba(22, 24, 20, 0.9), rgba(30, 26, 22, 0.84));
-  --sst-public-panel-border: rgba(122, 104, 81, 0.56);
-  --sst-public-panel-shadow: 0 26px 68px rgba(0, 0, 0, 0.24);
-  --sst-public-chip-bg: rgba(26, 29, 24, 0.78);
-  --sst-public-chip-border: rgba(111, 95, 74, 0.62);
-  --sst-public-chip-text: #dfd1be;
-  --sst-public-cta-bg: linear-gradient(140deg, rgba(24, 26, 22, 0.94) 0%, rgba(34, 30, 25, 0.96) 58%, rgba(45, 34, 27, 0.94) 100%);
-  --sst-public-cta-border: rgba(123, 104, 81, 0.62);
-  --sst-public-cta-shadow: 0 28px 72px rgba(0, 0, 0, 0.28);
+  --sst-public-panel-bg:
+    linear-gradient(180deg, rgba(24, 27, 22, 0.88), rgba(34, 29, 23, 0.78)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px);
+  --sst-public-panel-border: rgba(155, 126, 86, 0.26);
+  --sst-public-panel-shadow: 0 22px 48px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(245, 225, 194, 0.055);
+  --sst-public-chip-bg: rgba(24, 27, 22, 0.74);
+  --sst-public-chip-border: rgba(155, 126, 86, 0.24);
+  --sst-public-chip-text: #d4c4ad;
+  --sst-public-cta-bg:
+    linear-gradient(135deg, rgba(24, 27, 22, 0.84), rgba(35, 29, 23, 0.66)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px),
+    rgba(13, 15, 13, 0.5);
+  --sst-public-cta-border: rgba(155, 126, 86, 0.28);
+  --sst-public-cta-shadow: 0 24px 54px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(245, 225, 194, 0.055);
   --sst-public-cta-primary-bg: linear-gradient(135deg, rgba(240, 228, 208, 0.96), rgba(214, 193, 165, 0.92));
   --sst-public-cta-primary-text: #241c16;
   --sst-public-cta-secondary-bg: rgba(24, 27, 22, 0.78);
@@ -216,13 +238,15 @@ onMounted(() => {
 :global(html.dark) .sst-public-bg,
 .sst-public.is-dark .sst-public-bg {
   opacity: 1;
-  filter: grayscale(0.12) brightness(0.88) contrast(1) saturate(0.9);
+  filter: grayscale(0.08) brightness(0.58) sepia(0.12) saturate(0.95);
   background-image:
-    linear-gradient(180deg, rgba(16, 18, 15, 0.64) 0%, rgba(16, 18, 15, 0.42) 36%, rgba(16, 18, 15, 0.7) 100%),
-    linear-gradient(90deg, rgba(15, 18, 15, 0.5) 0%, rgba(15, 18, 15, 0.16) 54%, rgba(15, 18, 15, 0.48) 100%),
-    radial-gradient(circle at 18% 22%, rgba(226, 214, 195, 0.13), transparent 34%),
-    radial-gradient(circle at 82% 18%, rgba(171, 101, 52, 0.18), transparent 26%),
+    radial-gradient(ellipse at 18% 12%, rgba(222, 180, 116, 0.1), transparent 34%),
+    radial-gradient(ellipse at 82% 12%, rgba(164, 82, 42, 0.13), transparent 30%),
+    linear-gradient(90deg, rgba(8, 10, 9, 0.96) 0%, rgba(10, 12, 10, 0.72) 42%, rgba(10, 12, 10, 0.34) 100%),
+    linear-gradient(180deg, rgba(13, 15, 12, 0.22) 0%, rgba(13, 15, 12, 0.32) 52%, rgba(8, 9, 8, 0.7) 100%),
     var(--sst-public-bg);
+  background-size: cover, cover, cover, cover, cover;
+  background-position: center, center, center, center, center bottom;
 }
 
 .sst-public-paper {
@@ -238,7 +262,13 @@ onMounted(() => {
 
 :global(html.dark) .sst-public-paper,
 .sst-public.is-dark .sst-public-paper {
-  opacity: 0.06;
+  opacity: 0.11;
+  background-image:
+    linear-gradient(rgba(239, 217, 179, 0.024) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(239, 217, 179, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0 49.6%, rgba(217, 165, 94, 0.06) 49.8% 50%, transparent 50.2% 100%);
+  background-size: 132px 132px, 132px 132px, min(78rem, 92vw) 100%;
+  background-position: center top, center top, center top;
 }
 
 .sst-public-paper::after {
@@ -254,7 +284,34 @@ onMounted(() => {
 
 :global(html.dark) .sst-public-paper::after,
 .sst-public.is-dark .sst-public-paper::after {
-  opacity: 0.06;
+  opacity: 0.13;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(241, 217, 177, 0.06) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 72% 42%, rgba(241, 217, 177, 0.04) 0 0.9px, transparent 1.5px),
+    linear-gradient(90deg, rgba(255, 226, 176, 0.045), transparent 5%, transparent 95%, rgba(255, 226, 176, 0.036)),
+    linear-gradient(180deg, rgba(255, 236, 202, 0.05), transparent 16%, transparent 76%, rgba(0, 0, 0, 0.26));
+  background-size: 34px 41px, 48px 57px, 100% 100%, 100% 100%;
+}
+
+.sst-public-fibers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+  background-image:
+    repeating-linear-gradient(7deg, transparent 0 12px, rgba(113, 93, 62, 0.035) 12px 13px, transparent 13px 31px),
+    repeating-linear-gradient(96deg, transparent 0 18px, rgba(255, 255, 255, 0.24) 18px 19px, transparent 19px 44px);
+  background-size: 240px 180px, 180px 220px;
+}
+
+:global(html.dark) .sst-public-fibers,
+.sst-public.is-dark .sst-public-fibers {
+  opacity: 0.09;
+  mix-blend-mode: screen;
+  background-image:
+    repeating-linear-gradient(7deg, transparent 0 12px, rgba(236, 203, 154, 0.04) 12px 13px, transparent 13px 31px),
+    repeating-linear-gradient(96deg, transparent 0 18px, rgba(255, 238, 210, 0.05) 18px 19px, transparent 19px 44px);
 }
 
 .sst-public-wash {
@@ -272,9 +329,9 @@ onMounted(() => {
 .sst-public.is-dark .sst-public-wash {
   height: 26rem;
   background:
-    radial-gradient(circle at 14% 18%, rgba(226, 211, 191, 0.045), transparent 30%),
-    radial-gradient(circle at 82% 12%, rgba(171, 101, 52, 0.12), transparent 24%),
-    linear-gradient(180deg, transparent 18%, rgba(12, 13, 11, 0.34) 100%);
+    radial-gradient(circle at 14% 18%, rgba(222, 180, 116, 0.055), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(164, 82, 42, 0.12), transparent 24%),
+    linear-gradient(180deg, transparent 18%, rgba(12, 13, 11, 0.42) 100%);
 }
 
 .sst-public-tone-pricing {
@@ -323,32 +380,35 @@ onMounted(() => {
 }
 
 :global(html.dark) .sst-public.sst-public-tone-legal {
-  background: #12100e;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(83, 59, 33, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(126, 70, 34, 0.13), transparent 30%),
+    #0c0d0b;
 }
 
 :global(html.dark) .sst-public-tone-legal .sst-public-bg {
-  filter: grayscale(0.1) brightness(0.86) contrast(1) saturate(0.92);
+  filter: grayscale(0.08) brightness(0.58) sepia(0.12) saturate(0.95);
   background-image:
-    linear-gradient(180deg, rgba(18, 16, 14, 0.66) 0%, rgba(18, 16, 14, 0.44) 36%, rgba(18, 16, 14, 0.74) 100%),
-    linear-gradient(90deg, rgba(15, 13, 12, 0.56) 0%, rgba(15, 13, 12, 0.18) 54%, rgba(15, 13, 12, 0.56) 100%),
-    radial-gradient(circle at 18% 22%, rgba(239, 220, 190, 0.13), transparent 34%),
-    radial-gradient(circle at 82% 18%, rgba(194, 129, 61, 0.22), transparent 26%),
+    radial-gradient(ellipse at 18% 12%, rgba(230, 185, 118, 0.11), transparent 34%),
+    radial-gradient(ellipse at 82% 12%, rgba(184, 94, 42, 0.14), transparent 30%),
+    linear-gradient(90deg, rgba(8, 10, 9, 0.96) 0%, rgba(10, 12, 10, 0.72) 42%, rgba(10, 12, 10, 0.34) 100%),
+    linear-gradient(180deg, rgba(13, 15, 12, 0.22) 0%, rgba(13, 15, 12, 0.32) 52%, rgba(8, 9, 8, 0.72) 100%),
     var(--sst-public-bg);
 }
 
 :global(html.dark) .sst-public-tone-legal .sst-public-paper {
-  opacity: 0.06;
+  opacity: 0.11;
 }
 
 :global(html.dark) .sst-public-tone-legal .sst-public-paper::after {
-  opacity: 0.06;
+  opacity: 0.13;
 }
 
 :global(html.dark) .sst-public-tone-legal .sst-public-wash {
   background:
-    radial-gradient(circle at 16% 18%, rgba(236, 219, 189, 0.05), transparent 26%),
-    radial-gradient(circle at 82% 10%, rgba(193, 129, 62, 0.14), transparent 22%),
-    linear-gradient(180deg, transparent 16%, rgba(12, 11, 10, 0.34) 100%);
+    radial-gradient(circle at 16% 18%, rgba(230, 185, 118, 0.06), transparent 26%),
+    radial-gradient(circle at 82% 10%, rgba(193, 129, 62, 0.13), transparent 22%),
+    linear-gradient(180deg, transparent 16%, rgba(12, 13, 11, 0.42) 100%);
 }
 
 :global(html.dark) .sst-public-tone-legal .public-display {
@@ -374,6 +434,7 @@ onMounted(() => {
 
 :global(html.dark) .public-hero-panel {
   backdrop-filter: blur(18px);
+  box-shadow: var(--sst-public-panel-shadow);
 }
 
 .public-hero-mark {
@@ -565,32 +626,40 @@ onMounted(() => {
 
 <style>
 html.dark .sst-public {
-  background: #161915 !important;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(83, 59, 33, 0.16), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(106, 54, 28, 0.12), transparent 30%),
+    #0c0d0b !important;
   color: #f3eadb;
 }
 
 html.dark .sst-public.sst-public-tone-legal {
-  background: #13110f !important;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(83, 59, 33, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(126, 70, 34, 0.13), transparent 30%),
+    #0c0d0b !important;
 }
 
 html.dark .sst-public .sst-public-bg {
   opacity: 1;
-  filter: grayscale(0.14) brightness(0.96) contrast(0.98) saturate(0.94);
+  filter: grayscale(0.08) brightness(0.58) sepia(0.12) saturate(0.95);
   background-image:
-    linear-gradient(180deg, rgba(22, 25, 21, 0.5) 0%, rgba(22, 25, 21, 0.32) 36%, rgba(22, 25, 21, 0.58) 100%),
-    linear-gradient(90deg, rgba(19, 22, 18, 0.42) 0%, rgba(19, 22, 18, 0.12) 54%, rgba(19, 22, 18, 0.44) 100%),
-    radial-gradient(circle at 18% 22%, rgba(229, 218, 202, 0.15), transparent 34%),
-    radial-gradient(circle at 82% 18%, rgba(167, 92, 48, 0.17), transparent 26%),
+    radial-gradient(ellipse at 18% 12%, rgba(222, 180, 116, 0.1), transparent 34%),
+    radial-gradient(ellipse at 82% 12%, rgba(164, 82, 42, 0.13), transparent 30%),
+    linear-gradient(90deg, rgba(8, 10, 9, 0.96) 0%, rgba(10, 12, 10, 0.72) 42%, rgba(10, 12, 10, 0.34) 100%),
+    linear-gradient(180deg, rgba(13, 15, 12, 0.22) 0%, rgba(13, 15, 12, 0.32) 52%, rgba(8, 9, 8, 0.7) 100%),
     var(--sst-public-bg);
+  background-size: cover, cover, cover, cover, cover;
+  background-position: center, center, center, center, center bottom;
 }
 
 html.dark .sst-public.sst-public-tone-legal .sst-public-bg {
-  filter: grayscale(0.1) brightness(0.92) contrast(1) saturate(0.96);
+  filter: grayscale(0.08) brightness(0.58) sepia(0.12) saturate(0.95);
   background-image:
-    linear-gradient(180deg, rgba(19, 17, 15, 0.58) 0%, rgba(19, 17, 15, 0.38) 36%, rgba(19, 17, 15, 0.66) 100%),
-    linear-gradient(90deg, rgba(15, 13, 12, 0.5) 0%, rgba(15, 13, 12, 0.16) 54%, rgba(15, 13, 12, 0.52) 100%),
-    radial-gradient(circle at 18% 22%, rgba(244, 226, 190, 0.13), transparent 34%),
-    radial-gradient(circle at 82% 18%, rgba(194, 129, 61, 0.2), transparent 26%),
+    radial-gradient(ellipse at 18% 12%, rgba(230, 185, 118, 0.11), transparent 34%),
+    radial-gradient(ellipse at 82% 12%, rgba(184, 94, 42, 0.14), transparent 30%),
+    linear-gradient(90deg, rgba(8, 10, 9, 0.96) 0%, rgba(10, 12, 10, 0.72) 42%, rgba(10, 12, 10, 0.34) 100%),
+    linear-gradient(180deg, rgba(13, 15, 12, 0.22) 0%, rgba(13, 15, 12, 0.32) 52%, rgba(8, 9, 8, 0.72) 100%),
     var(--sst-public-bg);
 }
 
@@ -610,23 +679,120 @@ html.dark .sst-public.sst-public-tone-legal .public-cta > .relative > div:first-
 
 @media (max-width: 768px) {
   html.dark .sst-public .sst-public-bg {
-    filter: grayscale(0.14) brightness(0.96) contrast(0.98) saturate(0.94);
+    filter: grayscale(0.08) brightness(0.6) sepia(0.12) saturate(0.95);
     background-image:
-      linear-gradient(180deg, rgba(22, 25, 21, 0.54) 0%, rgba(22, 25, 21, 0.3) 48%, rgba(22, 25, 21, 0.6) 100%),
-      radial-gradient(circle at 18% 22%, rgba(229, 218, 202, 0.14), transparent 34%),
-      radial-gradient(circle at 82% 18%, rgba(167, 92, 48, 0.16), transparent 26%),
+      radial-gradient(ellipse at 18% 12%, rgba(222, 180, 116, 0.1), transparent 34%),
+      radial-gradient(ellipse at 82% 12%, rgba(164, 82, 42, 0.13), transparent 30%),
+      linear-gradient(180deg, rgba(12, 14, 12, 0.82) 0%, rgba(13, 15, 12, 0.52) 48%, rgba(8, 9, 8, 0.74) 100%),
       var(--sst-public-bg);
-    background-position: center top, 58% bottom, 42% top, 58% bottom;
+    background-position: center top, center top, center top, 58% bottom;
     background-size: cover, cover, cover, auto 92%;
   }
 
   html.dark .sst-public.sst-public-tone-legal .sst-public-bg {
-    filter: grayscale(0.1) brightness(0.92) contrast(1) saturate(0.96);
+    filter: grayscale(0.08) brightness(0.6) sepia(0.12) saturate(0.95);
     background-image:
-      linear-gradient(180deg, rgba(19, 17, 15, 0.6) 0%, rgba(19, 17, 15, 0.34) 48%, rgba(19, 17, 15, 0.64) 100%),
-      radial-gradient(circle at 18% 22%, rgba(244, 226, 190, 0.14), transparent 34%),
-      radial-gradient(circle at 82% 18%, rgba(194, 129, 61, 0.2), transparent 26%),
+      radial-gradient(ellipse at 18% 12%, rgba(230, 185, 118, 0.11), transparent 34%),
+      radial-gradient(ellipse at 82% 12%, rgba(184, 94, 42, 0.14), transparent 30%),
+      linear-gradient(180deg, rgba(12, 14, 12, 0.82) 0%, rgba(13, 15, 12, 0.52) 48%, rgba(8, 9, 8, 0.76) 100%),
       var(--sst-public-bg);
+  }
+}
+
+html:not(.dark) .sst-public {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 253, 247, 0.48), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(197, 151, 83, 0.1), transparent 30%),
+    #f4efe4 !important;
+  color: #1f2320;
+  --sst-public-panel-bg:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.038), transparent 18%, rgba(144, 113, 76, 0.024) 82%, transparent),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
+    rgba(255, 255, 255, 0.28);
+  --sst-public-panel-border: rgba(154, 128, 92, 0.16);
+  --sst-public-panel-shadow:
+    0 14px 34px rgba(84, 57, 31, 0.05),
+    inset 0 1px 0 rgba(255, 249, 239, 0.6),
+    inset 0 -1px 0 rgba(140, 111, 76, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  --sst-public-chip-bg: rgba(255, 252, 246, 0.62);
+  --sst-public-chip-border: rgba(190, 168, 134, 0.42);
+  --sst-public-chip-text: #4f5750;
+  --sst-public-cta-bg:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
+    rgba(255, 255, 255, 0.28);
+  --sst-public-cta-border: rgba(176, 150, 118, 0.44);
+  --sst-public-cta-shadow:
+    0 14px 34px rgba(84, 57, 31, 0.06),
+    inset 0 1px 0 rgba(255, 249, 239, 0.62);
+  --sst-public-cta-primary-bg: linear-gradient(135deg, #28231c, #403227);
+  --sst-public-cta-primary-text: #f7f0e4;
+  --sst-public-cta-secondary-bg: rgba(255, 251, 245, 0.72);
+  --sst-public-cta-secondary-border: rgba(190, 157, 118, 0.54);
+  --sst-public-cta-secondary-text: #6f5330;
+}
+
+html:not(.dark) .sst-public .sst-public-bg {
+  filter: none;
+  background-image:
+    radial-gradient(ellipse at 18% 10%, rgba(255, 253, 247, 0.46), transparent 36%),
+    radial-gradient(ellipse at 82% 20%, rgba(226, 209, 176, 0.22), transparent 34%),
+    linear-gradient(90deg, rgba(244, 239, 228, 0.94) 0%, rgba(244, 239, 228, 0.58) 42%, rgba(244, 239, 228, 0.14) 100%),
+    linear-gradient(180deg, rgba(251, 246, 236, 0.2) 0%, rgba(244, 239, 228, 0.18) 55%, rgba(231, 219, 200, 0.44) 100%),
+    var(--sst-public-bg);
+  background-size: cover, cover, cover, cover, cover;
+  background-position: center, center, center, center, center bottom;
+}
+
+html:not(.dark) .sst-public .sst-public-paper {
+  opacity: 0.22;
+  background-image:
+    linear-gradient(rgba(90, 77, 57, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(90, 77, 57, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, transparent 0 49.6%, rgba(144, 113, 76, 0.04) 49.8% 50%, transparent 50.2% 100%);
+  background-size: 132px 132px, 132px 132px, min(78rem, 92vw) 100%;
+  background-position: center top, center top, center top;
+}
+
+html:not(.dark) .sst-public .sst-public-paper::after {
+  opacity: 0.3;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(92, 74, 48, 0.07) 0 0.8px, transparent 1.4px),
+    radial-gradient(circle at 72% 42%, rgba(92, 74, 48, 0.05) 0 0.9px, transparent 1.5px),
+    linear-gradient(90deg, rgba(87, 67, 42, 0.055), transparent 5%, transparent 95%, rgba(87, 67, 42, 0.045)),
+    linear-gradient(180deg, rgba(255, 254, 250, 0.24), transparent 15%, transparent 76%, rgba(126, 99, 63, 0.08));
+  background-size: 34px 41px, 48px 57px, 100% 100%, 100% 100%;
+}
+
+html:not(.dark) .sst-public .sst-public-fibers {
+  opacity: 0.18;
+  mix-blend-mode: multiply;
+}
+
+html:not(.dark) .sst-public .public-display {
+  color: #2f281f;
+  text-shadow: 0 1px 0 rgba(255, 248, 238, 0.55);
+}
+
+html:not(.dark) .sst-public .public-intro {
+  color: #4a3f32;
+}
+
+html:not(.dark) .sst-public .public-copy-block > div:first-child span:last-child,
+html:not(.dark) .sst-public .public-cta > .relative > div:first-child > div:first-child {
+  color: #9b7a52;
+}
+
+@media (max-width: 768px) {
+  html:not(.dark) .sst-public .sst-public-bg {
+    background-image:
+      radial-gradient(ellipse at 18% 10%, rgba(255, 253, 247, 0.44), transparent 36%),
+      linear-gradient(180deg, rgba(244, 239, 228, 0.88) 0%, rgba(244, 239, 228, 0.36) 54%, rgba(244, 239, 228, 0.18) 100%),
+      var(--sst-public-bg);
+    background-position: center top, center top, 58% bottom;
+    background-size: cover, cover, auto 92%;
   }
 }
 </style>

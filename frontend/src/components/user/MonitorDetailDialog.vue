@@ -43,11 +43,11 @@
         </div>
         <div class="pool-health-stat">
           <span>{{ t('channelStatus.detailSummary.bestLatency') }}</span>
-          <strong>{{ formatLatency(detail.best_latency_ms) }}</strong>
+          <strong>{{ formatLatencyWithUnit(detail.best_latency_ms) }}</strong>
         </div>
         <div class="pool-health-stat">
           <span>{{ t('monitorCommon.endpointPing') }}</span>
-          <strong>{{ formatLatency(detail.best_ping_latency_ms) }}</strong>
+          <strong>{{ formatLatencyWithUnit(detail.best_ping_latency_ms) }}</strong>
         </div>
       </section>
 
@@ -154,6 +154,11 @@ function statusSealClass(status: string) {
   return 'is-bad'
 }
 
+function formatLatencyWithUnit(ms: number | null | undefined) {
+  if (ms == null) return formatLatency(ms)
+  return `${formatLatency(ms)} ms`
+}
+
 </script>
 
 <style>
@@ -165,16 +170,17 @@ function statusSealClass(status: string) {
   height: auto !important;
   min-height: 0 !important;
   max-height: calc(100vh - 3rem) !important;
-  border: 1px solid rgba(190, 176, 148, 0.62);
+  border: 1px solid rgba(179, 159, 119, 0.52);
   border-radius: 1.35rem;
   background:
-    linear-gradient(90deg, rgba(122, 93, 58, 0.024) 1px, transparent 1px) 0 0 / 3.2rem 100%,
-    linear-gradient(180deg, rgba(122, 93, 58, 0.022) 1px, transparent 1px) 0 0 / 100% 3.2rem,
+    linear-gradient(90deg, rgba(122, 93, 58, 0.015) 1px, transparent 1px) 0 0 / 3.2rem 100%,
+    linear-gradient(180deg, rgba(122, 93, 58, 0.014) 1px, transparent 1px) 0 0 / 100% 3.2rem,
     radial-gradient(circle at 96% 8%, rgba(167, 58, 42, 0.05), transparent 16rem),
-    linear-gradient(180deg, #fffefa 0%, #faf4e9 100%);
+    radial-gradient(circle at 8% 4%, rgba(170, 137, 83, 0.07), transparent 15rem),
+    linear-gradient(180deg, #fffefa 0%, #faf5eb 100%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    0 28px 84px -48px rgba(48, 38, 25, 0.62);
+    0 28px 84px -50px rgba(48, 38, 25, 0.62);
 }
 
 .modal-content.pool-health-dialog::before {
@@ -183,8 +189,9 @@ function statusSealClass(status: string) {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 18% 24%, rgba(72, 56, 35, 0.035) 0 1px, transparent 1px) 0 0 / 1rem 1rem;
-  opacity: 0.34;
+    radial-gradient(circle at 18% 24%, rgba(72, 56, 35, 0.026) 0 1px, transparent 1px) 0 0 / 1rem 1rem,
+    linear-gradient(115deg, transparent 0 43%, rgba(255, 255, 255, 0.18) 48%, transparent 53% 100%);
+  opacity: 0.38;
 }
 
 .modal-header.pool-health-dialog-header {
@@ -230,11 +237,12 @@ function statusSealClass(status: string) {
   align-items: center;
   gap: 0.72rem;
   min-height: 4.85rem;
-  border: 1px solid rgba(190, 176, 148, 0.42);
+  border: 1px solid rgba(179, 159, 119, 0.34);
   border-radius: 1rem;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.58), rgba(248, 242, 231, 0.72)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.44), rgba(239, 230, 211, 0.16));
+    radial-gradient(circle at 10% 36%, rgba(81, 98, 79, 0.06), transparent 12rem),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.52), rgba(248, 242, 231, 0.64)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(239, 230, 211, 0.12));
   padding: 0.78rem 0.88rem;
   overflow: hidden;
   box-shadow:
@@ -249,10 +257,10 @@ function statusSealClass(status: string) {
   top: 0.8rem;
   bottom: 0.8rem;
   width: 1px;
-  background: rgba(167, 58, 42, 0.22);
+  background: rgba(167, 58, 42, 0.16);
   box-shadow:
-    -3.4rem 0 0 rgba(190, 176, 148, 0.16),
-    -6.8rem 0 0 rgba(190, 176, 148, 0.08);
+    -3.4rem 0 0 rgba(179, 159, 119, 0.12),
+    -6.8rem 0 0 rgba(179, 159, 119, 0.06);
 }
 
 .pool-health-seal {
@@ -315,42 +323,59 @@ function statusSealClass(status: string) {
   width: 0.55rem;
   height: 0.55rem;
   border-radius: 999px;
-  box-shadow: 0 0 0 0.26rem rgba(167, 58, 42, 0.07);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.38),
+    0 0 0 0.26rem rgba(167, 58, 42, 0.07);
 }
 
-.pool-health-status-dot.is-good,
-.pool-health-timeline-mark.is-good {
-  background: #3fa27b;
+.pool-health-status-dot.is-good {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(232, 255, 237, 0.95), transparent 0.14rem),
+    linear-gradient(135deg, #5cb897, #2e806b);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.44),
+    0 0 0 0.26rem rgba(63, 162, 123, 0.1),
+    0 0.26rem 0.8rem -0.38rem rgba(63, 162, 123, 0.7);
 }
 
-.pool-health-status-dot.is-warn,
-.pool-health-timeline-mark.is-warn {
-  background: #c0822d;
+.pool-health-status-dot.is-warn {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 244, 212, 0.95), transparent 0.14rem),
+    linear-gradient(135deg, #d39a47, #98671f);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.42),
+    0 0 0 0.26rem rgba(192, 130, 45, 0.1);
 }
 
-.pool-health-status-dot.is-bad,
-.pool-health-timeline-mark.is-bad {
-  background: #a73a2a;
+.pool-health-status-dot.is-bad {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 228, 220, 0.9), transparent 0.14rem),
+    linear-gradient(135deg, #c24a38, #8c2e24);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.36),
+    0 0 0 0.26rem rgba(167, 58, 42, 0.1);
 }
 
 .pool-health-paper-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid rgba(190, 176, 148, 0.38);
+  border: 1px solid rgba(179, 159, 119, 0.3);
   border-radius: 0.95rem;
   overflow: hidden;
-  background: rgba(255, 253, 248, 0.56);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(72, 56, 35, 0.025) 0 1px, transparent 1px) 0 0 / 1rem 1rem,
+    rgba(255, 253, 248, 0.54);
 }
 
 .pool-health-stat {
   position: relative;
   min-height: 4.35rem;
   padding: 0.62rem 0.72rem;
-  background: rgba(255, 255, 255, 0.32);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.1));
 }
 
 .pool-health-stat + .pool-health-stat {
-  border-left: 1px solid rgba(190, 176, 148, 0.32);
+  border-left: 1px solid rgba(179, 159, 119, 0.24);
 }
 
 .pool-health-stat:nth-child(4) {
@@ -358,14 +383,14 @@ function statusSealClass(status: string) {
 }
 
 .pool-health-stat:nth-child(n + 4) {
-  border-top: 1px solid rgba(190, 176, 148, 0.32);
+  border-top: 1px solid rgba(179, 159, 119, 0.24);
 }
 
 .pool-health-stat strong {
   display: block;
   margin-top: 0.68rem;
   color: #1f241b;
-  font-size: clamp(1rem, 1.5vw, 1.28rem);
+  font-size: clamp(0.98rem, 1.42vw, 1.2rem);
   line-height: 1;
   letter-spacing: -0.045em;
   font-variant-numeric: tabular-nums;
@@ -378,9 +403,11 @@ function statusSealClass(status: string) {
 }
 
 .pool-health-samples {
-  border: 1px solid rgba(190, 176, 148, 0.38);
+  border: 1px solid rgba(179, 159, 119, 0.3);
   border-radius: 0.95rem;
-  background: rgba(255, 253, 248, 0.5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.08)),
+    rgba(255, 253, 248, 0.48);
   padding: 0.68rem;
 }
 
@@ -408,11 +435,11 @@ function statusSealClass(status: string) {
   overflow: hidden;
   border-radius: 0.72rem;
   background:
-    radial-gradient(ellipse at 50% 100%, rgba(81, 98, 79, 0.06), transparent 68%),
-    linear-gradient(90deg, rgba(190, 176, 148, 0.16), transparent 1px) 0 0 / 1.25rem 100%,
-    linear-gradient(180deg, transparent 48%, rgba(122, 93, 58, 0.13) 48% 52%, transparent 52%),
+    radial-gradient(ellipse at 50% 100%, rgba(81, 98, 79, 0.045), transparent 68%),
+    linear-gradient(90deg, rgba(179, 159, 119, 0.11), transparent 1px) 0 0 / 1.25rem 100%,
+    linear-gradient(180deg, transparent 49%, rgba(122, 93, 58, 0.09) 49% 51%, transparent 51%),
     rgba(255, 255, 255, 0.38);
-  padding: 0.78rem 0.86rem;
+  padding: 0.9rem 0.86rem;
 }
 
 .pool-health-timeline::before {
@@ -431,9 +458,9 @@ function statusSealClass(status: string) {
   left: 0.86rem;
   right: 0.86rem;
   top: calc(50% + 0.34rem);
-  height: 0.24rem;
+  height: 0.18rem;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(81, 98, 79, 0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgba(81, 98, 79, 0.06), transparent);
   filter: blur(0.5px);
 }
 
@@ -442,41 +469,51 @@ function statusSealClass(status: string) {
   z-index: 1;
   display: flex;
   align-items: center;
-  gap: 0.22rem;
+  gap: 0.16rem;
   overflow: hidden;
 }
 
 .pool-health-timeline-mark {
   position: relative;
   flex: 1 1 0;
-  min-width: 0.24rem;
-  height: 0.46rem;
-  border-radius: 999px;
-  opacity: 0.9;
+  min-width: 0.16rem;
+  max-width: 0.58rem;
+  height: 1.05rem;
+  border-radius: 0.08rem;
+  opacity: 0.92;
   transform: translateZ(0);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    0 0.18rem 0.55rem -0.45rem rgba(48, 38, 25, 0.5);
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 0.22rem 0.5rem -0.45rem rgba(48, 38, 25, 0.5);
+}
+
+.pool-health-timeline-mark.is-good {
+  background: linear-gradient(180deg, #72c1a1, #3d9879);
+}
+
+.pool-health-timeline-mark.is-warn {
+  background: linear-gradient(180deg, #d7a353, #b27427);
+}
+
+.pool-health-timeline-mark.is-bad {
+  background: linear-gradient(180deg, #c85b49, #a73a2a);
 }
 
 .pool-health-timeline-mark::before {
   content: "";
   position: absolute;
-  left: 0.12rem;
-  top: 0.08rem;
-  bottom: 0.08rem;
+  left: 50%;
+  top: 0.14rem;
+  bottom: 0.14rem;
   width: 1px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateX(-50%);
 }
 
 .pool-health-timeline-mark::after {
   content: "";
-  position: absolute;
-  inset: 0.08rem 18% auto;
-  height: 1px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.32);
+  display: none;
 }
 
 .pool-health-empty {
@@ -485,19 +522,20 @@ function statusSealClass(status: string) {
 }
 
 html.dark .modal-content.pool-health-dialog {
-  border-color: rgba(91, 83, 62, 0.76);
+  border-color: rgba(118, 102, 70, 0.58);
   background:
-    linear-gradient(90deg, rgba(226, 211, 178, 0.028) 1px, transparent 1px) 0 0 / 3.2rem 100%,
-    linear-gradient(180deg, rgba(226, 211, 178, 0.024) 1px, transparent 1px) 0 0 / 100% 3.2rem,
-    radial-gradient(circle at 96% 8%, rgba(167, 58, 42, 0.09), transparent 16rem),
-    linear-gradient(180deg, rgba(20, 23, 19, 0.98), rgba(12, 15, 13, 0.98));
+    linear-gradient(90deg, rgba(226, 211, 178, 0.014) 1px, transparent 1px) 0 0 / 3.2rem 100%,
+    linear-gradient(180deg, rgba(226, 211, 178, 0.012) 1px, transparent 1px) 0 0 / 100% 3.2rem,
+    radial-gradient(circle at 96% 8%, rgba(167, 58, 42, 0.065), transparent 16rem),
+    radial-gradient(circle at 7% 0%, rgba(195, 153, 85, 0.08), transparent 14rem),
+    linear-gradient(180deg, rgba(18, 22, 18, 0.985), rgba(10, 13, 11, 0.99));
   box-shadow:
     inset 0 1px 0 rgba(255, 247, 235, 0.05),
     0 28px 90px -46px rgba(0, 0, 0, 0.9);
 }
 
 html.dark .modal-content.pool-health-dialog::before {
-  opacity: 0.3;
+  opacity: 0.23;
 }
 
 html.dark .modal-header.pool-health-dialog-header {
@@ -520,20 +558,22 @@ html.dark .pool-health-samples-head span {
 html.dark .pool-health-hero,
 html.dark .pool-health-paper-grid,
 html.dark .pool-health-samples {
-  border-color: rgba(91, 83, 62, 0.64);
-  background: rgba(25, 28, 23, 0.72);
+  border-color: rgba(112, 97, 67, 0.48);
+  background:
+    radial-gradient(circle at 16% 20%, rgba(232, 213, 173, 0.026) 0 1px, transparent 1px) 0 0 / 1rem 1rem,
+    rgba(24, 27, 22, 0.68);
 }
 
 html.dark .pool-health-stat {
-  background: linear-gradient(180deg, rgba(255, 247, 235, 0.035), rgba(255, 247, 235, 0.012));
+  background: linear-gradient(180deg, rgba(255, 247, 235, 0.026), rgba(255, 247, 235, 0.008));
 }
 
 html.dark .pool-health-stat + .pool-health-stat {
-  border-left-color: rgba(91, 83, 62, 0.56);
+  border-left-color: rgba(112, 97, 67, 0.42);
 }
 
 html.dark .pool-health-stat:nth-child(n + 4) {
-  border-top-color: rgba(91, 83, 62, 0.56);
+  border-top-color: rgba(112, 97, 67, 0.42);
 }
 
 html.dark .pool-health-seal {
@@ -542,10 +582,10 @@ html.dark .pool-health-seal {
 
 html.dark .pool-health-timeline {
   background:
-    radial-gradient(ellipse at 50% 100%, rgba(155, 197, 154, 0.055), transparent 68%),
-    linear-gradient(90deg, rgba(226, 211, 178, 0.075), transparent 1px) 0 0 / 1.25rem 100%,
-    linear-gradient(180deg, transparent 48%, rgba(226, 211, 178, 0.09) 48% 52%, transparent 52%),
-    rgba(11, 13, 12, 0.34);
+    radial-gradient(ellipse at 50% 100%, rgba(155, 197, 154, 0.045), transparent 68%),
+    linear-gradient(90deg, rgba(226, 211, 178, 0.038), transparent 1px) 0 0 / 1.25rem 100%,
+    linear-gradient(180deg, transparent 49%, rgba(226, 211, 178, 0.055) 49% 51%, transparent 51%),
+    rgba(11, 13, 12, 0.3);
 }
 
 html.dark .pool-health-samples-head strong,

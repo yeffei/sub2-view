@@ -85,6 +85,7 @@ type groupAwareStubOpenAIAccountRepo struct {
 
 type stubOpenAIUpstreamPoolRepo struct {
 	memberIDs                      map[int64]struct{}
+	poolEnabled                    *bool
 	stickyEscapeEnabled            *bool
 	stickyEscapeErrorRateThreshold float64
 	stickyEscapeTTFTMSThreshold    int
@@ -265,10 +266,17 @@ func (r stubOpenAIUpstreamPoolRepo) GetResolvedBindingByGroupAndPlatform(ctx con
 		Pool: &UpstreamPool{
 			ID:       1,
 			Platform: platform,
-			Enabled:  true,
+			Enabled:  r.resolvedPoolEnabled(),
 		},
 		MemberIDs: memberIDs,
 	}, nil
+}
+
+func (r stubOpenAIUpstreamPoolRepo) resolvedPoolEnabled() bool {
+	if r.poolEnabled == nil {
+		return true
+	}
+	return *r.poolEnabled
 }
 
 func TestOpenAIGatewayService_OpenAIRoutingMaxFailoverHops(t *testing.T) {
@@ -306,6 +314,25 @@ func TestOpenAIGatewayService_OpenAIRoutingMaxFailoverHops(t *testing.T) {
 
 		require.Equal(t, 0, svc.OpenAIRoutingMaxFailoverHops(ctx, &groupID, 7))
 	})
+}
+
+func TestOpenAIGatewayService_FilterAccountsByResolvedPool_DisabledPoolBlocksFallback(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(42)
+	disabled := false
+	svc := &OpenAIGatewayService{
+		upstreamPoolRepo: stubOpenAIUpstreamPoolRepo{
+			memberIDs:   map[int64]struct{}{101: {}},
+			poolEnabled: &disabled,
+		},
+	}
+
+	got := svc.filterAccountsByResolvedPool(ctx, &groupID, PlatformOpenAI, []Account{
+		{ID: 101, Platform: PlatformOpenAI},
+		{ID: 202, Platform: PlatformOpenAI},
+	})
+
+	require.Empty(t, got)
 }
 
 func TestGatewayService_FilterAccountsByResolvedUpstreamPool_Anthropic(t *testing.T) {
@@ -347,6 +374,7 @@ func TestGatewayService_FilterAccountsByResolvedUpstreamPool_Anthropic(t *testin
 type stubGatewayUpstreamPoolRepo struct {
 	UpstreamPoolRepository
 	platform      string
+	poolEnabled   *bool
 	memberConfigs map[int64]UpstreamPoolResolvedMemberConfig
 }
 
@@ -360,10 +388,39 @@ func (r stubGatewayUpstreamPoolRepo) GetResolvedBindingByGroupAndPlatform(ctx co
 	}
 	return &UpstreamPoolResolvedBinding{
 		Binding:       &UpstreamPoolBinding{GroupID: groupID, Platform: platform, Enabled: true},
-		Pool:          &UpstreamPool{ID: 1, Platform: platform, Enabled: true},
+		Pool:          &UpstreamPool{ID: 1, Platform: platform, Enabled: r.resolvedPoolEnabled()},
 		MemberIDs:     memberIDs,
 		MemberConfigs: r.memberConfigs,
 	}, nil
+}
+
+func (r stubGatewayUpstreamPoolRepo) resolvedPoolEnabled() bool {
+	if r.poolEnabled == nil {
+		return true
+	}
+	return *r.poolEnabled
+}
+
+func TestGatewayService_FilterAccountsByResolvedUpstreamPool_DisabledPoolBlocksFallback(t *testing.T) {
+	ctx := context.Background()
+	groupID := int64(42)
+	disabled := false
+	svc := &GatewayService{
+		upstreamPoolRepo: stubGatewayUpstreamPoolRepo{
+			platform:    PlatformAnthropic,
+			poolEnabled: &disabled,
+			memberConfigs: map[int64]UpstreamPoolResolvedMemberConfig{
+				2: {AccountID: 2, Weight: 100},
+			},
+		},
+	}
+
+	got := svc.filterAccountsByResolvedUpstreamPool(ctx, &groupID, PlatformAnthropic, []Account{
+		{ID: 1, Platform: PlatformAnthropic},
+		{ID: 2, Platform: PlatformAnthropic},
+	})
+
+	require.Empty(t, got)
 }
 
 func TestOpenAIGatewayService_OpenAIRoutingPoolMode5xxCooldown(t *testing.T) {

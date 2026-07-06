@@ -5,6 +5,7 @@
     eyebrow="隐私"
     title="隐私政策"
     intro=""
+    :show-cta="false"
   >
       <section class="privacy-main-grid mt-10 grid gap-8 lg:gap-8">
         <aside class="self-start">
@@ -340,6 +341,11 @@ onMounted(() => {
 .privacy-main-grid {
   max-width: 60rem;
   grid-template-columns: minmax(0, 11.4rem) minmax(0, 1fr);
+}
+
+.privacy-main-grid > *,
+.privacy-article {
+  min-width: 0;
 }
 
 .privacy-lead {
@@ -760,6 +766,134 @@ html.dark .privacy-table > :first-child {
 html.dark .privacy-table-row {
   background: rgba(29, 31, 26, 0.72) !important;
   border-top-color: rgba(96, 89, 75, 0.58) !important;
+}
+
+html.dark .privacy-article {
+  border-color: rgba(155, 126, 86, 0.26) !important;
+  background:
+    linear-gradient(180deg, rgba(24, 27, 22, 0.88), rgba(34, 29, 23, 0.78)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px) !important;
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(245, 225, 194, 0.055) !important;
+}
+
+html.dark .privacy-page .privacy-card,
+html.dark .privacy-page .privacy-notice,
+html.dark .privacy-page .privacy-table,
+html.dark .privacy-page .privacy-table-row {
+  border-color: rgba(155, 126, 86, 0.24) !important;
+  background:
+    linear-gradient(180deg, rgba(23, 26, 21, 0.88), rgba(14, 16, 13, 0.94)),
+    radial-gradient(circle at 84% 14%, rgba(174, 102, 45, 0.08), transparent 26%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 238, 210, 0.05) !important;
+}
+
+html.dark .privacy-page .privacy-notice {
+  background:
+    linear-gradient(135deg, rgba(35, 29, 23, 0.88), rgba(24, 27, 22, 0.84)),
+    radial-gradient(circle at 84% 18%, rgba(194, 126, 74, 0.13), transparent 28%) !important;
+}
+
+html.dark .privacy-page .privacy-table > :first-child {
+  background:
+    linear-gradient(180deg, rgba(39, 32, 26, 0.9), rgba(24, 27, 22, 0.88)) !important;
+}
+
+html.dark .privacy-page .privacy-title,
+html.dark .privacy-page .privacy-card-title,
+html.dark .privacy-page .privacy-notice-title,
+html.dark .privacy-page .privacy-table-row > :first-child,
+html.dark .privacy-page .privacy-main-grid li strong {
+  color: #f6e8d2 !important;
+}
+
+html.dark .privacy-page .privacy-copy,
+html.dark .privacy-page .privacy-card-copy,
+html.dark .privacy-page .privacy-notice-copy,
+html.dark .privacy-page .privacy-main-grid li,
+html.dark .privacy-page .privacy-table-row p {
+  color: #d0baa0 !important;
+}
+
+html.dark .privacy-page .privacy-kicker,
+html.dark .privacy-page .privacy-table > :first-child span,
+html.dark .privacy-page .privacy-main-grid > aside > div > div:first-child,
+html.dark .privacy-page .public-copy-block > div:first-child span:last-child {
+  color: #d8b171 !important;
+}
+
+html.dark .privacy-page .privacy-toc-link {
+  color: #d4c4ad !important;
+}
+
+html.dark .privacy-page .privacy-toc-link:hover,
+html.dark .privacy-page .privacy-toc-link-active {
+  color: #efc183 !important;
+}
+
+html.dark .privacy-page .privacy-toc-link-active {
+  border-left-color: rgba(194, 126, 74, 0.72) !important;
+  background: linear-gradient(90deg, rgba(194, 126, 74, 0.16), rgba(194, 126, 74, 0.04)) !important;
+}
+
+html.dark .privacy-page .privacy-card-icon {
+  background: rgba(194, 126, 74, 0.13) !important;
+  color: #efc183 !important;
+}
+
+html:not(.dark) .privacy-article {
+  border-color: rgba(154, 128, 92, 0.16) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.038), transparent 18%, rgba(144, 113, 76, 0.024) 82%, transparent),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
+    rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 14px 34px rgba(84, 57, 31, 0.05),
+    inset 0 1px 0 rgba(255, 249, 239, 0.6),
+    inset 0 -1px 0 rgba(140, 111, 76, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+html:not(.dark) .privacy-page .privacy-card,
+html:not(.dark) .privacy-page .privacy-notice,
+html:not(.dark) .privacy-page .privacy-table,
+html:not(.dark) .privacy-page .privacy-table-row {
+  border-color: rgba(190, 168, 134, 0.42) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.58), rgba(244, 235, 220, 0.34)),
+    radial-gradient(circle at 84% 14%, rgba(196, 136, 68, 0.06), transparent 26%) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42) !important;
+}
+
+html:not(.dark) .privacy-page .privacy-notice {
+  background:
+    linear-gradient(135deg, rgba(255, 252, 247, 0.78), rgba(249, 240, 230, 0.58)),
+    radial-gradient(circle at 84% 18%, rgba(196, 136, 68, 0.08), transparent 28%) !important;
+}
+
+html:not(.dark) .privacy-page .privacy-table > :first-child {
+  background: rgba(255, 252, 246, 0.48) !important;
+}
+
+html:not(.dark) .privacy-page .privacy-toc-link {
+  color: #4a524a !important;
+}
+
+html:not(.dark) .privacy-page .privacy-toc-link:hover,
+html:not(.dark) .privacy-page .privacy-toc-link-active {
+  color: #b95d1f !important;
+}
+
+html:not(.dark) .privacy-page .privacy-toc-link-active {
+  border-left-color: rgba(185, 93, 31, 0.74) !important;
+  background: linear-gradient(90deg, rgba(185, 93, 31, 0.07), rgba(185, 93, 31, 0.02)) !important;
+}
+
+html:not(.dark) .privacy-page .privacy-card-icon {
+  background: rgba(188, 93, 31, 0.1) !important;
+  color: #b95d1f !important;
 }
 </style>
 

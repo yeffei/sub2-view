@@ -61,10 +61,18 @@
               <span class="badge badge-gray">{{ platformLabel(value) }}</span>
             </template>
 
-            <template #cell-enabled="{ value }">
-              <span :class="['badge', value ? 'badge-success' : 'badge-danger']">
-                {{ value ? '启用' : '停用' }}
-              </span>
+            <template #cell-enabled="{ row }">
+              <button
+                type="button"
+                :class="['pool-status-toggle', row.enabled ? 'is-enabled' : 'is-disabled']"
+                :disabled="isPoolStatusToggling(row.id)"
+                :title="row.enabled ? `点击关闭上游池 ${row.name}` : `点击启用上游池 ${row.name}`"
+                :aria-label="row.enabled ? `关闭上游池 ${row.name}` : `启用上游池 ${row.name}`"
+                @click.stop="togglePoolEnabled(row)"
+              >
+                <span class="pool-status-toggle__dot" aria-hidden="true"></span>
+                <span>{{ isPoolStatusToggling(row.id) ? '处理中' : (row.enabled ? '启用' : '关闭') }}</span>
+              </button>
             </template>
 
             <template #cell-sticky_enabled="{ value }">
@@ -436,7 +444,7 @@
                   v-if="!poolRoutingObservabilitySupported"
                   class="rounded-lg border border-dashed border-gray-300 px-3 py-3 text-xs text-gray-500 dark:border-dark-600 dark:text-gray-400"
                 >
-                  当前仅对 OpenAI 池提供路由观测。
+                  当前仅对 OpenAI / Anthropic 池提供路由观测。
                 </div>
                 <template v-else>
                   <div class="grid gap-4 sm:grid-cols-3">
@@ -468,7 +476,7 @@
           </div>
           <div class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
             <span class="font-medium">恢复探针</span>
-            <span>自动探测异常/可恢复成员；每分钟扫描，近 2 分钟内刚用过的成员先跳过；成功后自动恢复调度。</span>
+            <span>自动探测异常/可恢复成员；每分钟扫描，近 2 分钟内刚用过的成员先跳过；API Key 优先使用轻量 Hi 探针，运行态同时参考 Claude Code 与 OpenAI 最近探针。</span>
           </div>
           <DataTable :columns="memberColumns" :data="members" :loading="membersLoading" :row-key="poolMemberRowKey">
             <template #cell-account_name="{ row, value }">
@@ -1246,6 +1254,7 @@ const accountSetMembersLoading = ref(false)
 const memberSetsLoading = ref(false)
 const bindingsLoading = ref(false)
 const syncingMembers = ref(false)
+const togglingPoolStatusIds = ref<Set<number>>(new Set())
 const accountSetMembersPagination = ref({ page: 1, page_size: 10, total: 0 })
 const poolRoutingObservability = ref<PoolRoutingObservabilityState>({
   loading: false,
@@ -1352,8 +1361,9 @@ const boolSelectOptions = [
 ]
 
 const poolAccountSyncPlatforms = new Set(['openai', 'anthropic'])
+const poolRoutingObservabilityPlatforms = new Set(['openai', 'anthropic'])
 const canSyncSelectedPool = computed(() => poolAccountSyncPlatforms.has(selectedPool.value?.platform || ''))
-const poolRoutingObservabilitySupported = computed(() => selectedPool.value?.platform === 'openai')
+const poolRoutingObservabilitySupported = computed(() => poolRoutingObservabilityPlatforms.has(selectedPool.value?.platform || ''))
 const memberAccountNameMap = computed(() =>
   new Map(
     members.value.map(member => [
@@ -1678,6 +1688,18 @@ const formatRateThreshold = (value?: number | null) => {
   return value.toFixed(2)
 }
 
+const isPoolStatusToggling = (poolID: number) => togglingPoolStatusIds.value.has(poolID)
+
+function setPoolStatusToggling(poolID: number, toggling: boolean) {
+  const next = new Set(togglingPoolStatusIds.value)
+  if (toggling) {
+    next.add(poolID)
+  } else {
+    next.delete(poolID)
+  }
+  togglingPoolStatusIds.value = next
+}
+
 const formatPercent = (value?: number | null) => {
   if (typeof value !== 'number' || Number.isNaN(value) || value < 0) return '-'
   return `${Math.round(value * 100)}%`
@@ -1995,7 +2017,7 @@ function selectAccountSet(item: UpstreamAccountSet) {
 }
 
 async function loadPoolObservability(pool: UpstreamPool) {
-  if (pool.platform !== 'openai') {
+  if (!poolRoutingObservabilityPlatforms.has(pool.platform)) {
     poolRoutingObservability.value = { loading: false, total: 0, logs: [] }
     return
   }
@@ -2201,6 +2223,36 @@ async function submitPool() {
     appStore.showError(extractApiErrorMessage(error, '保存上游池失败'))
   } finally {
     submitting.value = false
+  }
+}
+
+async function togglePoolEnabled(pool: UpstreamPool) {
+  if (isPoolStatusToggling(pool.id)) return
+
+  const previousEnabled = pool.enabled
+  const nextEnabled = !previousEnabled
+  const replacePool = (nextPool: UpstreamPool) => {
+    pools.value = pools.value.map(item => (item.id === nextPool.id ? nextPool : item))
+    if (selectedPool.value?.id === nextPool.id) {
+      selectedPool.value = nextPool
+    }
+    if (editingPool.value?.id === nextPool.id) {
+      editingPool.value = nextPool
+      poolForm.value.enabled = nextPool.enabled
+    }
+  }
+
+  setPoolStatusToggling(pool.id, true)
+  replacePool({ ...pool, enabled: nextEnabled })
+  try {
+    const updatedPool = await adminAPI.upstreamPools.update(pool.id, { enabled: nextEnabled })
+    replacePool(updatedPool)
+    appStore.showSuccess(nextEnabled ? '上游池已启用' : '上游池已关闭')
+  } catch (error) {
+    replacePool({ ...pool, enabled: previousEnabled })
+    appStore.showError(extractApiErrorMessage(error, nextEnabled ? '启用上游池失败' : '关闭上游池失败'))
+  } finally {
+    setPoolStatusToggling(pool.id, false)
   }
 }
 
@@ -2665,6 +2717,59 @@ onMounted(loadAll)
   border: 1px solid rgba(215, 200, 166, 0.22);
 }
 
+.pool-status-toggle {
+  display: inline-flex;
+  min-width: 4.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.22rem 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.25;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.pool-status-toggle:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.pool-status-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+}
+
+.pool-status-toggle:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.pool-status-toggle.is-enabled {
+  border-color: rgba(16, 185, 129, 0.28);
+  background-color: rgba(16, 185, 129, 0.12);
+  color: rgb(4, 120, 87);
+}
+
+.pool-status-toggle.is-disabled {
+  border-color: rgba(239, 68, 68, 0.26);
+  background-color: rgba(239, 68, 68, 0.1);
+  color: rgb(185, 28, 28);
+}
+
+.pool-status-toggle__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background-color: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
+}
 
 </style>
 
@@ -2820,6 +2925,22 @@ onMounted(loadAll)
 .dark .upstream-pools-night .badge-danger {
   background-color: rgba(174, 48, 45, 0.24);
   color: #ff9a92;
+}
+
+.dark .upstream-pools-night .pool-status-toggle.is-enabled {
+  border-color: rgba(105, 224, 180, 0.32);
+  background-color: rgba(20, 148, 104, 0.22);
+  color: #69e0b4;
+}
+
+.dark .upstream-pools-night .pool-status-toggle.is-disabled {
+  border-color: rgba(255, 154, 146, 0.3);
+  background-color: rgba(174, 48, 45, 0.24);
+  color: #ff9a92;
+}
+
+.dark .upstream-pools-night .pool-status-toggle:focus-visible {
+  box-shadow: 0 0 0 3px rgba(65, 215, 199, 0.18);
 }
 
 .dark .upstream-pools-night .btn.btn-secondary,

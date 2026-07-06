@@ -190,6 +190,33 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardStreamPreservesBodyAnd
 	require.Empty(t, rec.Header().Get("Set-Cookie"), "响应头应经过安全过滤")
 }
 
+func TestGatewayService_AnthropicAPIKeyPassthrough_RequestErrorTriggersFailover(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	upstream := &anthropicHTTPUpstreamRecorder{err: context.DeadlineExceeded}
+	svc := &GatewayService{
+		httpUpstream: upstream,
+	}
+	account := newAnthropicAPIKeyAccountForTest()
+	parsed := &ParsedRequest{
+		Body:   NewRequestBodyRef([]byte(`{"model":"claude-fable-5","stream":false,"max_tokens":1,"messages":[{"role":"user","content":"Hi"}]}`)),
+		Model:  "claude-fable-5",
+		Stream: false,
+	}
+
+	result, err := svc.Forward(context.Background(), c, account, parsed)
+
+	require.Nil(t, result)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr, "network errors before client output must trigger account failover")
+	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.False(t, rec.Body.Len() > 0, "service must not write a terminal 502 before handler can switch accounts")
+}
+
 func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardCountTokensPreservesBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1107,9 +1134,10 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_UpstreamRequest
 
 	result, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, account, []byte(`{"model":"x"}`), "x", "x", false, time.Now())
 	require.Nil(t, result)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "upstream request failed")
-	require.Equal(t, http.StatusBadGateway, rec.Code)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.False(t, rec.Body.Len() > 0, "request errors should let handler switch accounts before writing a response")
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_ForwardDirect_EmptyResponseBody(t *testing.T) {

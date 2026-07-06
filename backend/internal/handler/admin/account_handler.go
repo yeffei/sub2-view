@@ -11,6 +11,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -58,6 +59,7 @@ type AccountHandler struct {
 	sessionLimitCache       service.SessionLimitCache
 	rpmCache                service.RPMCache
 	tokenCacheInvalidator   service.TokenCacheInvalidator
+	accountMonitorRepo      service.AccountMonitorRepository
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -91,6 +93,13 @@ func NewAccountHandler(
 		rpmCache:                rpmCache,
 		tokenCacheInvalidator:   tokenCacheInvalidator,
 	}
+}
+
+func (h *AccountHandler) SetAccountMonitorRepository(repo service.AccountMonitorRepository) {
+	if h == nil {
+		return
+	}
+	h.accountMonitorRepo = repo
 }
 
 // CreateAccountRequest represents create account request
@@ -185,12 +194,30 @@ type CheckMixedChannelRequest struct {
 // AccountWithConcurrency extends Account with real-time concurrency info
 type AccountWithConcurrency struct {
 	*dto.Account
-	CurrentConcurrency int                   `json:"current_concurrency"`
-	Health             *AccountHealthSummary `json:"health,omitempty"`
+	CurrentConcurrency int                    `json:"current_concurrency"`
+	Health             *AccountHealthSummary  `json:"health,omitempty"`
+	Monitor            *AccountMonitorSummary `json:"monitor,omitempty"`
 	// 以下字段仅对 Anthropic OAuth/SetupToken 账号有效，且仅在启用相应功能时返回
 	CurrentWindowCost *float64 `json:"current_window_cost,omitempty"` // 当前窗口费用
 	ActiveSessions    *int     `json:"active_sessions,omitempty"`     // 当前活跃会话数
 	CurrentRPM        *int     `json:"current_rpm,omitempty"`         // 当前分钟 RPM 计数
+}
+
+type AccountMonitorSummary struct {
+	Status        string                      `json:"status"`
+	Label         string                      `json:"label"`
+	LastCheckedAt *time.Time                  `json:"last_checked_at,omitempty"`
+	Lines         []AccountMonitorSummaryLine `json:"lines"`
+}
+
+type AccountMonitorSummaryLine struct {
+	Kind          string    `json:"kind"`
+	Provider      string    `json:"provider"`
+	Model         string    `json:"model"`
+	Status        string    `json:"status"`
+	LatencyMs     *int      `json:"latency_ms,omitempty"`
+	PingLatencyMs *int      `json:"ping_latency_ms,omitempty"`
+	CheckedAt     time.Time `json:"checked_at"`
 }
 
 type AccountHealthSummary struct {
@@ -244,7 +271,9 @@ func (h *AccountHandler) buildAccountResponseWithRuntime(ctx context.Context, ac
 		}
 	}
 
-	item.Health = buildAccountHealthSummary(account, item.CurrentConcurrency, item.CurrentWindowCost, item.ActiveSessions, item.CurrentRPM)
+	monitorSummaries := h.loadAccountMonitorSummaries(ctx, []int64{account.ID})
+	item.Monitor = monitorSummaries[account.ID]
+	item.Health = buildAccountHealthSummary(account, item.CurrentConcurrency, item.CurrentWindowCost, item.ActiveSessions, item.CurrentRPM, item.Monitor)
 
 	return item
 }
@@ -255,6 +284,7 @@ func buildAccountHealthSummary(
 	currentWindowCost *float64,
 	activeSessions *int,
 	currentRPM *int,
+	monitor *AccountMonitorSummary,
 ) *AccountHealthSummary {
 	if account == nil {
 		return nil
@@ -353,6 +383,15 @@ func buildAccountHealthSummary(
 		}
 	}
 
+	if monitor != nil && monitor.Status != "" {
+		switch monitor.Status {
+		case service.MonitorStatusFailed, service.MonitorStatusError:
+			addReason(45, "最近监控探针失败："+monitor.Label, "检查该账号对应上游池的 Claude Code / OpenAI 探针结果")
+		case service.MonitorStatusDegraded:
+			addReason(18, "最近监控探针降级："+monitor.Label, "观察探针延迟和错误趋势")
+		}
+	}
+
 	if score < 0 {
 		score = 0
 	}
@@ -377,6 +416,110 @@ func buildAccountHealthSummary(
 		Label:      label,
 		Reasons:    reasons,
 		NextAction: nextAction,
+	}
+}
+
+func (h *AccountHandler) loadAccountMonitorSummaries(ctx context.Context, accountIDs []int64) map[int64]*AccountMonitorSummary {
+	out := make(map[int64]*AccountMonitorSummary, len(accountIDs))
+	if h == nil || h.accountMonitorRepo == nil || len(accountIDs) == 0 {
+		return out
+	}
+	latest, err := h.accountMonitorRepo.ListLatestForAccountIDs(ctx, accountIDs)
+	if err != nil {
+		slog.Warn("admin_accounts: load monitor latest failed", "error", err)
+		return out
+	}
+	for _, accountID := range accountIDs {
+		rows := latest[accountID]
+		if len(rows) == 0 {
+			continue
+		}
+		out[accountID] = buildAccountMonitorSummary(rows)
+	}
+	return out
+}
+
+func buildAccountMonitorSummary(rows []*service.AccountMonitorLatest) *AccountMonitorSummary {
+	lines := make([]AccountMonitorSummaryLine, 0, len(rows))
+	status := ""
+	var lastCheckedAt *time.Time
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		checkedAt := row.CheckedAt
+		if lastCheckedAt == nil || checkedAt.After(*lastCheckedAt) {
+			lastCheckedAt = &checkedAt
+		}
+		status = worseAccountMonitorStatus(status, row.Status)
+		lines = append(lines, AccountMonitorSummaryLine{
+			Kind:          accountMonitorLineKind(row.Provider),
+			Provider:      row.Provider,
+			Model:         row.Model,
+			Status:        row.Status,
+			LatencyMs:     row.LatencyMs,
+			PingLatencyMs: row.PingLatencyMs,
+			CheckedAt:     row.CheckedAt,
+		})
+	}
+	sort.SliceStable(lines, func(i, j int) bool {
+		if lines[i].Kind != lines[j].Kind {
+			return lines[i].Kind < lines[j].Kind
+		}
+		return lines[i].CheckedAt.After(lines[j].CheckedAt)
+	})
+	return &AccountMonitorSummary{
+		Status:        status,
+		Label:         accountMonitorStatusLabel(status),
+		LastCheckedAt: lastCheckedAt,
+		Lines:         lines,
+	}
+}
+
+func accountMonitorLineKind(provider string) string {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case service.PlatformAnthropic:
+		return "claude_code"
+	case service.PlatformOpenAI:
+		return "openai"
+	default:
+		return strings.ToLower(strings.TrimSpace(provider))
+	}
+}
+
+func worseAccountMonitorStatus(current, next string) string {
+	rank := func(status string) int {
+		switch status {
+		case service.MonitorStatusError:
+			return 5
+		case service.MonitorStatusFailed:
+			return 4
+		case service.MonitorStatusDegraded:
+			return 3
+		case service.MonitorStatusOperational:
+			return 2
+		default:
+			return 1
+		}
+	}
+	if rank(next) > rank(current) {
+		return next
+	}
+	return current
+}
+
+func accountMonitorStatusLabel(status string) string {
+	switch status {
+	case service.MonitorStatusOperational:
+		return "探针正常"
+	case service.MonitorStatusDegraded:
+		return "探针降级"
+	case service.MonitorStatusFailed:
+		return "探针失败"
+	case service.MonitorStatusError:
+		return "探针异常"
+	default:
+		return "暂无探针"
 	}
 }
 
@@ -505,6 +648,7 @@ func (h *AccountHandler) List(c *gin.Context) {
 		}
 		_ = g.Wait()
 	}
+	monitorSummaries := h.loadAccountMonitorSummaries(c.Request.Context(), accountIDs)
 
 	// Build response with concurrency info
 	result := make([]AccountWithConcurrency, len(accounts))
@@ -536,7 +680,8 @@ func (h *AccountHandler) List(c *gin.Context) {
 			}
 		}
 
-		item.Health = buildAccountHealthSummary(acc, item.CurrentConcurrency, item.CurrentWindowCost, item.ActiveSessions, item.CurrentRPM)
+		item.Monitor = monitorSummaries[acc.ID]
+		item.Health = buildAccountHealthSummary(acc, item.CurrentConcurrency, item.CurrentWindowCost, item.ActiveSessions, item.CurrentRPM, item.Monitor)
 
 		result[i] = item
 	}

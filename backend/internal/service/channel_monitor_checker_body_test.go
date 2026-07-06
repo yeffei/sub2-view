@@ -229,6 +229,19 @@ func TestRunCheckForModel_Anthropic_LightweightUsesHiAndOneToken(t *testing.T) {
 	}
 }
 
+func TestRunCheckForModel_Anthropic_LightweightAcceptsEmptyText2xx(t *testing.T) {
+	h := &captureHandler{respondText: ""}
+	endpoint := setupFakeAnthropic(t, h)
+
+	res := runCheckForModel(context.Background(), MonitorProviderAnthropic, endpoint, "sk-fake", "claude-x", &CheckOptions{
+		Lightweight: true,
+	})
+
+	if res.Status != MonitorStatusOperational {
+		t.Fatalf("lightweight anthropic 2xx probe should pass even with empty text, got status=%s message=%q", res.Status, res.Message)
+	}
+}
+
 func TestRunCheckForModel_Gemini_LightweightUsesHiAndOneToken(t *testing.T) {
 	h := &geminiCaptureHandler{}
 	endpoint := setupFakeGemini(t, h)

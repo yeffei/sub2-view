@@ -90,11 +90,15 @@ func runCheckForModel(ctx context.Context, provider, endpoint, apiKey, model str
 		return res
 	}
 
-	// Replace / lightweight 模式：跳过 challenge 校验。
 	// lightweight 只用于账号/上游池可用性探针，请求体已压到 Hi + 1 output token。
-	// 改用「HTTP 2xx + 响应文本（adapter.textPath 抽取）非空」作为 operational 判定。
-	// 响应文本为空则降级为 failed（视为上游回了 200 但没实际内容）。
-	if mode == MonitorBodyOverrideModeReplace || isLightweightCheck(opts) {
+	// 此时目标是低成本确认上游可达，部分兼容上游会返回 2xx 但无文本 delta，
+	// 因此 2xx 即视为探针通过；严格内容校验只保留给普通 challenge 检测。
+	if isLightweightCheck(opts) {
+		return finalizeOperationalOrDegraded(res, latency, latencyMs)
+	}
+
+	// Replace 模式：跳过 challenge 校验，但仍要求响应文本非空。
+	if mode == MonitorBodyOverrideModeReplace {
 		if strings.TrimSpace(respText) == "" {
 			res.Status = MonitorStatusFailed
 			res.Message = truncateMessage("probe returned 2xx with empty text")

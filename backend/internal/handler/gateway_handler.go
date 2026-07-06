@@ -408,6 +408,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			// 转发请求 - 根据账号平台分流
 			var result *service.ForwardResult
 			requestCtx := c.Request.Context()
+			requestCtx = h.gatewayService.WithResolvedUpstreamPoolBindingForRoutingContext(requestCtx, apiKey.GroupID, account.Platform)
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 			}
@@ -768,6 +769,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			c.Set("parsed_request", attemptParsedReq)
 			var result *service.ForwardResult
 			requestCtx := c.Request.Context()
+			requestCtx = h.gatewayService.WithResolvedUpstreamPoolBindingForRoutingContext(requestCtx, currentAPIKey.GroupID, account.Platform)
 			if fs.SwitchCount > 0 {
 				requestCtx = service.WithAccountSwitchCount(requestCtx, fs.SwitchCount, h.metadataBridgeEnabled())
 			}

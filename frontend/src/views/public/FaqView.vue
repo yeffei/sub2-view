@@ -131,4 +131,54 @@ html.dark .sst-public.sst-public-tone-faq .hover\:bg-white\/52:hover,
 html.dark .sst-public.sst-public-tone-faq .dark\:hover\:bg-zen-nightPanel\/70:hover {
   background: linear-gradient(180deg, rgba(44, 34, 28, 0.9), rgba(27, 30, 24, 0.9));
 }
+
+html.dark .sst-public.sst-public-tone-faq .card-glass,
+html.dark .sst-public.sst-public-tone-faq .rounded-\[1\.08rem\],
+html.dark .sst-public.sst-public-tone-faq .rounded-\[1\.2rem\] {
+  border-color: rgba(155, 126, 86, 0.24) !important;
+  background:
+    linear-gradient(180deg, rgba(24, 27, 22, 0.88), rgba(34, 29, 23, 0.78)),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(230, 194, 142, 0.025) 33px 34px) !important;
+  box-shadow:
+    0 22px 48px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(245, 225, 194, 0.055) !important;
+}
+
+html.dark .sst-public.sst-public-tone-faq .text-zen-ink,
+html.dark .sst-public.sst-public-tone-faq h2,
+html.dark .sst-public.sst-public-tone-faq h3 {
+  color: #f6e8d2 !important;
+}
+
+html.dark .sst-public.sst-public-tone-faq .text-zen-mist,
+html.dark .sst-public.sst-public-tone-faq p {
+  color: #d0baa0 !important;
+}
+
+html:not(.dark) .sst-public.sst-public-tone-faq .card-glass,
+html:not(.dark) .sst-public.sst-public-tone-faq .rounded-\[1\.08rem\],
+html:not(.dark) .sst-public.sst-public-tone-faq .rounded-\[1\.2rem\] {
+  border-color: rgba(154, 128, 92, 0.16) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.78), rgba(244, 235, 220, 0.58)),
+    linear-gradient(90deg, rgba(144, 113, 76, 0.038), transparent 18%, rgba(144, 113, 76, 0.024) 82%, transparent),
+    repeating-linear-gradient(0deg, transparent 0 33px, rgba(139, 107, 68, 0.022) 33px 34px),
+    rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 14px 34px rgba(84, 57, 31, 0.05),
+    inset 0 1px 0 rgba(255, 249, 239, 0.6),
+    inset 0 -1px 0 rgba(140, 111, 76, 0.07),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22) !important;
+}
+
+html:not(.dark) .sst-public.sst-public-tone-faq .text-zen-ink,
+html:not(.dark) .sst-public.sst-public-tone-faq h2,
+html:not(.dark) .sst-public.sst-public-tone-faq h3 {
+  color: #2f281f !important;
+}
+
+html:not(.dark) .sst-public.sst-public-tone-faq .text-zen-mist,
+html:not(.dark) .sst-public.sst-public-tone-faq p {
+  color: #5f685c !important;
+}
 </style>

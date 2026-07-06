@@ -587,6 +587,7 @@ type adminServiceImpl struct {
 	privacyClientFactory PrivacyClientFactory
 	openAIAccountRuntime OpenAIAccountRuntimeObserver
 	runtimeBlocker       AccountRuntimeBlocker
+	accountMonitorRepo   AccountMonitorRepository
 }
 
 type userGroupRateBatchReader interface {
@@ -638,6 +639,13 @@ func NewAdminService(
 		openAIAccountRuntime: openAIAccountRuntime,
 		runtimeBlocker:       runtimeBlocker,
 	}
+}
+
+func (s *adminServiceImpl) SetAccountMonitorRepository(repo AccountMonitorRepository) {
+	if s == nil {
+		return
+	}
+	s.accountMonitorRepo = repo
 }
 
 func (s *adminServiceImpl) ListUpstreamPools(ctx context.Context) ([]UpstreamPool, error) {
@@ -812,6 +820,12 @@ func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID i
 	if s.openAIAccountRuntime != nil && len(accountIDs) > 0 {
 		runtimeSnapshots = s.openAIAccountRuntime.SnapshotOpenAIAccountRuntime(accountIDs)
 	}
+	monitorLatest := map[int64][]*AccountMonitorLatest{}
+	if s.accountMonitorRepo != nil && len(accountIDs) > 0 {
+		if latest, err := s.accountMonitorRepo.ListLatestForAccountIDs(ctx, accountIDs); err == nil {
+			monitorLatest = latest
+		}
+	}
 	for i := range members {
 		account := accountMap[members[i].AccountID]
 		if account == nil {
@@ -827,6 +841,11 @@ func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID i
 		members[i].RuntimeOverloadUntil = account.OverloadUntil
 		members[i].RuntimeTempUnschedulableUntil = account.TempUnschedulableUntil
 		members[i].RuntimeStatus, members[i].RuntimeReason = summarizeUpstreamPoolMemberRuntime(account)
+		members[i].RuntimeStatus, members[i].RuntimeReason = summarizeUpstreamPoolMemberRuntimeWithMonitor(
+			members[i].RuntimeStatus,
+			members[i].RuntimeReason,
+			monitorLatest[members[i].AccountID],
+		)
 		if snapshot, ok := runtimeSnapshots[members[i].AccountID]; ok {
 			errorRate := snapshot.ErrorRate
 			members[i].RuntimeErrorRate = &errorRate
@@ -868,6 +887,65 @@ func summarizeUpstreamPoolMemberRuntime(account *Account) (string, string) {
 		return "healthy", "正常参与调度"
 	}
 	return "degraded", "当前未进入可调度状态"
+}
+
+func summarizeUpstreamPoolMemberRuntimeWithMonitor(baseStatus, baseReason string, latest []*AccountMonitorLatest) (string, string) {
+	if len(latest) == 0 {
+		return baseStatus, baseReason
+	}
+	status := ""
+	kinds := make([]string, 0, len(latest))
+	for _, row := range latest {
+		if row == nil {
+			continue
+		}
+		status = worseUpstreamPoolMemberMonitorStatus(status, row.Status)
+		kinds = append(kinds, upstreamPoolMemberMonitorKind(row.Provider, row.Model, row.Status))
+	}
+	if status == "" || status == MonitorStatusOperational {
+		if baseStatus == "healthy" && len(kinds) > 0 {
+			return baseStatus, "最近探针正常：" + strings.Join(kinds, " / ")
+		}
+		return baseStatus, baseReason
+	}
+	reason := strings.TrimSpace("最近探针未通过：" + strings.Join(kinds, " / "))
+	if reason == "最近探针未通过：" {
+		reason = "最近探针未通过"
+	}
+	switch status {
+	case MonitorStatusFailed, MonitorStatusError:
+		return "error_recovering", reason
+	case MonitorStatusDegraded:
+		if baseStatus == "healthy" {
+			return "degraded", reason
+		}
+		return baseStatus, firstNonEmptyTrimmed(baseReason, reason)
+	default:
+		return baseStatus, baseReason
+	}
+}
+
+func worseUpstreamPoolMemberMonitorStatus(current, next string) string {
+	if monitorStatusRank(next) > monitorStatusRank(current) {
+		return next
+	}
+	return current
+}
+
+func upstreamPoolMemberMonitorKind(provider, model, status string) string {
+	label := strings.TrimSpace(model)
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case PlatformAnthropic:
+		label = "Claude Code " + label
+	case PlatformOpenAI:
+		label = "OpenAI " + label
+	default:
+		label = strings.TrimSpace(provider + " " + label)
+	}
+	if strings.TrimSpace(status) != "" {
+		label += "=" + strings.TrimSpace(status)
+	}
+	return strings.TrimSpace(label)
 }
 
 func (s *adminServiceImpl) CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberInput) (*UpstreamPoolMember, error) {

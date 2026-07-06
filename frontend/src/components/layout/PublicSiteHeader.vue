@@ -626,4 +626,151 @@ html.dark .sst-home .public-site-brand {
   color: #f0e2cc;
   text-shadow: 0 1px 0 rgba(255, 242, 220, 0.05);
 }
+
+html.dark .sst-public .public-site-header nav {
+  border-bottom-color: rgba(173, 145, 104, 0.22);
+  box-shadow: inset 0 -1px 0 rgba(255, 243, 223, 0.02);
+}
+
+html.dark .sst-public .public-site-brand,
+html.dark .sst-public.sst-public-tone-legal .public-site-brand {
+  color: #f0e2cc;
+  text-shadow: 0 1px 0 rgba(255, 242, 220, 0.05);
+}
+
+html.dark .sst-public .public-site-brand-sub,
+html.dark .sst-public.sst-public-tone-legal .public-site-brand-sub {
+  color: #aa9980;
+}
+
+html.dark .sst-public .public-site-nav,
+html.dark .sst-public.sst-public-tone-legal .public-site-nav {
+  color: #c9c0ac;
+}
+
+html.dark .sst-public .public-site-nav::after,
+html.dark .sst-public.sst-public-tone-legal .public-site-nav::after {
+  background: linear-gradient(90deg, transparent, rgba(188, 93, 31, 0.86), transparent);
+}
+
+html.dark .sst-public .public-site-nav:hover,
+html.dark .sst-public.sst-public-tone-legal .public-site-nav:hover,
+html.dark .sst-public .public-site-nav.is-active,
+html.dark .sst-public.sst-public-tone-legal .public-site-nav.is-active {
+  color: #f4efe4;
+  background: rgba(255, 247, 235, 0.045);
+}
+
+html.dark .sst-public .public-site-tool,
+html.dark .sst-public.sst-public-tone-legal .public-site-tool {
+  color: #d8cdb9;
+}
+
+html.dark .sst-public .public-site-tool-public,
+html.dark .sst-public.sst-public-tone-legal .public-site-tool-public {
+  border-color: rgba(142, 118, 86, 0.36);
+  background:
+    linear-gradient(180deg, rgba(31, 32, 28, 0.84), rgba(22, 24, 20, 0.94)),
+    radial-gradient(circle at 84% 14%, rgba(174, 102, 45, 0.1), transparent 26%);
+  color: #e8dcc9;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 247, 235, 0.05),
+    0 8px 18px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .sst-public .public-site-tool-public:hover,
+html.dark .sst-public.sst-public-tone-legal .public-site-tool-public:hover {
+  border-color: rgba(174, 136, 91, 0.44);
+  background:
+    linear-gradient(180deg, rgba(41, 37, 31, 0.9), rgba(29, 28, 24, 0.96)),
+    radial-gradient(circle at 84% 14%, rgba(194, 126, 74, 0.13), transparent 26%);
+  color: #f0e4d2;
+}
+
+html.dark .sst-public .public-site-cta,
+html.dark .sst-public.sst-public-tone-legal .public-site-cta {
+  border-color: rgba(142, 118, 86, 0.48);
+  background:
+    linear-gradient(180deg, rgba(23, 26, 21, 0.94), rgba(14, 16, 13, 0.96)),
+    radial-gradient(circle at 84% 14%, rgba(174, 102, 45, 0.1), transparent 26%);
+  color: #efe2cf;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 238, 210, 0.06),
+    0 14px 30px rgba(0, 0, 0, 0.2);
+}
+
+html.dark .sst-public .public-site-cta:hover,
+html.dark .sst-public.sst-public-tone-legal .public-site-cta:hover,
+html.dark .sst-public .public-site-cta-mobile:hover,
+html.dark .sst-public.sst-public-tone-legal .public-site-cta-mobile:hover {
+  border-color: rgba(194, 126, 74, 0.44);
+  background: linear-gradient(180deg, rgba(51, 39, 30, 0.96), rgba(28, 24, 20, 0.98));
+  color: #fff1de;
+}
+
+html:not(.dark) .sst-public .public-site-header nav {
+  border-bottom-color: rgba(154, 128, 92, 0.18);
+  box-shadow: inset 0 -1px 0 rgba(255, 249, 239, 0.52);
+}
+
+html:not(.dark) .sst-public .public-site-brand {
+  color: #2f281f;
+}
+
+html:not(.dark) .sst-public .public-site-brand-sub {
+  color: #8f7d63;
+}
+
+html:not(.dark) .sst-public .public-site-nav {
+  color: #5f685c;
+}
+
+html:not(.dark) .sst-public .public-site-nav:hover,
+html:not(.dark) .sst-public .public-site-nav.is-active {
+  color: #2f281f;
+  background: rgba(144, 113, 76, 0.055);
+}
+
+html:not(.dark) .sst-public .public-site-nav::after {
+  background: linear-gradient(90deg, transparent, rgba(167, 58, 42, 0.7), transparent);
+}
+
+html:not(.dark) .sst-public .public-site-tool-public {
+  border-color: rgba(154, 128, 92, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 246, 0.68), rgba(244, 235, 220, 0.74)),
+    radial-gradient(circle at 84% 14%, rgba(196, 136, 68, 0.08), transparent 26%);
+  color: #373a35;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.58),
+    0 7px 16px rgba(84, 57, 31, 0.05);
+}
+
+html:not(.dark) .sst-public .public-site-tool-public:hover {
+  border-color: rgba(167, 58, 42, 0.18);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 247, 0.84), rgba(242, 233, 220, 0.9)),
+    radial-gradient(circle at 84% 14%, rgba(196, 136, 68, 0.11), transparent 26%);
+  color: #2f281f;
+}
+
+html:not(.dark) .sst-public .public-site-cta {
+  border-color: rgba(31, 35, 32, 0.1);
+  background: linear-gradient(135deg, #28231c, #403227);
+  color: #f7f0e4;
+  box-shadow: 0 14px 26px rgba(84, 57, 31, 0.18), inset 0 1px 0 rgba(255, 241, 220, 0.12);
+}
+
+html:not(.dark) .sst-public .public-site-cta:hover {
+  border-color: rgba(167, 58, 42, 0.24);
+  background: linear-gradient(135deg, #3a2d23, #59432f);
+  color: #fff8ee;
+}
+
+html:not(.dark) .sst-public .public-site-cta-mobile {
+  border-color: rgba(154, 128, 92, 0.18);
+  background: rgba(255, 252, 246, 0.74);
+  color: #2f281f;
+  box-shadow: 0 7px 16px rgba(84, 57, 31, 0.07);
+}
 </style>

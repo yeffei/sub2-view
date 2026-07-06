@@ -30,6 +30,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/tlsfingerprint"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
@@ -70,10 +71,11 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
  - Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`
 	maxCacheControlBlocks = 4 // Anthropic API 允许的最大 cache_control 块数量
 
-	defaultUserGroupRateCacheTTL = 30 * time.Second
-	defaultModelsListCacheTTL    = 15 * time.Second
-	postUsageBillingTimeout      = 15 * time.Second
-	debugGatewayBodyEnv          = "SUB2API_DEBUG_GATEWAY_BODY"
+	defaultUserGroupRateCacheTTL  = 30 * time.Second
+	defaultModelsListCacheTTL     = 15 * time.Second
+	postUsageBillingTimeout       = 15 * time.Second
+	defaultUpstreamAttemptTimeout = 30 * time.Second
+	debugGatewayBodyEnv           = "SUB2API_DEBUG_GATEWAY_BODY"
 	// 上游错误体只需要提取错误 JSON/日志摘要，默认 512KiB 避免错误风暴叠加大请求体。
 	gatewayUpstreamErrorBodyReadLimit int64 = 512 << 10
 )
@@ -1072,6 +1074,24 @@ type anthropicMetadataPayload struct {
 	UserID string `json:"user_id"`
 }
 
+type resolvedUpstreamPoolBindingContextKey struct{}
+
+type resolvedUpstreamPoolBindingContextValue struct {
+	key     string
+	binding *UpstreamPoolResolvedBinding
+}
+
+type gatewayPoolRoutingLogContextKey struct{}
+
+type gatewayPoolRoutingLogContextValue struct {
+	groupID        *int64
+	platform       string
+	requestedModel string
+	sessionHash    string
+	candidateCount int
+	resolved       *UpstreamPoolResolvedBinding
+}
+
 // replaceModelInBody 替换请求体中的model字段
 // 优先使用定点修改，尽量保持客户端原始字段顺序。
 func (s *GatewayService) replaceModelInBody(body []byte, newModel string) []byte {
@@ -1606,6 +1626,9 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 		if err != nil {
 			return nil, err
 		}
+		if platform != PlatformOpenAI {
+			s.logSelectedGatewayPoolRoutingExplanation(ctx, groupID, platform, requestedModel, sessionHash, 0, account)
+		}
 		return s.hydrateSelectedAccount(ctx, account)
 	}
 
@@ -1614,6 +1637,9 @@ func (s *GatewayService) SelectAccountForModelWithExclusions(ctx context.Context
 	account, err := s.selectAccountForModelWithPlatform(ctx, groupID, sessionHash, requestedModel, excludedIDs, platform)
 	if err != nil {
 		return nil, err
+	}
+	if platform != PlatformOpenAI {
+		s.logSelectedGatewayPoolRoutingExplanation(ctx, groupID, platform, requestedModel, sessionHash, 0, account)
 	}
 	return s.hydrateSelectedAccount(ctx, account)
 }
@@ -1747,8 +1773,13 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	if err != nil {
 		return nil, err
 	}
+	resolvedPool := s.resolvedUpstreamPoolBindingForRouting(ctx, groupID, platform)
+	ctx = withResolvedUpstreamPoolBindingContext(ctx, groupID, platform, resolvedPool)
 	if len(accounts) == 0 {
 		return nil, ErrNoAvailableAccounts
+	}
+	if platform != PlatformOpenAI {
+		ctx = s.withGatewayPoolRoutingLogContext(ctx, groupID, platform, requestedModel, sessionHash, len(accounts), resolvedPool)
 	}
 	ctx = s.withWindowCostPrefetch(ctx, accounts)
 	ctx = s.withRPMPrefetch(ctx, accounts)
@@ -1900,15 +1931,12 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 										stickyCacheMissReason = "session_limit"
 										// 会话限制已满，继续到负载感知选择
 									} else {
-										return &AccountSelectionResult{
-											Account: stickyAccount,
-											WaitPlan: &AccountWaitPlan{
-												AccountID:      stickyAccountID,
-												MaxConcurrency: stickyAccount.Concurrency,
-												Timeout:        cfg.StickySessionWaitTimeout,
-												MaxWaiting:     cfg.StickySessionMaxWaiting,
-											},
-										}, nil
+										return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
+											AccountID:      stickyAccountID,
+											MaxConcurrency: stickyAccount.Concurrency,
+											Timeout:        cfg.StickySessionWaitTimeout,
+											MaxWaiting:     cfg.StickySessionMaxWaiting,
+										})
 									}
 								} else {
 									stickyCacheMissReason = "wait_queue_full"
@@ -2566,11 +2594,11 @@ func (s *GatewayService) isAccountAllowedByResolvedUpstreamPool(ctx context.Cont
 }
 
 func (s *GatewayService) filterAccountsByResolvedUpstreamPool(ctx context.Context, groupID *int64, platform string, accounts []Account) []Account {
-	if s == nil || s.upstreamPoolRepo == nil || groupID == nil || *groupID <= 0 || len(accounts) == 0 || strings.TrimSpace(platform) == "" {
+	if len(accounts) == 0 {
 		return accounts
 	}
-	resolved, err := s.upstreamPoolRepo.GetResolvedBindingByGroupAndPlatform(ctx, *groupID, platform)
-	if err != nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+	resolved := s.resolvedUpstreamPoolBindingForRouting(ctx, groupID, platform)
+	if resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
 		return accounts
 	}
 	if len(resolved.MemberConfigs) == 0 {
@@ -2589,14 +2617,113 @@ func (s *GatewayService) applyResolvedUpstreamPoolMemberOverrides(ctx context.Co
 	if account == nil {
 		return nil
 	}
-	if s == nil || s.upstreamPoolRepo == nil || groupID == nil || *groupID <= 0 || strings.TrimSpace(platform) == "" {
-		return account
-	}
-	resolved, err := s.upstreamPoolRepo.GetResolvedBindingByGroupAndPlatform(ctx, *groupID, platform)
-	if err != nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+	resolved := s.resolvedUpstreamPoolBindingForRouting(ctx, groupID, platform)
+	if resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
 		return account
 	}
 	return applyResolvedUpstreamPoolMemberOverridesToAccount(account, resolved.MemberConfigs)
+}
+
+func (s *GatewayService) resolvedUpstreamPoolBindingForRouting(ctx context.Context, groupID *int64, platform string) *UpstreamPoolResolvedBinding {
+	platform = strings.TrimSpace(platform)
+	if s == nil || s.upstreamPoolRepo == nil || groupID == nil || *groupID <= 0 || platform == "" {
+		return nil
+	}
+	key := strconv.FormatInt(*groupID, 10) + ":" + platform
+	if cached, ok := ctx.Value(resolvedUpstreamPoolBindingContextKey{}).(resolvedUpstreamPoolBindingContextValue); ok && cached.key == key {
+		return cached.binding
+	}
+	resolved, err := s.upstreamPoolRepo.GetResolvedBindingByGroupAndPlatform(ctx, *groupID, platform)
+	if err != nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+		return nil
+	}
+	if !resolved.Pool.Enabled {
+		resolved.MemberIDs = map[int64]struct{}{}
+		resolved.MemberConfigs = map[int64]UpstreamPoolResolvedMemberConfig{}
+		return resolved
+	}
+	return resolved
+}
+
+func withResolvedUpstreamPoolBindingContext(ctx context.Context, groupID *int64, platform string, resolved *UpstreamPoolResolvedBinding) context.Context {
+	if ctx == nil || groupID == nil || *groupID <= 0 || strings.TrimSpace(platform) == "" {
+		return ctx
+	}
+	key := strconv.FormatInt(*groupID, 10) + ":" + strings.TrimSpace(platform)
+	return context.WithValue(ctx, resolvedUpstreamPoolBindingContextKey{}, resolvedUpstreamPoolBindingContextValue{
+		key:     key,
+		binding: resolved,
+	})
+}
+
+// WithResolvedUpstreamPoolBindingForRoutingContext carries the selected pool
+// policy into the forward path, where per-attempt timeouts and other upstream
+// attempt settings are enforced.
+func (s *GatewayService) WithResolvedUpstreamPoolBindingForRoutingContext(ctx context.Context, groupID *int64, platform string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	resolved := s.resolvedUpstreamPoolBindingForRouting(ctx, groupID, platform)
+	return withResolvedUpstreamPoolBindingContext(ctx, groupID, platform, resolved)
+}
+
+func (s *GatewayService) withGatewayPoolRoutingLogContext(ctx context.Context, groupID *int64, platform string, requestedModel string, sessionHash string, candidateCount int, resolved *UpstreamPoolResolvedBinding) context.Context {
+	if ctx == nil || resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+		return ctx
+	}
+	platform = strings.TrimSpace(platform)
+	if platform == "" {
+		return ctx
+	}
+	var groupCopy *int64
+	if groupID != nil && *groupID > 0 {
+		value := *groupID
+		groupCopy = &value
+	}
+	return context.WithValue(ctx, gatewayPoolRoutingLogContextKey{}, gatewayPoolRoutingLogContextValue{
+		groupID:        groupCopy,
+		platform:       platform,
+		requestedModel: strings.TrimSpace(requestedModel),
+		sessionHash:    sessionHash,
+		candidateCount: candidateCount,
+		resolved:       resolved,
+	})
+}
+
+func (s *GatewayService) logGatewayPoolRoutingExplanation(ctx context.Context, account *Account) {
+	value, ok := ctx.Value(gatewayPoolRoutingLogContextKey{}).(gatewayPoolRoutingLogContextValue)
+	if !ok || value.resolved == nil || value.resolved.Pool == nil || account == nil {
+		return
+	}
+	reason := "load_balance"
+	layer := "selection"
+	if _, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok {
+		layer = "force_platform"
+	}
+	if value.sessionHash != "" {
+		reason = "session_or_load_balance"
+	}
+	explanation := newPoolRoutingExplanation(value.platform, layer, reason, account, value.candidateCount, value.resolved)
+	logRoutingExplanation(ctx, value.groupID, value.requestedModel, value.sessionHash, explanation, nil)
+}
+
+func (s *GatewayService) logSelectedGatewayPoolRoutingExplanation(ctx context.Context, groupID *int64, platform string, requestedModel string, sessionHash string, candidateCount int, account *Account) {
+	if account == nil {
+		return
+	}
+	resolved := s.resolvedUpstreamPoolBindingForRouting(ctx, groupID, platform)
+	if resolved == nil || resolved.Binding == nil || resolved.Pool == nil {
+		return
+	}
+	if candidateCount <= 0 && len(resolved.MemberConfigs) > 0 {
+		candidateCount = len(resolved.MemberConfigs)
+	}
+	reason := "load_balance"
+	if sessionHash != "" {
+		reason = "session_or_load_balance"
+	}
+	explanation := newPoolRoutingExplanation(platform, "selection", reason, account, candidateCount, resolved)
+	logRoutingExplanation(ctx, groupID, requestedModel, sessionHash, explanation, nil)
 }
 
 func applyResolvedUpstreamPoolMemberOverridesToAccount(account *Account, memberConfigs map[int64]UpstreamPoolResolvedMemberConfig) *Account {
@@ -3024,6 +3151,7 @@ func (s *GatewayService) newSelectionResult(ctx context.Context, account *Accoun
 	if err != nil {
 		return nil, err
 	}
+	s.logGatewayPoolRoutingExplanation(ctx, hydrated)
 	return &AccountSelectionResult{
 		Account:     hydrated,
 		Acquired:    acquired,
@@ -5687,21 +5815,23 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	var resp *http.Response
 	retryStart := time.Now()
 	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
-		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, input.RequestStream)
+		upstreamCtx, releaseUpstreamCtx := s.upstreamAttemptContext(ctx, input.RequestStream)
 		upstreamReq, wireBody, err := s.buildUpstreamRequestAnthropicAPIKeyPassthrough(upstreamCtx, c, account, input.Body, token)
-		releaseUpstreamCtx()
 		if err != nil {
+			releaseUpstreamCtx()
 			return nil, err
 		}
 		if input.Parsed != nil && !bytes.Equal(wireBody, input.Body) {
 			// build 阶段会按 beta 能力清理 body，发送前同步到 ParsedRequest 当前视图。
 			if err := input.Parsed.ReplaceBody(wireBody); err != nil {
+				releaseUpstreamCtx()
 				return nil, err
 			}
 			input.Body = input.Parsed.Body.Bytes()
 		}
 
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
+		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, s.resolveTLSProfile(account))
+		releaseUpstreamCtx()
 		if err != nil {
 			if resp != nil && resp.Body != nil {
 				_ = resp.Body.Close()
@@ -5715,17 +5845,21 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 				UpstreamStatusCode: 0,
 				UpstreamURL:        safeUpstreamURL(upstreamReq.URL.String()),
 				Passthrough:        true,
-				Kind:               "request_error",
+				Kind:               "request_error_failover",
 				Message:            safeErr,
 			})
-			c.JSON(http.StatusBadGateway, gin.H{
+			body, _ := json.Marshal(map[string]any{
 				"type": "error",
-				"error": gin.H{
+				"error": map[string]string{
 					"type":    "upstream_error",
 					"message": "Upstream request failed",
 				},
 			})
-			return nil, fmt.Errorf("upstream request failed: %s", safeErr)
+			return nil, &UpstreamFailoverError{
+				StatusCode:             http.StatusBadGateway,
+				ResponseBody:           body,
+				RetryableOnSameAccount: false,
+			}
 		}
 
 		// 透传分支禁止 400 请求体降级重试（该重试会改写请求体）
@@ -9321,6 +9455,39 @@ func detachStreamUpstreamContext(ctx context.Context, stream bool) (context.Cont
 	return context.WithoutCancel(ctx), func() {}
 }
 
+func (s *GatewayService) upstreamAttemptContext(ctx context.Context, stream bool) (context.Context, context.CancelFunc) {
+	if stream {
+		return detachStreamUpstreamContext(ctx, true)
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	timeout := s.upstreamAttemptTimeout(ctx)
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+func (s *GatewayService) upstreamAttemptTimeout(ctx context.Context) time.Duration {
+	if ctx != nil {
+		if cached, ok := ctx.Value(resolvedUpstreamPoolBindingContextKey{}).(resolvedUpstreamPoolBindingContextValue); ok &&
+			cached.binding != nil &&
+			cached.binding.Pool != nil &&
+			cached.binding.Pool.WaitTimeoutMS > 0 {
+			return time.Duration(cached.binding.Pool.WaitTimeoutMS) * time.Millisecond
+		}
+	}
+	return defaultUpstreamAttemptTimeout
+}
+
+func (s *GatewayService) resolveTLSProfile(account *Account) *tlsfingerprint.Profile {
+	if s == nil || s.tlsFPProfileService == nil {
+		return nil
+	}
+	return s.tlsFPProfileService.ResolveTLSProfile(account)
+}
+
 func detachUpstreamContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		return context.Background(), func() {}
@@ -10516,8 +10683,12 @@ func (s *GatewayService) buildCustomRelayURL(baseURL, path string, account *Acco
 }
 
 func (s *GatewayService) validateUpstreamBaseURL(raw string) (string, error) {
-	if s.cfg != nil && !s.cfg.Security.URLAllowlist.Enabled {
-		normalized, err := urlvalidator.ValidateURLFormat(raw, s.cfg.Security.URLAllowlist.AllowInsecureHTTP)
+	if s.cfg == nil || !s.cfg.Security.URLAllowlist.Enabled {
+		allowInsecureHTTP := false
+		if s.cfg != nil {
+			allowInsecureHTTP = s.cfg.Security.URLAllowlist.AllowInsecureHTTP
+		}
+		normalized, err := urlvalidator.ValidateURLFormat(raw, allowInsecureHTTP)
 		if err != nil {
 			return "", fmt.Errorf("invalid base_url: %w", err)
 		}

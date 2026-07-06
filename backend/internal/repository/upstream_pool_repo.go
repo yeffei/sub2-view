@@ -1129,8 +1129,7 @@ JOIN upstream_pools p ON p.id = b.pool_id
 WHERE b.group_id = $1
   AND b.platform = $2
   AND b.enabled = TRUE
-  AND p.enabled = TRUE
-ORDER BY b.priority ASC, b.id ASC
+ORDER BY CASE WHEN p.enabled THEN 0 ELSE 1 END ASC, b.priority ASC, b.id ASC
 LIMIT 1`
 
 	var (
@@ -1187,6 +1186,15 @@ LIMIT 1`
 	binding.Models = cloneStringSliceJSON(modelsJSON)
 	binding.RequestPathScope = cloneStringSliceJSON(requestPathScopeJSON)
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
+
+	if !pool.Enabled {
+		return &service.UpstreamPoolResolvedBinding{
+			Binding:       &binding,
+			Pool:          &pool,
+			MemberIDs:     map[int64]struct{}{},
+			MemberConfigs: map[int64]service.UpstreamPoolResolvedMemberConfig{},
+		}, nil
+	}
 
 	const membersQuery = `
 SELECT DISTINCT ON (account_id)

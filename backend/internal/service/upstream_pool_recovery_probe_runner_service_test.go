@@ -428,6 +428,14 @@ func (h *upstreamPoolRecoveryProbeHTTPHandler) ServeHTTP(w http.ResponseWriter, 
 		})
 		return
 	}
+	if r.URL.Path == providerAnthropicPath {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"content": []map[string]any{
+				{"type": "text", "text": "Hi"},
+			},
+		})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"choices": []map[string]any{
 			{"message": map[string]any{"content": "Hi"}},
@@ -520,6 +528,47 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ProbesAnthropicPoolMembersViaAcc
 
 	require.Equal(t, []int64{401}, testSvc.calls)
 	require.Equal(t, []int64{401}, rateLimitSvc.calls)
+}
+
+func TestUpstreamPoolRecoveryProbeRunnerService_ProbesAnthropicAPIKeyWithLightweightPayload(t *testing.T) {
+	swapMonitorHTTPClient(t)
+	httpHandler := &upstreamPoolRecoveryProbeHTTPHandler{}
+	httpServer := httptest.NewServer(httpHandler)
+	t.Cleanup(httpServer.Close)
+
+	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
+		accounts: map[int64]*Account{
+			402: {
+				ID:           402,
+				Status:       StatusError,
+				Schedulable:  true,
+				Platform:     PlatformAnthropic,
+				Type:         AccountTypeAPIKey,
+				Credentials:  map[string]any{"api_key": "sk-ant-test", "base_url": httpServer.URL},
+				ErrorMessage: "runtime error",
+			},
+		},
+	}
+	upstreamRepo := &upstreamPoolRecoveryProbeRepoStub{
+		pools:   []UpstreamPool{{ID: 4, Enabled: true, Platform: PlatformAnthropic}},
+		members: map[int64][]UpstreamPoolMember{4: {{AccountID: 402, Enabled: true}}},
+	}
+	testSvc := &upstreamPoolRecoveryProbeTestSvc{}
+	rateLimitSvc := &upstreamPoolRecoveryProbeRateLimitStub{}
+	svc := NewUpstreamPoolRecoveryProbeRunnerService(upstreamRepo, accountRepo, testSvc, rateLimitSvc, &config.Config{})
+
+	svc.runScheduled()
+
+	require.Empty(t, testSvc.calls)
+	require.Equal(t, []int64{402}, rateLimitSvc.calls)
+
+	bodies := httpHandler.bodies()
+	require.Len(t, bodies, 1)
+	messages, _ := bodies[0]["messages"].([]any)
+	require.Len(t, messages, 1)
+	msg, _ := messages[0].(map[string]any)
+	require.Equal(t, monitorLightweightPrompt, strings.TrimSpace(stringFromAny(msg["content"])))
+	require.Equal(t, float64(monitorLightweightMaxTokens), bodies[0]["max_tokens"])
 }
 
 func TestAdminServiceSyncUpstreamPoolMembersForAccount_AnthropicOAuth(t *testing.T) {
@@ -714,6 +763,13 @@ func TestUpstreamPoolRecoveryProbeRunnerService_SkipsHealthyAccount(t *testing.T
 }
 
 func TestUpstreamPoolRecoveryProbeRunnerService_ExtendsTempUnschedOnFailedProbe(t *testing.T) {
+	swapMonitorHTTPClient(t)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"message":"temporary upstream failure"}}`))
+	}))
+	t.Cleanup(httpServer.Close)
+
 	now := time.Now()
 	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
 		accounts: map[int64]*Account{
@@ -723,6 +779,7 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ExtendsTempUnschedOnFailedProbe(
 				Schedulable:             true,
 				Platform:                PlatformOpenAI,
 				Type:                    AccountTypeAPIKey,
+				Credentials:             map[string]any{"api_key": "sk-test", "base_url": httpServer.URL},
 				TempUnschedulableUntil:  ptrTimeUpstreamPoolRecoveryProbe(now.Add(30 * time.Second)),
 				TempUnschedulableReason: `{"matched_keyword":"pool_mode_5xx"}`,
 				LastUsedAt:              ptrTimeUpstreamPoolRecoveryProbe(now.Add(-10 * time.Minute)),
@@ -746,12 +803,19 @@ func TestUpstreamPoolRecoveryProbeRunnerService_ExtendsTempUnschedOnFailedProbe(
 	require.Empty(t, rateLimitSvc.calls)
 	require.Equal(t, []int64{301}, accountRepo.tempUnschedIDs)
 	require.Len(t, accountRepo.tempReasons, 1)
-	require.Contains(t, accountRepo.tempReasons[0], "probe_error")
+	require.Contains(t, accountRepo.tempReasons[0], "probe_failed")
 	require.NotNil(t, accountRepo.accounts[301].TempUnschedulableUntil)
 	require.True(t, accountRepo.accounts[301].TempUnschedulableUntil.After(now.Add(time.Minute)))
 }
 
 func TestUpstreamPoolRecoveryProbeRunnerService_UsesPolicyFailedProbeExtension(t *testing.T) {
+	swapMonitorHTTPClient(t)
+	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":{"message":"temporary upstream failure"}}`))
+	}))
+	t.Cleanup(httpServer.Close)
+
 	now := time.Now()
 	accountRepo := &upstreamPoolRecoveryProbeAccountRepoStub{
 		accounts: map[int64]*Account{
@@ -761,6 +825,7 @@ func TestUpstreamPoolRecoveryProbeRunnerService_UsesPolicyFailedProbeExtension(t
 				Schedulable:             true,
 				Platform:                PlatformOpenAI,
 				Type:                    AccountTypeAPIKey,
+				Credentials:             map[string]any{"api_key": "sk-test", "base_url": httpServer.URL},
 				TempUnschedulableUntil:  ptrTimeUpstreamPoolRecoveryProbe(now.Add(30 * time.Second)),
 				TempUnschedulableReason: `{"matched_keyword":"pool_mode_5xx"}`,
 				LastUsedAt:              ptrTimeUpstreamPoolRecoveryProbe(now.Add(-10 * time.Minute)),
