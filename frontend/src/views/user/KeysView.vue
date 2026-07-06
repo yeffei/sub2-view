@@ -1257,7 +1257,7 @@ const getKeyHealth = (key: ApiKey) => {
     summary: summaryLine,
     modelHints: buildWorkbenchModelHints(summary?.latest_error),
     hasAttention: !!summary?.latest_error || key.status !== 'active' || !key.group,
-    canReview: !!summary?.latest_error,
+    canReview: !!summary?.latest_error && canViewErrorRequests.value,
   }
 }
 
@@ -1352,6 +1352,7 @@ const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
+const canViewErrorRequests = computed(() => publicSettings.value?.allow_user_view_error_requests ?? false)
 const testingKeyId = ref<number | null>(null)
 const connectionTestResult = ref<ConnectionTestResult | null>(null)
 const showAllConnectionModels = ref(false)
@@ -1626,7 +1627,13 @@ const handlePageChange = (page: number) => { pagination.value.page = page; loadA
 const handlePageSizeChange = (pageSize: number) => { pagination.value.page_size = pageSize; pagination.value.page = 1; loadApiKeys() }
 const openUseKeyModal = (key: ApiKey) => { selectedKey.value = key; showUseKeyModal.value = true }
 const closeUseKeyModal = () => { showUseKeyModal.value = false; selectedKey.value = null }
-const openKeyErrorLedger = (apiKeyId: number) => { router.push({ path: '/usage', query: { tab: 'errors', api_key_id: String(apiKeyId) } }) }
+const openKeyErrorLedger = (apiKeyId: number) => {
+  if (!canViewErrorRequests.value) {
+    appStore.showError('错误账册暂未开放，请联系管理员开启后查看。')
+    return
+  }
+  router.push({ path: '/usage', query: { tab: 'errors', api_key_id: String(apiKeyId) } })
+}
 
 const toggleKeyStatus = async (key: ApiKey) => {
   try { await keysAPI.toggleStatus(key.id, key.status === 'active' ? 'inactive' : 'active'); appStore.showSuccess(t('common.success')); await loadApiKeys() }

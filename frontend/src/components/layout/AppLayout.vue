@@ -250,7 +250,7 @@ async function handleLogout() {
 
 const { replayTour } = useOnboardingTour({
   storageKey: isAdmin.value ? 'admin_guide' : 'user_guide',
-  autoStart: true
+  autoStart: false
 })
 
 const onboardingStore = useOnboardingStore()

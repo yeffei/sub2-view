@@ -1,6 +1,6 @@
 <template>
-  <AppLayout>
-    <div class="sst-admin-page">
+  <component :is="props.embedded ? 'div' : AppLayout">
+    <div :class="props.embedded ? '' : 'sst-admin-page'">
       <TablePageLayout>
         <template #filters>
           <div class="affiliate-record-filters">
@@ -153,7 +153,7 @@
       </div>
     </BaseDialog>
     </div>
-  </AppLayout>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -179,6 +179,7 @@ type AffiliateRecord = AffiliateInviteRecord | AffiliateRebateRecord | Affiliate
 
 const props = defineProps<{
   type: RecordType
+  embedded?: boolean
 }>()
 
 const { t } = useI18n()

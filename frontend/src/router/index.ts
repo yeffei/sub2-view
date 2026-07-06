@@ -554,14 +554,10 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/promo-codes',
-    name: 'AdminPromoCodes',
-    component: () => import('@/views/admin/PromoCodesView.vue'),
+    redirect: '/admin/settings',
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Promo Code Management',
-      titleKey: 'admin.promo.title',
-      descriptionKey: 'admin.promo.description'
     }
   },
   {
@@ -603,42 +599,38 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/admin/affiliates',
-    redirect: '/admin/affiliates/invites'
-  },
-  {
-    path: '/admin/affiliates/invites',
-    name: 'AdminAffiliateInvites',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateInvitesView.vue'),
+    name: 'AdminAffiliates',
+    component: () => import('@/views/admin/affiliates/AdminAffiliatesView.vue'),
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Invite Records',
-      titleKey: 'nav.affiliateInviteRecords',
-      descriptionKey: 'admin.affiliates.invitesDescription'
+      title: 'Affiliate Records',
+      titleKey: 'nav.affiliate',
+      descriptionKey: 'affiliate.description'
+    }
+  },
+  {
+    path: '/admin/affiliates/invites',
+    redirect: '/admin/affiliates?tab=invites',
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
     }
   },
   {
     path: '/admin/affiliates/rebates',
-    name: 'AdminAffiliateRebates',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateRebatesView.vue'),
+    redirect: '/admin/affiliates?tab=rebates',
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Rebate Records',
-      titleKey: 'nav.affiliateRebateRecords',
-      descriptionKey: 'admin.affiliates.rebatesDescription'
     }
   },
   {
     path: '/admin/affiliates/transfers',
-    name: 'AdminAffiliateTransfers',
-    component: () => import('@/views/admin/affiliates/AdminAffiliateTransfersView.vue'),
+    redirect: '/admin/affiliates?tab=transfers',
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Affiliate Transfer Records',
-      titleKey: 'nav.affiliateTransferRecords',
-      descriptionKey: 'admin.affiliates.transfersDescription'
     }
   },
 
@@ -646,13 +638,10 @@ const routes: RouteRecordRaw[] = [
   // ==================== Payment Admin Routes ====================
   {
     path: '/admin/orders/dashboard',
-    name: 'AdminPaymentDashboard',
-    component: () => import('@/views/admin/orders/AdminPaymentDashboardView.vue'),
+    redirect: '/admin/orders',
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Payment Dashboard',
-      titleKey: 'nav.paymentDashboard',
       requiresPayment: true
     }
   },

@@ -170,9 +170,23 @@
         <p class="mt-0.5 break-all text-gray-900 dark:text-dark-100">{{ detail.message }}</p>
       </div>
 
-      <div v-if="detail.error_body">
-        <span class="font-medium text-gray-500 dark:text-dark-400">{{ t('usage.errors.detail.responseBody') }}</span>
-        <pre class="mt-1 max-h-[40vh] overflow-auto whitespace-pre-wrap break-all rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">{{ detail.error_body }}</pre>
+      <div v-if="displayErrorBody">
+        <div class="mb-1 flex flex-wrap items-center gap-2">
+          <span class="font-medium text-gray-500 dark:text-dark-400">{{ t('usage.errors.detail.responseBody') }}</span>
+          <span
+            v-if="displayErrorBodyKind"
+            class="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-300"
+          >
+            {{ displayErrorBodyKind }}
+          </span>
+        </div>
+        <p
+          v-if="displayErrorBodyKind === 'html'"
+          class="mb-2 text-xs leading-5 text-gray-500 dark:text-dark-400"
+        >
+          {{ t('usage.errors.detail.htmlSummaryHint') }}
+        </p>
+        <pre class="max-h-[28vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-800 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">{{ displayErrorBody }}</pre>
       </div>
     </div>
   </BaseDialog>
@@ -235,6 +249,10 @@ const timelineLoadFailed = ref(false)
 const timelineItems = ref<TimelineItem[]>([])
 const timelineSummary = ref('')
 
+const displayErrorBodyInfo = computed(() => sanitizeErrorBodyForDisplay(detail.value?.error_body || '', detail.value?.error_body_kind || '', detail.value?.upstream_status_code))
+const displayErrorBody = computed(() => displayErrorBodyInfo.value.body)
+const displayErrorBodyKind = computed(() => displayErrorBodyInfo.value.kind)
+
 function resolveDiagnosisSummary(reasonCode: string, endpoint: string) {
   if (!reasonCode) return ''
   const key = `usage.errors.detail.reasonExplanations.${reasonCode}.summary`
@@ -248,6 +266,80 @@ function resolveDiagnosisAdvice(reasonCode: string) {
   const value = t(key)
   if (Array.isArray(value)) return value.filter((item) => typeof item === 'string' && item.trim().length > 0) as string[]
   return []
+}
+
+function sanitizeErrorBodyForDisplay(body: string, kind: string, upstreamStatus?: number) {
+  const trimmed = body.trim()
+  if (!trimmed) return { body: '', kind: '' }
+
+  if (kind === 'html' || looksLikeHTML(trimmed)) {
+    return {
+      body: summarizeHTMLBody(trimmed, upstreamStatus),
+      kind: 'html',
+    }
+  }
+
+  return {
+    body: truncateDisplayText(normalizeDisplayWhitespace(trimmed)),
+    kind: kind || 'text',
+  }
+}
+
+function looksLikeHTML(value: string) {
+  const lower = value.trim().toLowerCase()
+  return lower.startsWith('<!doctype html') ||
+    lower.startsWith('<html') ||
+    lower.includes('<head') ||
+    lower.includes('<body') ||
+    lower.includes('</html>')
+}
+
+function summarizeHTMLBody(value: string, upstreamStatus?: number) {
+  const parts: string[] = []
+  const title = extractHTMLTitle(value)
+  if (title) parts.push(title)
+  if (upstreamStatus && upstreamStatus > 0) parts.push(`HTTP ${upstreamStatus}`)
+
+  const text = normalizeDisplayWhitespace(
+    decodeBasicHTMLEntities(value.replace(/<[^>]*>/gs, ' '))
+  )
+  if (text) parts.push(text)
+
+  return truncateDisplayText(parts.length ? uniqueSummaryParts(parts).join(' · ') : t('usage.errors.detail.htmlSummaryFallback'))
+}
+
+function extractHTMLTitle(value: string) {
+  const match = value.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+  return match ? normalizeDisplayWhitespace(decodeBasicHTMLEntities(match[1])) : ''
+}
+
+function decodeBasicHTMLEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+}
+
+function normalizeDisplayWhitespace(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function uniqueSummaryParts(parts: string[]) {
+  const seen = new Set<string>()
+  return parts.filter((part) => {
+    const normalized = part.toLowerCase()
+    if (!part || seen.has(normalized)) return false
+    seen.add(normalized)
+    return true
+  })
+}
+
+function truncateDisplayText(value: string) {
+  const chars = Array.from(value.trim())
+  return chars.length > 800 ? `${chars.slice(0, 800).join('')}...` : chars.join('')
 }
 
 const explanationSummary = computed(() => {

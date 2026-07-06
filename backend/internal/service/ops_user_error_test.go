@@ -103,6 +103,31 @@ func TestToUserErrorRequest_RedactsSensitiveFields(t *testing.T) {
 	}
 }
 
+func TestToUserErrorRequest_SummarizesHTMLMessage(t *testing.T) {
+	src := &OpsErrorLog{
+		ID:              1002,
+		CreatedAt:       time.Unix(1000, 0).UTC(),
+		Model:           "gpt-5.4",
+		InboundEndpoint: "/v1/responses",
+		StatusCode:      502,
+		Platform:        "openai",
+		Phase:           "upstream",
+		Type:            "api_error",
+		Message:         `<!DOCTYPE html><html><head><title>codexapis.com | 502: Bad gateway</title></head><body><h1>Bad gateway</h1></body></html>`,
+	}
+
+	out := ToUserErrorRequest(src)
+	if out == nil {
+		t.Fatal("expected non-nil request")
+	}
+	if strings.Contains(strings.ToLower(out.Message), "<!doctype") || strings.Contains(strings.ToLower(out.Message), "<html") {
+		t.Fatalf("HTML source leaked in list message: %s", out.Message)
+	}
+	if !strings.Contains(out.Message, "502") || !strings.Contains(out.Message, "Bad gateway") {
+		t.Fatalf("summary missing useful status/title: %s", out.Message)
+	}
+}
+
 func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 	uid := int64(42)
 	upstreamStatus := 503
@@ -140,8 +165,11 @@ func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 	if out.Message != "upstream error" {
 		t.Errorf("want message=%q, got %q", "upstream error", out.Message)
 	}
-	if out.ErrorBody != src.ErrorBody {
-		t.Errorf("ErrorBody mismatch")
+	if out.ErrorBody != "upstream failed" {
+		t.Errorf("ErrorBody mismatch: %q", out.ErrorBody)
+	}
+	if out.ErrorBodyKind != "json" {
+		t.Errorf("want ErrorBodyKind=json, got %q", out.ErrorBodyKind)
 	}
 	if out.UpstreamStatusCode == nil || *out.UpstreamStatusCode != 503 {
 		t.Errorf("UpstreamStatusCode mismatch")
@@ -166,6 +194,38 @@ func TestToUserErrorRequestDetail_WhitelistAndRedacts(t *testing.T) {
 		if strings.Contains(raw, forbidden) {
 			t.Errorf("sensitive field %q leaked in JSON output: %s", forbidden, raw)
 		}
+	}
+}
+
+func TestToUserErrorRequestDetail_SummarizesHTMLBody(t *testing.T) {
+	upstreamStatus := 502
+	src := &OpsErrorLogDetail{
+		OpsErrorLog: OpsErrorLog{
+			ID:              1001,
+			CreatedAt:       time.Unix(1000, 0).UTC(),
+			InboundEndpoint: "/v1/messages",
+			StatusCode:      502,
+			Platform:        "anthropic",
+			Phase:           "upstream",
+			Type:            "api_error",
+			Message:         "Upstream request failed",
+		},
+		ErrorBody:          `<!DOCTYPE html><html><head><title>codexapis.com | 502: Bad gateway</title></head><body><h1>Bad gateway</h1><script>secret()</script></body></html>`,
+		UpstreamStatusCode: &upstreamStatus,
+	}
+
+	out := ToUserErrorRequestDetail(src)
+	if out == nil {
+		t.Fatal("expected non-nil detail")
+	}
+	if out.ErrorBodyKind != "html" {
+		t.Fatalf("want html body kind, got %q", out.ErrorBodyKind)
+	}
+	if strings.Contains(strings.ToLower(out.ErrorBody), "<!doctype") || strings.Contains(strings.ToLower(out.ErrorBody), "<html") {
+		t.Fatalf("HTML source leaked: %s", out.ErrorBody)
+	}
+	if !strings.Contains(out.ErrorBody, "502") || !strings.Contains(out.ErrorBody, "Bad gateway") {
+		t.Fatalf("summary missing useful status/title: %s", out.ErrorBody)
 	}
 }
 

@@ -1778,6 +1778,7 @@ export interface UserErrorDiagnosis {
 
 export interface UserErrorRequestDetail extends UserErrorRequest {
   error_body: string
+  error_body_kind?: 'html' | 'json' | 'text' | string
   upstream_status_code?: number
   diagnosis?: UserErrorDiagnosis | null
 }

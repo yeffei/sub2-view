@@ -71,9 +71,12 @@
         <!-- User Dropdown -->
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
+            type="button"
             @click="toggleDropdown"
             class="app-header-user-trigger flex items-center gap-2 rounded-zen p-1.5 transition-colors hover:bg-zen-paperDeep/70 dark:hover:bg-zen-night"
             aria-label="User Menu"
+            :aria-expanded="dropdownOpen"
+            aria-haspopup="menu"
           >
             <div class="user-avatar flex h-8 w-8 items-center justify-center overflow-hidden rounded-zen text-sm font-medium shadow-seal">
               <img
@@ -97,7 +100,7 @@
 
           <!-- Dropdown Menu -->
           <transition name="dropdown">
-            <div v-if="dropdownOpen" class="dropdown right-0 mt-2 w-56">
+            <div v-if="dropdownOpen" class="dropdown right-0 mt-2 w-56" role="menu">
               <!-- User Info -->
               <div class="border-b border-zen-paperLine/70 px-4 py-3 dark:border-zen-nightLine">
                 <div class="text-sm font-medium text-zen-ink dark:text-zen-paper">
@@ -211,7 +214,7 @@ const brandName = computed(() => {
 
 // 只在标准模式的管理员下显示新手引导按钮
 const showOnboardingButton = computed(() => {
-  return !authStore.isSimpleMode && user.value?.role === 'admin'
+  return false
 })
 
 const userInitials = computed(() => {
@@ -303,7 +306,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .app-header-shell {
   position: sticky;
-  overflow: hidden;
+  overflow: visible;
   isolation: isolate;
 }
 

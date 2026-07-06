@@ -396,43 +396,17 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: 'signal', hideInSimpleMode: true, featureFlag: flagChannelMonitor },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: 'server', hideInSimpleMode: true },
     { path: '/admin/usage', label: '计量记录', icon: 'chart' },
-    {
-      path: '/admin/affiliates',
-      label: '团队引荐',
-      icon: 'users',
-      hideInSimpleMode: true,
-      expandOnly: true,
-      featureFlag: flagAffiliate,
-      children: [
-        { path: '/admin/affiliates/invites', label: t('nav.affiliateInviteRecords'), icon: 'users' },
-        { path: '/admin/affiliates/rebates', label: t('nav.affiliateRebateRecords'), icon: 'document' },
-        { path: '/admin/affiliates/transfers', label: t('nav.affiliateTransferRecords'), icon: 'creditCard' },
-      ],
-    },
+    { path: '/admin/affiliates', label: '团队引荐', icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
     {
       path: '/admin/orders',
       label: '计量与交易',
       icon: 'document',
       hideInSimpleMode: true,
-      expandOnly: true,
       featureFlag: flagAdminPayment,
-      children: [
-        { path: '/admin/orders/dashboard', label: t('nav.paymentDashboard'), icon: 'chart' },
-        { path: '/admin/orders', label: t('nav.orderManagement'), icon: 'document' },
-      ],
     },
-    {
-      path: '/admin/content-system',
-      label: '内容与系统',
-      icon: 'cog',
-      expandOnly: true,
-      children: [
-        { path: '/admin/announcements', label: t('nav.announcements'), icon: 'bell' },
-        { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: 'ticket', hideInSimpleMode: true },
-        { path: '/admin/promo-codes', label: t('nav.promoCodes'), icon: 'gift', hideInSimpleMode: true },
-        { path: '/admin/settings', label: t('nav.settings'), icon: 'cog' },
-      ],
-    },
+    { path: '/admin/announcements', label: t('nav.announcements'), icon: 'bell' },
+    { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: 'ticket', hideInSimpleMode: true },
+    { path: '/admin/settings', label: t('nav.settings'), icon: 'cog' },
   ]
 
   const visible = applyFeatureFlags(baseItems)

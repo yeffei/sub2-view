@@ -1,23 +1,24 @@
 <template>
   <div class="usage-error-table flex min-h-0 flex-1 flex-col">
     <div class="usage-error-toolbar flex-shrink-0">
-      <div class="usage-error-chips mb-3 flex flex-wrap gap-2">
-        <button
-          v-for="chip in quickFilterChips"
-          :key="chip.value"
-          type="button"
-          class="usage-error-chip rounded-full border px-3 py-1 text-xs font-medium transition-colors"
-          :class="localCategory === chip.value
-            ? 'usage-error-chip-active border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100'
-            : 'border-gray-200 bg-white text-gray-600 hover:border-amber-200 hover:text-amber-900 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-300 dark:hover:border-amber-900/50 dark:hover:text-amber-100'"
-          @click="applyQuickFilter(chip.value)"
-        >
-          {{ chip.label }}
-        </button>
-      </div>
+      <div class="usage-error-control-panel">
+        <div class="usage-error-chips">
+          <button
+            v-for="chip in quickFilterChips"
+            :key="chip.value"
+            type="button"
+            class="usage-error-chip rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+            :class="localCategory === chip.value
+              ? 'usage-error-chip-active border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-100'
+              : 'border-gray-200 bg-white text-gray-600 hover:border-amber-200 hover:text-amber-900 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-300 dark:hover:border-amber-900/50 dark:hover:text-amber-100'"
+            @click="applyQuickFilter(chip.value)"
+          >
+            {{ chip.label }}
+          </button>
+        </div>
 
-      <div class="usage-error-filters flex flex-wrap items-end gap-4">
-        <div class="min-w-[180px]">
+        <div class="usage-error-filters">
+        <div class="usage-error-filter usage-error-filter-model">
           <label class="input-label">{{ t('usage.errors.model') }}</label>
           <Select
             v-model="localModel"
@@ -30,7 +31,7 @@
             @change="apply"
           />
         </div>
-        <div class="min-w-[160px]">
+        <div class="usage-error-filter usage-error-filter-key">
           <label class="input-label">{{ t('usage.errors.keyName') }}</label>
           <Select
             v-model="localApiKeyId"
@@ -40,7 +41,7 @@
             @change="apply"
           />
         </div>
-        <div class="min-w-[140px]">
+        <div class="usage-error-filter usage-error-filter-category">
           <label class="input-label">{{ t('usage.errors.category') }}</label>
           <Select
             v-model="localCategory"
@@ -54,22 +55,34 @@
           <Icon name="search" size="sm" />
           {{ t('common.search') }}
         </button>
+        </div>
       </div>
     </div>
 
     <div class="usage-error-scroll min-h-0 flex-1 overflow-auto">
       <table class="usage-error-grid min-w-full text-sm">
+        <colgroup>
+          <col class="usage-error-col-model" />
+          <col class="usage-error-col-key" />
+          <col class="usage-error-col-endpoint" />
+          <col class="usage-error-col-status" />
+          <col class="usage-error-col-category" />
+          <col class="usage-error-col-hint" />
+          <col class="usage-error-col-message" />
+          <col class="usage-error-col-platform" />
+          <col class="usage-error-col-time" />
+        </colgroup>
         <thead>
           <tr>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.model') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.keyName') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.endpoint') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.status') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.category') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.hint') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.message') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.platform') }}</th>
-            <th class="px-4 py-2 text-left">{{ t('usage.errors.time') }}</th>
+            <th class="text-left">{{ t('usage.errors.model') }}</th>
+            <th class="text-left">{{ t('usage.errors.keyName') }}</th>
+            <th class="text-left">{{ t('usage.errors.endpoint') }}</th>
+            <th class="text-left">{{ t('usage.errors.status') }}</th>
+            <th class="text-left">{{ t('usage.errors.category') }}</th>
+            <th class="text-left">{{ t('usage.errors.hint') }}</th>
+            <th class="text-left">{{ t('usage.errors.message') }}</th>
+            <th class="text-left">{{ t('usage.errors.platform') }}</th>
+            <th class="text-left">{{ t('usage.errors.time') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -79,25 +92,25 @@
             class="usage-error-row border-t border-gray-100 dark:border-dark-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-dark-800"
             @click="openDetail(row.id)"
           >
-            <td class="px-4 py-2">{{ row.model || '-' }}</td>
-            <td class="px-4 py-2">
+            <td>{{ row.model || '-' }}</td>
+            <td>
               <span>{{ row.key_name || '-' }}</span>
               <span
                 v-if="row.key_deleted"
                 class="usage-error-deleted ml-1 inline-flex items-center rounded px-1 py-px text-[10px] font-medium leading-tight bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400"
               >{{ t('usage.errors.keyDeleted') }}</span>
             </td>
-            <td class="px-4 py-2">{{ row.inbound_endpoint || '-' }}</td>
-            <td class="px-4 py-2"><span class="badge" :class="statusClass(row.status_code)">{{ row.status_code || '-' }}</span></td>
-            <td class="px-4 py-2">{{ t('usage.errors.categories.' + row.category) }}</td>
-            <td class="px-4 py-2">
+            <td>{{ row.inbound_endpoint || '-' }}</td>
+            <td><span class="badge" :class="statusClass(row.status_code)">{{ row.status_code || '-' }}</span></td>
+            <td>{{ t('usage.errors.categories.' + row.category) }}</td>
+            <td>
               <span class="usage-error-hint inline-flex max-w-[220px] rounded-full border border-amber-200/80 bg-amber-50/70 px-2.5 py-1 text-xs leading-5 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/10 dark:text-amber-100">
                 {{ getHintLabel(row) }}
               </span>
             </td>
-            <td class="px-4 py-2 max-w-[280px] truncate" :title="row.message">{{ row.message || '-' }}</td>
-            <td class="px-4 py-2">{{ row.platform || '-' }}</td>
-            <td class="px-4 py-2">{{ formatDateTime(row.created_at) }}</td>
+            <td class="truncate" :title="getDisplayMessage(row)">{{ getDisplayMessage(row) || '-' }}</td>
+            <td>{{ row.platform || '-' }}</td>
+            <td>{{ formatDateTime(row.created_at) }}</td>
           </tr>
           <tr v-if="!loading && rows.length === 0">
             <td colspan="9" class="usage-error-empty px-4 py-8 text-center text-gray-400">{{ t('usage.errors.empty') }}</td>
@@ -117,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
@@ -133,6 +146,9 @@ const props = defineProps<{
   page: number
   pageSize: number
   apiKeys?: ApiKey[]
+  modelFilter?: string
+  categoryFilter?: string
+  apiKeyIdFilter?: number | null
 }>()
 
 const emit = defineEmits<{
@@ -182,6 +198,16 @@ const modelOptions = computed(() => {
 const showDetail = ref(false)
 const selectedId = ref<number | null>(null)
 
+watch(
+  () => [props.modelFilter, props.categoryFilter, props.apiKeyIdFilter] as const,
+  ([model, category, apiKeyId]) => {
+    localModel.value = model || ''
+    localCategory.value = category || ''
+    localApiKeyId.value = apiKeyId ?? null
+  },
+  { immediate: true }
+)
+
 function openDetail(id: number) {
   selectedId.value = id
   showDetail.value = true
@@ -210,6 +236,67 @@ function getHintLabel(row: UserErrorRequest) {
   const key = 'usage.errors.hints.' + row.category
   return t(key)
 }
+
+function getDisplayMessage(row: UserErrorRequest) {
+  return summarizeErrorMessage(row.message || '', row.status_code)
+}
+
+function summarizeErrorMessage(message: string, statusCode?: number) {
+  const trimmed = message.trim()
+  if (!trimmed) return ''
+  if (!looksLikeHTML(trimmed)) return truncateDisplayText(normalizeDisplayWhitespace(trimmed))
+
+  const parts: string[] = []
+  const title = extractHTMLTitle(trimmed)
+  if (title) parts.push(title)
+  if (statusCode && statusCode > 0) parts.push(`HTTP ${statusCode}`)
+  const text = normalizeDisplayWhitespace(decodeBasicHTMLEntities(trimmed.replace(/<[^>]*>/gs, ' ')))
+  if (text) parts.push(text)
+  return truncateDisplayText(uniqueSummaryParts(parts).join(' · ') || t('usage.errors.detail.htmlSummaryFallback'))
+}
+
+function looksLikeHTML(value: string) {
+  const lower = value.trim().toLowerCase()
+  return lower.startsWith('<!doctype html') ||
+    lower.startsWith('<html') ||
+    lower.includes('<head') ||
+    lower.includes('<body') ||
+    lower.includes('</html>')
+}
+
+function extractHTMLTitle(value: string) {
+  const match = value.match(/<title[^>]*>([\s\S]*?)<\/title>/i)
+  return match ? normalizeDisplayWhitespace(decodeBasicHTMLEntities(match[1])) : ''
+}
+
+function decodeBasicHTMLEntities(value: string) {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+}
+
+function normalizeDisplayWhitespace(value: string) {
+  return value.trim().replace(/\s+/g, ' ')
+}
+
+function uniqueSummaryParts(parts: string[]) {
+  const seen = new Set<string>()
+  return parts.filter((part) => {
+    const normalized = part.toLowerCase()
+    if (!part || seen.has(normalized)) return false
+    seen.add(normalized)
+    return true
+  })
+}
+
+function truncateDisplayText(value: string) {
+  const chars = Array.from(value.trim())
+  return chars.length > 240 ? `${chars.slice(0, 240).join('')}...` : chars.join('')
+}
 </script>
 
 <style scoped>
@@ -218,9 +305,21 @@ function getHintLabel(row: UserErrorRequest) {
 }
 
 .usage-error-toolbar {
-  padding: 1rem 1.5rem 1.1rem;
+  padding: 0.85rem 1.35rem 0.95rem;
   border-bottom: 1px solid rgba(216, 205, 185, 0.52);
   background: linear-gradient(180deg, rgba(250, 247, 239, 0.66), rgba(250, 247, 239, 0.36));
+}
+
+.usage-error-control-panel {
+  display: grid;
+  gap: 0.78rem;
+  max-width: 55rem;
+}
+
+.usage-error-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .usage-error-chip {
@@ -236,9 +335,20 @@ function getHintLabel(row: UserErrorRequest) {
   color: #8f3024 !important;
 }
 
+.usage-error-filters {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13rem) minmax(10rem, 11.5rem) minmax(9rem, 10rem) auto;
+  align-items: end;
+  gap: 0.72rem;
+}
+
+.usage-error-filter {
+  min-width: 0;
+}
+
 .usage-error-filters .input-label {
   display: block;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.35rem;
   color: #59645a;
   font-size: 0.78rem;
   font-weight: 650;
@@ -274,6 +384,7 @@ function getHintLabel(row: UserErrorRequest) {
 .usage-error-search {
   min-height: 2.62rem;
   align-self: end;
+  min-width: 6rem;
 }
 
 .usage-error-scroll {
@@ -281,8 +392,20 @@ function getHintLabel(row: UserErrorRequest) {
 }
 
 .usage-error-grid {
+  min-width: 72rem;
   background: rgba(250, 247, 239, 0.52);
+  table-layout: fixed;
 }
+
+.usage-error-col-model { width: 9.5rem; }
+.usage-error-col-key { width: 17.5rem; }
+.usage-error-col-endpoint { width: 9.5rem; }
+.usage-error-col-status { width: 6.5rem; }
+.usage-error-col-category { width: 8rem; }
+.usage-error-col-hint { width: 14rem; }
+.usage-error-col-message { width: 22rem; }
+.usage-error-col-platform { width: 8rem; }
+.usage-error-col-time { width: 10.5rem; }
 
 .usage-error-grid thead tr {
   background: rgba(237, 229, 212, 0.72);
@@ -294,6 +417,8 @@ function getHintLabel(row: UserErrorRequest) {
   font-size: 0.76rem;
   font-weight: 650;
   letter-spacing: 0.08em;
+  padding-left: 1rem;
+  padding-right: 1rem;
   padding-top: 0.95rem;
   padding-bottom: 0.95rem;
   white-space: nowrap;
@@ -302,8 +427,23 @@ function getHintLabel(row: UserErrorRequest) {
 .usage-error-grid td {
   border-bottom: 1px solid rgba(198, 184, 157, 0.32);
   color: #38413a;
+  overflow: hidden;
+  padding-left: 1rem;
+  padding-right: 1rem;
   padding-top: 0.95rem;
   padding-bottom: 0.95rem;
+  text-overflow: ellipsis;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.usage-error-grid td:nth-child(3),
+.usage-error-grid td:nth-child(4),
+.usage-error-grid td:nth-child(5),
+.usage-error-grid td:nth-child(8),
+.usage-error-grid td:nth-child(9) {
+  white-space: nowrap;
 }
 
 .usage-error-row {
@@ -570,6 +710,14 @@ function getHintLabel(row: UserErrorRequest) {
 @media (max-width: 768px) {
   .usage-error-toolbar {
     padding: 0.85rem 1rem 1rem;
+  }
+
+  .usage-error-control-panel {
+    max-width: none;
+  }
+
+  .usage-error-filters {
+    grid-template-columns: 1fr;
   }
 
   .usage-error-scroll {

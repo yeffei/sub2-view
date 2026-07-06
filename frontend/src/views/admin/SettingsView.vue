@@ -1457,21 +1457,6 @@
                 </p>
               </div>
 
-              <!-- Promo Code -->
-              <div
-                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
-              >
-                <div>
-                  <label class="font-medium text-gray-900 dark:text-white">{{
-                    t("admin.settings.registration.promoCode")
-                  }}</label>
-                  <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.registration.promoCodeHint") }}
-                  </p>
-                </div>
-                <Toggle v-model="form.promo_code_enabled" />
-              </div>
-
               <!-- Invitation Code -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -4634,7 +4619,25 @@
           </div>
           <div class="space-y-4 p-6">
             <!-- User error requests visibility -->
-            <div class="flex items-center justify-between">
+            <div
+              v-if="!form.ops_monitoring_enabled"
+              class="settings-highlight-row flex items-start gap-3"
+            >
+              <Icon
+                name="exclamationTriangle"
+                size="md"
+                class="mt-0.5 flex-shrink-0 text-amber-500"
+              />
+              <div class="space-y-1">
+                <p class="text-sm font-medium text-amber-800 dark:text-amber-200">
+                  {{ t('admin.settings.user_error_view.opsDisabledTitle') }}
+                </p>
+                <p class="text-xs text-amber-700 dark:text-amber-300">
+                  {{ t('admin.settings.user_error_view.opsDisabledHint') }}
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center justify-between gap-4">
               <div>
                 <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
                   {{ t('admin.settings.user_error_view.label') }}
@@ -4642,9 +4645,19 @@
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                   {{ t('admin.settings.user_error_view.description') }}
                 </p>
+                <p
+                  v-if="form.ops_monitoring_enabled"
+                  class="mt-1 text-xs text-green-600 dark:text-green-400"
+                >
+                  {{ t('admin.settings.user_error_view.opsEnabledHint') }}
+                </p>
               </div>
               <label class="toggle">
-                <input v-model="form.allow_user_view_error_requests" type="checkbox" />
+                <input
+                  v-model="form.allow_user_view_error_requests"
+                  type="checkbox"
+                  :disabled="!form.ops_monitoring_enabled"
+                />
                 <span class="toggle-slider"></span>
               </label>
             </div>
@@ -7734,7 +7747,7 @@ const form = reactive<SettingsForm>({
   registration_enabled: true,
   email_verify_enabled: false,
   registration_email_suffix_whitelist: [],
-  promo_code_enabled: true,
+  promo_code_enabled: false,
   invitation_code_enabled: false,
   password_reset_enabled: false,
   totp_enabled: false,
@@ -8902,7 +8915,7 @@ async function saveSettings() {
         registrationEmailSuffixWhitelistTags.value.map((suffix) =>
           suffix.startsWith("*.") ? suffix : `@${suffix}`,
         ),
-      promo_code_enabled: form.promo_code_enabled,
+      promo_code_enabled: false,
       invitation_code_enabled: form.invitation_code_enabled,
       password_reset_enabled: form.password_reset_enabled,
       totp_enabled: form.totp_enabled,
@@ -9120,7 +9133,8 @@ async function saveSettings() {
       available_channels_enabled: form.available_channels_enabled,
       // Affiliate (邀请返利) feature switch
       affiliate_enabled: form.affiliate_enabled,
-      allow_user_view_error_requests: form.allow_user_view_error_requests,
+      allow_user_view_error_requests:
+        form.ops_monitoring_enabled && form.allow_user_view_error_requests,
     };
 
     // 仅当 openai_fast_policy_settings 已成功从后端加载时才回写，

@@ -30,41 +30,44 @@
       </div>
 
       <!-- Table -->
-      <OrderTable :orders="orders" :loading="loading" class="orders-table orders-surface">
-        <template #empty>
-          <div class="orders-empty">
-            <span>暂无往来</span>
-            <strong>{{ currentFilter ? '当前筛选下暂无订单' : '还没有充值或退款记录' }}</strong>
-            <p>需要补充余额时，可从充值与兑换发起；待支付或已完成的记录都会在这里留痕。</p>
-            <button class="btn btn-primary inline-flex items-center gap-2" @click="router.push('/purchase')">
-              <Icon name="wallet" size="sm" />
-              <span>充值与兑换</span>
-            </button>
-          </div>
-        </template>
-        <template #actions="{ row }">
-          <div class="flex items-center gap-2">
-            <button v-if="row.status === 'PENDING'" @click="handleCancel(row.id)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
-              <Icon name="x" size="sm" />
-              <span>{{ t('payment.orders.cancel') }}</span>
-            </button>
-            <button v-if="canRequestRefund(row)" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[#a73a2a] hover:bg-[#a73a2a]/8 dark:text-[#f0b4a8] dark:hover:bg-[#a73a2a]/18">
-              <Icon name="dollar" size="sm" />
-              <span>{{ t('payment.orders.requestRefund') }}</span>
-            </button>
-          </div>
-        </template>
-      </OrderTable>
+      <div class="orders-surface">
+        <OrderTable :orders="orders" :loading="loading">
+          <template #empty>
+            <div class="orders-empty">
+              <span>暂无往来</span>
+              <strong>{{ currentFilter ? '当前筛选下暂无订单' : '还没有充值或退款记录' }}</strong>
+              <p>需要补充余额时，可从充值与兑换发起；待支付或已完成的记录都会在这里留痕。</p>
+              <button class="btn btn-primary inline-flex items-center gap-2" @click="router.push('/purchase')">
+                <Icon name="wallet" size="sm" />
+                <span>充值与兑换</span>
+              </button>
+            </div>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex items-center gap-2">
+              <button v-if="row.status === 'PENDING'" @click="handleCancel(row.id)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
+                <Icon name="x" size="sm" />
+                <span>{{ t('payment.orders.cancel') }}</span>
+              </button>
+              <button v-if="canRequestRefund(row)" @click="openRefundDialog(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[#a73a2a] hover:bg-[#a73a2a]/8 dark:text-[#f0b4a8] dark:hover:bg-[#a73a2a]/18">
+                <Icon name="dollar" size="sm" />
+                <span>{{ t('payment.orders.requestRefund') }}</span>
+              </button>
+            </div>
+          </template>
+        </OrderTable>
+      </div>
 
       <!-- Pagination -->
-      <Pagination
-        v-if="pagination.total > 0"
-        :page="pagination.page"
-        :total="pagination.total"
-        :page-size="pagination.page_size"
-        @update:page="handlePageChange"
-        @update:pageSize="handlePageSizeChange"
-      />
+      <div v-if="pagination.total > 0" class="orders-pagination">
+        <Pagination
+          :page="pagination.page"
+          :total="pagination.total"
+          :page-size="pagination.page_size"
+          @update:page="handlePageChange"
+          @update:pageSize="handlePageSizeChange"
+        />
+      </div>
     </div>
 
     <!-- Cancel Confirm Dialog -->
@@ -228,13 +231,22 @@ onMounted(() => { fetchOrders(); loadRefundEligibility() })
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  overflow: hidden;
+  border-color: rgba(198, 184, 157, 0.54);
+  background:
+    radial-gradient(circle at 4% 18%, rgba(255, 252, 245, 0.92), transparent 18rem),
+    linear-gradient(100deg, rgba(167, 58, 42, 0.052), transparent 34%),
+    linear-gradient(180deg, rgba(255, 252, 245, 0.78), rgba(244, 239, 228, 0.56));
+  box-shadow:
+    0 22px 54px -46px rgba(31, 35, 32, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .orders-brief-copy {
   max-width: 38rem;
 }
 
-.orders-brief span {
+.orders-brief-copy > span {
   display: block;
   color: #7b6a53;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -258,9 +270,106 @@ onMounted(() => { fetchOrders(); loadRefundEligibility() })
 }
 
 .orders-filter,
+.orders-surface {
+  border: 1px solid rgba(198, 184, 157, 0.5);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.62), rgba(244, 239, 228, 0.44));
+  box-shadow:
+    0 20px 50px -44px rgba(31, 35, 32, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.orders-filter {
+  border-color: rgba(198, 184, 157, 0.48);
+  background:
+    linear-gradient(180deg, rgba(250, 247, 239, 0.72), rgba(237, 229, 212, 0.42));
+}
+
+.orders-filter :deep(.select-trigger) {
+  border-color: rgba(198, 184, 157, 0.56);
+  background: rgba(255, 252, 245, 0.74);
+  color: #1f2320;
+}
+
+.orders-surface {
+  overflow: hidden;
+}
+
 .orders-surface :deep(.table-wrapper) {
-  border-color: rgba(198, 184, 157, 0.46);
-  background: rgba(250, 247, 239, 0.52);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.orders-surface :deep(table) {
+  color: #2f3831;
+}
+
+.orders-surface :deep(thead),
+.orders-surface :deep(.table-header),
+.orders-surface :deep(.sticky-header-cell) {
+  background:
+    linear-gradient(180deg, rgba(237, 229, 212, 0.86), rgba(225, 213, 193, 0.68)) !important;
+}
+
+.orders-surface :deep(th) {
+  border-bottom-color: rgba(198, 184, 157, 0.56) !important;
+  color: #756850 !important;
+  font-weight: 680 !important;
+}
+
+.orders-surface :deep(tbody),
+.orders-surface :deep(.table-body) {
+  background: rgba(255, 252, 245, 0.46) !important;
+}
+
+.orders-surface :deep(td) {
+  border-bottom-color: rgba(198, 184, 157, 0.28) !important;
+}
+
+.orders-surface :deep(tbody tr:last-child td) {
+  border-bottom-color: transparent !important;
+}
+
+.orders-surface :deep(tbody tr:hover) {
+  background: rgba(167, 58, 42, 0.04) !important;
+}
+
+.orders-surface :deep(tbody .sticky-col) {
+  background: rgba(255, 252, 245, 0.82) !important;
+}
+
+.orders-surface :deep(tbody tr:hover .sticky-col) {
+  background: rgba(247, 239, 224, 0.96) !important;
+}
+
+.orders-surface :deep(> .space-y-3 > div) {
+  border-color: rgba(198, 184, 157, 0.48);
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.72), rgba(244, 239, 228, 0.52));
+  box-shadow: 0 16px 34px -30px rgba(31, 35, 32, 0.28);
+}
+
+.orders-surface :deep(> .space-y-3 > div > .space-y-3 > div) {
+  border-color: rgba(198, 184, 157, 0.32);
+}
+
+.orders-surface :deep(.border-gray-200) {
+  border-color: rgba(198, 184, 157, 0.32) !important;
+}
+
+.orders-surface :deep(.bg-gray-200) {
+  background-color: rgba(198, 184, 157, 0.34) !important;
+}
+
+.orders-surface :deep(.table-wrapper::-webkit-scrollbar-track) {
+  background-color: rgba(198, 184, 157, 0.18) !important;
+}
+
+.orders-surface :deep(.table-wrapper::-webkit-scrollbar-thumb) {
+  background-color: rgba(123, 106, 83, 0.56) !important;
 }
 
 .orders-filter-copy {
@@ -269,8 +378,8 @@ onMounted(() => { fetchOrders(); loadRefundEligibility() })
   min-width: 9rem;
 }
 
-.orders-filter-copy span,
-.orders-empty span {
+.orders-filter-copy > span,
+.orders-empty > span {
   color: #7b6a53;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.68rem;
@@ -304,29 +413,217 @@ onMounted(() => { fetchOrders(); loadRefundEligibility() })
   line-height: 1.7;
 }
 
-.dark .orders-brief h2 {
+.orders-brief .btn-primary span,
+.orders-empty .btn-primary span {
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: 0;
+}
+
+.orders-pagination {
+  overflow: hidden;
+  border: 1px solid rgba(198, 184, 157, 0.46);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 252, 245, 0.58), rgba(244, 239, 228, 0.4));
+  box-shadow: 0 18px 42px -38px rgba(31, 35, 32, 0.24);
+}
+
+.orders-pagination :deep(.pagination-root) {
+  border-top: 0;
+  background: transparent;
+}
+
+.orders-pagination :deep(button) {
+  border-color: rgba(198, 184, 157, 0.54);
+  background-color: rgba(255, 252, 245, 0.7);
+}
+
+.orders-pagination :deep(button:hover:not(:disabled)) {
+  background-color: rgba(250, 247, 239, 0.96);
+  color: #a73a2a;
+}
+
+.orders-pagination :deep(button[aria-current="page"]) {
+  border-color: rgba(167, 58, 42, 0.34);
+  background-color: rgba(167, 58, 42, 0.1);
+  color: #a73a2a;
+}
+
+html.dark .orders-brief {
+  border-color: rgba(55, 59, 49, 0.96);
+  background:
+    radial-gradient(circle at 5% 16%, rgba(244, 239, 228, 0.055), transparent 18rem),
+    linear-gradient(100deg, rgba(167, 58, 42, 0.105), transparent 34%),
+    linear-gradient(180deg, rgba(29, 31, 25, 0.92), rgba(19, 21, 17, 0.86));
+  box-shadow:
+    0 24px 60px -46px rgba(0, 0, 0, 0.82),
+    inset 0 1px 0 rgba(244, 239, 228, 0.045);
+}
+
+html.dark .orders-brief-copy > span {
+  color: #b99a78;
+}
+
+html.dark .orders-brief h2 {
   color: #f4efe4;
 }
 
-.dark .orders-brief p {
-  color: #879186;
+html.dark .orders-brief p {
+  color: #a8a091;
 }
 
-.dark .orders-filter,
-.dark .orders-table :deep(.table-wrapper) {
-  border-color: rgba(48, 52, 43, 0.95);
-  background: rgba(24, 26, 21, 0.72);
+html.dark .orders-filter,
+html.dark .orders-surface {
+  border-color: rgba(55, 59, 49, 0.96);
+  background:
+    linear-gradient(180deg, rgba(27, 30, 24, 0.9), rgba(16, 18, 14, 0.76));
+  box-shadow:
+    0 22px 52px -44px rgba(0, 0, 0, 0.82),
+    inset 0 1px 0 rgba(244, 239, 228, 0.035);
 }
 
-.dark .orders-filter-copy span,
-.dark .orders-empty span,
-.dark .orders-empty p {
-  color: #879186;
-}
-
-.dark .orders-filter-copy strong,
-.dark .orders-empty strong {
+html.dark .orders-filter :deep(.select-trigger) {
+  border-color: rgba(68, 71, 58, 0.92);
+  background: rgba(17, 19, 15, 0.66);
   color: #f4efe4;
+}
+
+html.dark .orders-filter-copy > span,
+html.dark .orders-empty > span {
+  color: #b99a78;
+}
+
+html.dark .orders-filter-copy strong,
+html.dark .orders-empty strong {
+  color: #f4efe4;
+}
+
+html.dark .orders-empty p {
+  color: #a8a091;
+}
+
+html.dark .orders-surface :deep(.table-wrapper) {
+  background: transparent;
+}
+
+html.dark .orders-surface :deep(table) {
+  color: #d8cfbf;
+}
+
+html.dark .orders-surface :deep(thead),
+html.dark .orders-surface :deep(.table-header),
+html.dark .orders-surface :deep(.sticky-header-cell) {
+  background:
+    linear-gradient(180deg, rgba(54, 48, 38, 0.9), rgba(31, 33, 26, 0.82)) !important;
+}
+
+html.dark .orders-surface :deep(th) {
+  border-bottom-color: rgba(72, 69, 56, 0.92) !important;
+  color: #c0ad91 !important;
+}
+
+html.dark .orders-surface :deep(tbody),
+html.dark .orders-surface :deep(.table-body) {
+  background: rgba(17, 19, 15, 0.55) !important;
+}
+
+html.dark .orders-surface :deep(td) {
+  border-bottom-color: rgba(55, 59, 49, 0.72) !important;
+}
+
+html.dark .orders-surface :deep(tbody tr:last-child td) {
+  border-bottom-color: transparent !important;
+}
+
+html.dark .orders-surface :deep(tbody tr:hover) {
+  background: rgba(167, 58, 42, 0.095) !important;
+}
+
+html.dark .orders-surface :deep(tbody .sticky-col) {
+  background: rgba(18, 20, 16, 0.96) !important;
+}
+
+html.dark .orders-surface :deep(tbody tr:hover .sticky-col) {
+  background: rgba(35, 31, 25, 0.98) !important;
+}
+
+html.dark .orders-surface :deep(> .space-y-3 > div) {
+  border-color: rgba(55, 59, 49, 0.96);
+  background:
+    linear-gradient(180deg, rgba(27, 30, 24, 0.92), rgba(17, 19, 15, 0.84));
+  box-shadow: 0 18px 38px -30px rgba(0, 0, 0, 0.72);
+}
+
+html.dark .orders-surface :deep(> .space-y-3 > div > .space-y-3 > div) {
+  border-color: rgba(55, 59, 49, 0.82);
+}
+
+html.dark .orders-surface :deep(.border-gray-200),
+html.dark .orders-surface :deep(.dark\:border-dark-700) {
+  border-color: rgba(55, 59, 49, 0.82) !important;
+}
+
+html.dark .orders-surface :deep(.bg-gray-200),
+html.dark .orders-surface :deep(.dark\:bg-dark-700) {
+  background-color: rgba(68, 71, 58, 0.72) !important;
+}
+
+html.dark .orders-surface :deep(.table-wrapper::-webkit-scrollbar-track) {
+  background-color: rgba(244, 239, 228, 0.055) !important;
+}
+
+html.dark .orders-surface :deep(.table-wrapper::-webkit-scrollbar-thumb) {
+  background-color: rgba(185, 154, 120, 0.54) !important;
+}
+
+html.dark .orders-surface :deep(.text-gray-900),
+html.dark .orders-surface :deep(.dark\:text-white),
+html.dark .orders-surface :deep(.dark\:text-gray-100) {
+  color: #f4efe4 !important;
+}
+
+html.dark .orders-surface :deep(.text-gray-700),
+html.dark .orders-surface :deep(.text-gray-500),
+html.dark .orders-surface :deep(.dark\:text-gray-300),
+html.dark .orders-surface :deep(.dark\:text-gray-400) {
+  color: #a8a091 !important;
+}
+
+html.dark .orders-pagination {
+  border-color: rgba(55, 59, 49, 0.96);
+  background:
+    linear-gradient(180deg, rgba(27, 30, 24, 0.86), rgba(17, 19, 15, 0.74));
+  box-shadow: 0 20px 46px -38px rgba(0, 0, 0, 0.74);
+}
+
+html.dark .orders-pagination :deep(.pagination-root) {
+  border-top: 0;
+  background: transparent;
+}
+
+html.dark .orders-pagination :deep(.text-gray-700),
+html.dark .orders-pagination :deep(.dark\:text-gray-300) {
+  color: #a8a091 !important;
+}
+
+html.dark .orders-pagination :deep(button) {
+  border-color: rgba(68, 71, 58, 0.9);
+  background-color: rgba(17, 19, 15, 0.66);
+  color: #c9c0ac;
+}
+
+html.dark .orders-pagination :deep(button:hover:not(:disabled)) {
+  border-color: rgba(167, 58, 42, 0.34);
+  background-color: rgba(167, 58, 42, 0.11);
+  color: #f0b4a8;
+}
+
+html.dark .orders-pagination :deep(button[aria-current="page"]) {
+  border-color: rgba(167, 58, 42, 0.4);
+  background-color: rgba(167, 58, 42, 0.18);
+  color: #f0b4a8;
 }
 
 @media (max-width: 640px) {

@@ -1067,7 +1067,9 @@ export default {
       },
       detail: {
         title: '错误请求详情',
-        responseBody: '上游响应内容',
+        responseBody: '上游响应摘要',
+        htmlSummaryHint: '上游返回了 HTML 错误页，已自动提取可读摘要，不展示完整页面源码。',
+        htmlSummaryFallback: '上游返回了 HTML 错误页',
         upstreamStatus: '上游状态码',
         loadFailed: '加载详情失败，请稍后重试',
         explanationTitle: '本次失败说明',
@@ -7311,7 +7313,10 @@ export default {
       },
       user_error_view: {
         label: '允许用户查看自己的错误请求',
-        description: '开启后，用户可在用量页查看自己失败请求的精简信息（不含内部/上游错误细节）。需运维监控开启才有数据。',
+        description: '开启后，用户可在用量页查看自己失败请求的精简信息（不含内部/上游错误细节）。',
+        opsEnabledHint: '运维监控已开启，新的失败请求会进入用户错误账册。',
+        opsDisabledTitle: '需先开启运维监控',
+        opsDisabledHint: '用户错误账册依赖运维监控采集；请在本页「功能开关」或运维监控设置中开启后再允许用户查看。',
       },
       saveSettings: '保存设置',
       saving: '保存中...',

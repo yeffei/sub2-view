@@ -1,10 +1,16 @@
 package service
 
 import (
+	"encoding/json"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
+
+const userErrorBodyMaxRunes = 800
+
+var htmlTagPattern = regexp.MustCompile(`(?s)<[^>]*>`)
 
 // UserErrorRequest 是面向终端用户的"错误请求"精简脱敏视图（白名单）。
 // 严禁包含 client_ip / user_agent / account / api_key_prefix / upstream_endpoint /
@@ -102,7 +108,7 @@ func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 		StatusCode:      e.StatusCode,
 		Category:        MapUserErrorCategory(e.Phase, e.Type),
 		Platform:        e.Platform,
-		Message:         e.Message,
+		Message:         summarizeUserErrorMessage(e.Message, e.StatusCode),
 		KeyName:         e.APIKeyName,
 		KeyDeleted:      e.APIKeyDeleted,
 	}
@@ -114,6 +120,7 @@ func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 type UserErrorRequestDetail struct {
 	UserErrorRequest
 	ErrorBody          string `json:"error_body"`
+	ErrorBodyKind      string `json:"error_body_kind,omitempty"`
 	UpstreamStatusCode *int   `json:"upstream_status_code,omitempty"`
 	Diagnosis          *UserErrorDiagnosis `json:"diagnosis,omitempty"`
 }
@@ -136,12 +143,127 @@ func ToUserErrorRequestDetail(e *OpsErrorLogDetail) *UserErrorRequestDetail {
 		return nil
 	}
 	base := ToUserErrorRequest(&e.OpsErrorLog)
+	body, kind := summarizeUserErrorBody(e.ErrorBody, e.UpstreamStatusCode)
 	return &UserErrorRequestDetail{
 		UserErrorRequest:   *base,
-		ErrorBody:          e.ErrorBody,
+		ErrorBody:          body,
+		ErrorBodyKind:      kind,
 		UpstreamStatusCode: e.UpstreamStatusCode,
 		Diagnosis:          buildUserErrorDiagnosis(e),
 	}
+}
+
+func summarizeUserErrorBody(body string, upstreamStatusCode *int) (string, string) {
+	trimmed := strings.TrimSpace(body)
+	if trimmed == "" {
+		return "", ""
+	}
+
+	if looksLikeHTML(trimmed) {
+		return truncateUserErrorBody(summarizeHTMLBody(trimmed, upstreamStatusCode)), "html"
+	}
+
+	var parsed any
+	if json.Unmarshal([]byte(trimmed), &parsed) == nil {
+		if message := extractJSONErrorMessage(parsed); message != "" {
+			return truncateUserErrorBody(message), "json"
+		}
+	}
+
+	return truncateUserErrorBody(normalizeWhitespace(trimmed)), "text"
+}
+
+func summarizeUserErrorMessage(message string, statusCode int) string {
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		return ""
+	}
+	if looksLikeHTML(trimmed) {
+		status := statusCode
+		if status <= 0 {
+			return truncateUserErrorBody(summarizeHTMLBody(trimmed, nil))
+		}
+		return truncateUserErrorBody(summarizeHTMLBody(trimmed, &status))
+	}
+	return truncateUserErrorBody(normalizeWhitespace(trimmed))
+}
+
+func looksLikeHTML(body string) bool {
+	lower := strings.ToLower(strings.TrimSpace(body))
+	return strings.HasPrefix(lower, "<!doctype html") ||
+		strings.HasPrefix(lower, "<html") ||
+		strings.Contains(lower, "<head") ||
+		strings.Contains(lower, "<body") ||
+		strings.Contains(lower, "</html>")
+}
+
+func summarizeHTMLBody(body string, upstreamStatusCode *int) string {
+	parts := make([]string, 0, 3)
+	if title := extractHTMLTitle(body); title != "" {
+		parts = append(parts, title)
+	}
+	if upstreamStatusCode != nil && *upstreamStatusCode > 0 {
+		parts = append(parts, "HTTP "+strconv.Itoa(*upstreamStatusCode))
+	}
+	text := htmlTagPattern.ReplaceAllString(body, " ")
+	text = strings.NewReplacer("&nbsp;", " ", "&amp;", "&", "&lt;", "<", "&gt;", ">", "&quot;", "\"", "&#39;", "'").Replace(text)
+	text = normalizeWhitespace(text)
+	if text != "" {
+		parts = append(parts, text)
+	}
+	if len(parts) == 0 {
+		return "上游返回了 HTML 错误页"
+	}
+	return strings.Join(parts, " · ")
+}
+
+func extractHTMLTitle(body string) string {
+	lower := strings.ToLower(body)
+	start := strings.Index(lower, "<title")
+	if start < 0 {
+		return ""
+	}
+	gt := strings.Index(body[start:], ">")
+	if gt < 0 {
+		return ""
+	}
+	contentStart := start + gt + 1
+	end := strings.Index(strings.ToLower(body[contentStart:]), "</title>")
+	if end < 0 {
+		return ""
+	}
+	return normalizeWhitespace(body[contentStart : contentStart+end])
+}
+
+func extractJSONErrorMessage(value any) string {
+	switch typed := value.(type) {
+	case map[string]any:
+		if errorValue, ok := typed["error"]; ok {
+			if message := extractJSONErrorMessage(errorValue); message != "" {
+				return message
+			}
+		}
+		for _, key := range []string{"message", "error_message", "detail", "description"} {
+			if raw, ok := typed[key].(string); ok && strings.TrimSpace(raw) != "" {
+				return normalizeWhitespace(raw)
+			}
+		}
+	case string:
+		return normalizeWhitespace(typed)
+	}
+	return ""
+}
+
+func normalizeWhitespace(value string) string {
+	return strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+}
+
+func truncateUserErrorBody(value string) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) <= userErrorBodyMaxRunes {
+		return string(runes)
+	}
+	return string(runes[:userErrorBodyMaxRunes]) + "..."
 }
 
 func buildUserErrorDiagnosis(e *OpsErrorLogDetail) *UserErrorDiagnosis {

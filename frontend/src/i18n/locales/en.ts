@@ -1063,7 +1063,9 @@ export default {
       },
       detail: {
         title: 'Error Request Detail',
-        responseBody: 'Response Body',
+        responseBody: 'Upstream Response Summary',
+        htmlSummaryHint: 'The upstream returned an HTML error page. A readable summary is shown instead of the full page source.',
+        htmlSummaryFallback: 'The upstream returned an HTML error page',
         upstreamStatus: 'Upstream Status',
         loadFailed: 'Failed to load detail, please try again',
         explanationTitle: 'What happened',

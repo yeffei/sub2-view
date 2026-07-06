@@ -228,6 +228,15 @@
                   </div>
                 </li>
               </ol>
+              <div v-if="recentUsage.length" class="call-list-footer">
+                <div>
+                  <small>今日共 {{ formatNumber(stats?.today_requests || 0) }} 次请求，近列成功入账 {{ recentSuccessCount }} 条。</small>
+                </div>
+                <div class="call-list-footer-actions">
+                  <router-link to="/usage">完整账册</router-link>
+                  <router-link to="/usage?tab=errors">错误账册</router-link>
+                </div>
+              </div>
             </div>
 
             <div class="ledger-side">
@@ -2034,6 +2043,8 @@ onBeforeUnmount(() => {
 }
 
 .usage-scroll {
+  display: flex;
+  flex-direction: column;
   min-height: 13.2rem;
 }
 
@@ -2382,6 +2393,65 @@ onBeforeUnmount(() => {
   font-size: 0.72rem;
 }
 
+.call-list-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: auto;
+  border-top: 1px solid rgba(198, 184, 157, 0.26);
+  padding-top: 1rem;
+  color: var(--sst-mute);
+}
+
+.call-list-footer span {
+  display: block;
+  color: #8f7d5f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+}
+
+.call-list-footer strong {
+  display: block;
+  margin-top: 0.28rem;
+  color: var(--sst-ink);
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.call-list-footer small {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.call-list-footer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.call-list-footer-actions a {
+  border: 1px solid rgba(198, 184, 157, 0.42);
+  border-radius: 999px;
+  padding: 0.42rem 0.72rem;
+  color: #8f3024;
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.call-list-footer-actions a:hover,
+.call-list-footer-actions a:focus-visible {
+  border-color: rgba(167, 58, 42, 0.34);
+  background: rgba(167, 58, 42, 0.06);
+  outline: none;
+}
+
 .quota-list > div:first-child {
   border-top: 0;
   padding-top: 0;
@@ -2655,6 +2725,7 @@ onBeforeUnmount(() => {
 }
 
 .dark .call-list li,
+.dark .call-list-footer,
 .dark .quota-list > div,
 .dark .platform-list > div,
 .dark .reason-item,
@@ -2686,11 +2757,27 @@ onBeforeUnmount(() => {
 .dark .reason-item strong,
 .dark .ledger-slip strong,
 .dark .call-list strong,
+.dark .call-list-footer strong,
 .dark .quota-list strong,
 .dark .model-river strong,
 .dark .platform-list strong,
 .dark .empty-note strong {
   color: #f4efe4;
+}
+
+.dark .call-list-footer span {
+  color: #9b8f79;
+}
+
+.dark .call-list-footer-actions a {
+  border-color: rgba(93, 88, 73, 0.58);
+  color: #f0b4a8;
+}
+
+.dark .call-list-footer-actions a:hover,
+.dark .call-list-footer-actions a:focus-visible {
+  border-color: rgba(167, 58, 42, 0.42);
+  background: rgba(167, 58, 42, 0.12);
 }
 
 .dark .focus-note {
@@ -2826,6 +2913,7 @@ onBeforeUnmount(() => {
 .dark .ledger-slip small,
 .dark .focus-note p,
 .dark .call-list span,
+.dark .call-list-footer small,
 .dark .quota-list span,
 .dark .quota-list small,
 .dark .model-river span,

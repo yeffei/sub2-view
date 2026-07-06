@@ -134,6 +134,16 @@
                 />
               </div>
 
+              <!-- Tab 切换栏 -->
+              <div v-if="errorViewEnabled" class="usage-tab-strip">
+                <button type="button" class="tab usage-tab-button" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
+                  {{ t('usage.tabs.usage') }}
+                </button>
+                <button type="button" class="tab usage-tab-button" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
+                  {{ t('usage.tabs.errors') }}
+                </button>
+              </div>
+
               <div class="usage-toolbar-actions">
                 <button @click="exportToCSV" :disabled="exporting || pagination.total === 0" class="btn btn-primary">
                   <Icon v-if="exporting" name="refresh" size="sm" class="-ml-1 mr-2 animate-spin" />
@@ -151,16 +161,6 @@
         </div>
 
         <div class="usage-data-shell">
-        <!-- Tab 切换栏 -->
-        <div v-if="errorViewEnabled" class="usage-tab-strip">
-          <button type="button" class="tab usage-tab-button" :class="{ 'tab-active': activeTab === 'usage' }" @click="activeTab = 'usage'">
-            {{ t('usage.tabs.usage') }}
-          </button>
-          <button type="button" class="tab usage-tab-button" :class="{ 'tab-active': activeTab === 'errors' }" @click="switchToErrors">
-            {{ t('usage.tabs.errors') }}
-          </button>
-        </div>
-
         <!-- 用量明细表 -->
         <!-- flex 链让 DataTable 根 .table-wrapper(flex:1)拿到有界高度以启用内部滚动。
              虚拟化器测高 race 导致的概率空白,已在 DataTable 内用「就绪门控 + initialRect 兜底」根治。 -->
@@ -328,6 +328,9 @@
             :page="errorPage"
             :page-size="errorPageSize"
             :api-keys="apiKeys"
+            :model-filter="errorFilter.model"
+            :category-filter="errorFilter.category"
+            :api-key-id-filter="errorFilter.api_key_id"
             @filter="onErrorFilter"
             @update:page="onErrorPage"
             @update:pageSize="onErrorPageSize"
@@ -1015,6 +1018,13 @@ const errorPageSize = ref(20)
 const errorTotal = ref(0)
 const errorFilter = ref<{ model: string; category: string; api_key_id: number | null }>({ model: '', category: '', api_key_id: null })
 
+const parsePositiveQueryInt = (value: unknown): number | null => {
+  const raw = Array.isArray(value) ? value[0] : value
+  if (typeof raw !== 'string' || raw.trim() === '') return null
+  const parsed = Number.parseInt(raw, 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+}
+
 const loadErrors = async () => {
   errorLoading.value = true
   try {
@@ -1055,10 +1065,15 @@ watch(
   (query) => {
     const tab = typeof query.tab === 'string' ? query.tab : ''
     const category = typeof query.category === 'string' ? query.category : ''
+    const apiKeyId = parsePositiveQueryInt(query.api_key_id)
     if (tab === 'errors') {
       activeTab.value = 'errors'
-      if (errorFilter.value.category !== category) {
-        errorFilter.value = { ...errorFilter.value, category }
+      if (
+        errorFilter.value.category !== category ||
+        errorFilter.value.api_key_id !== apiKeyId
+      ) {
+        errorFilter.value = { ...errorFilter.value, category, api_key_id: apiKeyId }
+        filters.value.api_key_id = apiKeyId ?? undefined
         errorPage.value = 1
       }
       loadErrors()
@@ -1153,9 +1168,9 @@ onMounted(() => {
 
 .usage-toolbar-grid {
   display: grid;
-  grid-template-columns: minmax(15rem, 19.5rem) minmax(13rem, max-content) minmax(0, 1fr);
-  align-items: end;
-  gap: 0.55rem;
+  grid-template-columns: minmax(14rem, 19.5rem) minmax(13rem, max-content) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.65rem;
   min-width: 0;
 }
 
@@ -1676,31 +1691,42 @@ onMounted(() => {
 
 .usage-tab-strip {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.35rem;
   margin-bottom: 0;
-  padding: 0.82rem 1rem 0;
-  border-bottom: 1px solid rgba(216, 205, 185, 0.72);
+  min-width: 0;
+  padding: 0;
+  align-self: center;
+  justify-self: start;
 }
 
 .usage-tab-button {
   position: relative;
-  padding: 0 0.18rem 0.78rem;
-  font-size: 0.78rem;
+  min-height: 2.16rem;
+  padding: 0.46rem 0.92rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.82rem;
   font-weight: 650;
-  line-height: 1;
-  transition: color 160ms ease;
+  line-height: 1.1;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .usage-tab-button::after {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
+  left: 0.92rem;
+  right: 0.92rem;
+  bottom: 0.2rem;
+  height: 1px;
   border-radius: 999px;
   background: transparent;
-  transition: background-color 160ms ease;
+  transition:
+    background-color 160ms ease,
+    opacity 160ms ease;
 }
 
 .usage-page :deep(.table-wrapper) {
@@ -1852,21 +1878,26 @@ onMounted(() => {
 }
 
 .usage-page :deep(.tab) {
-  border-radius: 0;
+  border-radius: 999px;
   color: #59645a;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.03em;
 }
 
 .usage-page :deep(.tab:hover) {
+  border-color: rgba(216, 205, 185, 0.66);
+  background: rgba(255, 252, 246, 0.48);
   color: #7b6a53;
 }
 
 .usage-page :deep(.tab-active) {
+  border-color: rgba(167, 58, 42, 0.2);
+  background: rgba(167, 58, 42, 0.075);
   color: #a73a2a;
+  box-shadow: inset 0 1px 0 rgba(255, 252, 246, 0.72);
 }
 
 .usage-page :deep(.tab-active)::after {
-  background: #a73a2a;
+  background: rgba(167, 58, 42, 0.72);
 }
 
 .usage-page :deep(.rounded),
@@ -2145,11 +2176,9 @@ onMounted(() => {
   background: rgba(167, 58, 42, 0.11) !important;
 }
 
-.dark .usage-tab-strip {
-  border-bottom-color: rgba(48, 52, 43, 0.78);
-}
-
 .dark .usage-page :deep(.tab:hover) {
+  border-color: rgba(216, 205, 185, 0.16);
+  background: rgba(216, 205, 185, 0.045);
   color: #d8cdb9;
 }
 
@@ -2168,11 +2197,14 @@ onMounted(() => {
 }
 
 .dark .usage-page :deep(.tab-active) {
+  border-color: rgba(184, 156, 116, 0.22);
+  background: rgba(184, 156, 116, 0.09);
   color: #d8cdb9;
+  box-shadow: inset 0 1px 0 rgba(244, 239, 228, 0.06);
 }
 
 .dark .usage-page :deep(.tab-active)::after {
-  background: #b89c74;
+  background: rgba(184, 156, 116, 0.72);
 }
 
 .dark .usage-page :deep(.btn-secondary) {
@@ -2259,6 +2291,12 @@ onMounted(() => {
     align-items: stretch;
   }
 
+  .usage-tab-strip {
+    overflow-x: auto;
+    padding-bottom: 0.08rem;
+    justify-self: stretch;
+  }
+
   .usage-filter-field,
   .usage-filter-field-key,
   .usage-filter-field-range,
@@ -2274,7 +2312,8 @@ onMounted(() => {
   }
 
   .usage-toolbar-actions .btn {
-    width: 100%;
+    flex: 1 1 8rem;
+    min-width: 0;
   }
 
   .usage-filters :deep(.date-picker-dropdown) {
