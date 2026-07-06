@@ -5,15 +5,29 @@ import ProfileView from '@/views/user/ProfileView.vue'
 const {
   fetchPublicSettingsMock,
   refreshUserMock,
+  getDashboardStatsMock,
+  routeState,
   authState
 } = vi.hoisted(() => ({
   fetchPublicSettingsMock: vi.fn(),
   refreshUserMock: vi.fn(),
+  getDashboardStatsMock: vi.fn(),
+  routeState: {
+    query: {} as Record<string, unknown>
+  },
   authState: {
     user: null as Record<string, unknown> | null,
     refreshUser: vi.fn()
   }
 }))
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+  return {
+    ...actual,
+    useRoute: () => routeState
+  }
+})
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => authState
@@ -23,6 +37,12 @@ vi.mock('@/stores/app', () => ({
   useAppStore: () => ({
     fetchPublicSettings: fetchPublicSettingsMock
   })
+}))
+
+vi.mock('@/api/usage', () => ({
+  usageAPI: {
+    getDashboardStats: getDashboardStatsMock
+  }
 }))
 
 vi.mock('@/utils/format', () => ({
@@ -42,8 +62,14 @@ vi.mock('vue-i18n', async (importOriginal) => {
 describe('ProfileView', () => {
   beforeEach(() => {
     refreshUserMock.mockReset()
+    getDashboardStatsMock.mockReset()
+    routeState.query = {}
     fetchPublicSettingsMock.mockReset()
     refreshUserMock.mockResolvedValue(undefined)
+    getDashboardStatsMock.mockResolvedValue({
+      today_actual_cost: 0,
+      total_actual_cost: 0
+    })
     authState.refreshUser = refreshUserMock
     authState.user = {
       id: 1,

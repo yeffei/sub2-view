@@ -36,6 +36,12 @@ vi.mock('@/stores/payment', () => ({
   }),
 }))
 
+vi.mock('@/components/layout/AppLayout.vue', () => ({
+  default: {
+    template: '<div><slot /></div>',
+  },
+}))
+
 vi.mock('@/api/payment', () => ({
   paymentAPI: {
     verifyOrder,

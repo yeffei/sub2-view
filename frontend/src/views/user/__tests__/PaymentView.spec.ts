@@ -17,6 +17,7 @@ const fetchActiveSubscriptions = vi.hoisted(() => vi.fn().mockResolvedValue(unde
 const showError = vi.hoisted(() => vi.fn())
 const showInfo = vi.hoisted(() => vi.fn())
 const showWarning = vi.hoisted(() => vi.fn())
+const fetchPublicSettings = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 
@@ -71,6 +72,7 @@ vi.mock('@/stores', () => ({
     showError,
     showInfo,
     showWarning,
+    fetchPublicSettings,
   }),
 }))
 
@@ -196,6 +198,8 @@ describe('PaymentView WeChat JSAPI flow', () => {
     showError.mockReset()
     showInfo.mockReset()
     showWarning.mockReset()
+    fetchPublicSettings.mockReset()
+    fetchPublicSettings.mockResolvedValue(null)
     getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
     bridgeInvoke.mockReset()
     window.localStorage.clear()
@@ -321,7 +325,7 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toBeNull()
   })
 
-  it('keeps subscription resume context for token-only WeChat callbacks', async () => {
+  it('clears token-only subscription WeChat callbacks without creating a balance order', async () => {
     routeState.query = {
       wechat_resume: '1',
       wechat_resume_token: 'resume-subscription-7',
@@ -354,16 +358,8 @@ describe('PaymentView WeChat JSAPI flow', () => {
     await flushPromises()
 
     expect(routerReplace).toHaveBeenCalledWith({ path: '/purchase', query: {} })
-    expect(createOrder).toHaveBeenCalledWith(expect.objectContaining({
-      payment_type: 'wxpay',
-      order_type: 'subscription',
-      plan_id: 7,
-      wechat_resume_token: 'resume-subscription-7',
-    }))
-    expect(locationState.href).toContain('/api/v1/auth/oauth/wechat/payment/start?')
-    expect(new URL(locationState.href, 'http://localhost').searchParams.get('redirect')).toBe(
-      '/purchase?from=wechat&payment_type=wxpay&order_type=subscription&plan_id=7',
-    )
+    expect(createOrder).not.toHaveBeenCalled()
+    expect(locationState.href).toBe('http://localhost/purchase')
 
     Object.defineProperty(window, 'location', {
       configurable: true,

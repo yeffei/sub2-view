@@ -1,8 +1,24 @@
 import { getConfiguredTableDefaultPageSize, normalizeTablePageSize } from '@/utils/tablePreferences'
 
 const STORAGE_KEY = 'table-page-size'
+const SOURCE_KEY = 'table-page-size-source'
+
+function hasConfiguredTableDefaultPageSize(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.__APP_CONFIG__?.table_default_page_size !== undefined
+}
 
 export function getPersistedPageSize(fallback = getConfiguredTableDefaultPageSize()): number {
+  if (hasConfiguredTableDefaultPageSize()) {
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+      window.localStorage.removeItem(SOURCE_KEY)
+    } catch (error) {
+      console.warn('Failed to clear stale persisted page size:', error)
+    }
+    return normalizeTablePageSize(getConfiguredTableDefaultPageSize())
+  }
+
   if (typeof window !== 'undefined') {
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY)
