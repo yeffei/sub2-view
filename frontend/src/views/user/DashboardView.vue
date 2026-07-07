@@ -70,9 +70,9 @@
               <div class="watch-main">
                 <div class="watch-status" :class="`status-${healthTone}`">
                   <div class="center-seal watch-score">
-                    <span>今日值守</span>
-                    <strong>{{ healthScore }}</strong>
-                    <small>{{ healthLabel }}</small>
+                    <span>{{ watchSealLabel }}</span>
+                    <strong>{{ watchSealValue }}</strong>
+                    <small>{{ watchSealNote }}</small>
                   </div>
 
                   <div class="watch-copy">
@@ -123,7 +123,7 @@
                     <strong>{{ reason.label }}</strong>
                     <small>{{ reason.detail }}</small>
                   </span>
-                  <em>处理</em>
+                  <em>{{ reasonActionLabel(reason.tone) }}</em>
                 </router-link>
                 <div v-if="!statusReasons.length" class="reason-item tone-calm">
                   <Icon name="chart" size="sm" />
@@ -430,6 +430,23 @@ const healthTone = computed<StatusTone>(() => {
   return 'alert'
 })
 
+const statusIssueCount = computed(() => statusReasons.value.length)
+
+const watchSealLabel = computed(() => {
+  if (!statusIssueCount.value) return '今日账册'
+  return healthTone.value === 'alert' ? '待处置' : '待核项'
+})
+
+const watchSealValue = computed(() => {
+  if (!statusIssueCount.value) return '安'
+  return String(statusIssueCount.value).padStart(2, '0')
+})
+
+const watchSealNote = computed(() => {
+  if (!statusIssueCount.value) return '无碍'
+  return healthTone.value === 'alert' ? '先处置' : '待核对'
+})
+
 const statusReasons = computed<Array<{ label: string, detail: string, to: string, icon: IconName, tone: StatusTone }>>(() => {
   if (!stats.value) return []
   const reasons: Array<{ label: string, detail: string, to: string, icon: IconName, tone: StatusTone }> = []
@@ -461,14 +478,20 @@ const statusReasons = computed<Array<{ label: string, detail: string, to: string
 
 const statusTitle = computed(() => {
   if (healthTone.value === 'calm') return '今日值守安稳'
-  if (healthTone.value === 'notice') return '有事项需要留意'
-  return '需要先处理风险'
+  if (healthTone.value === 'notice') return `${statusIssueCount.value} 项需要核对`
+  return `${statusIssueCount.value} 项需要先处置`
 })
 
 const statusSummary = computed(() => {
-  if (!statusReasons.value.length) return '账户、密钥与响应保持稳定，可以继续观察今日调用。'
+  if (!statusReasons.value.length) return '账户、密钥与响应保持稳定，今日账册无明显异动。'
   return statusReasons.value.map((reason) => reason.label).join('、')
 })
+
+function reasonActionLabel(tone: StatusTone) {
+  if (tone === 'alert') return '处置'
+  if (tone === 'notice') return '待核'
+  return '前往'
+}
 
 const dashboardModelInsight = computed(() => {
   const entries = dashboardKeys.value
@@ -522,7 +545,7 @@ const watchAdvices = computed<Array<{ title: string, detail: string, to: string,
     })
   }
   if (!advices.length) {
-    advices.push({ title: '庭院状态安稳', detail: '密钥、用量和响应均保持可用，继续观察即可。', to: '/usage', tone: 'calm' })
+    advices.push({ title: '今日无碍', detail: '密钥、用量和响应均保持可用，可继续观察账册。', to: '/usage', tone: 'calm' })
   }
 
   return advices.slice(0, 3)
@@ -553,14 +576,14 @@ const courtyardGates = computed<Array<{ to: string, label: string, note: string,
 const gardenEntries = computed(() => {
   const entries = [
     { to: '/keys', label: '密钥', icon: 'key' as IconName, value: (stats.value?.active_api_keys || 0) + '/' + (stats.value?.total_api_keys || 0), note: activeKeyRate.value ? activeKeyRate.value + '% 启用' : '暂无启用', alert: (stats.value?.total_api_keys || 0) === 0 || (stats.value?.active_api_keys || 0) === 0 },
-    { to: '/usage', label: '请求', icon: 'chart' as IconName, value: formatNumber(stats.value?.today_requests || 0), note: '累计 ' + formatNumber(stats.value?.total_requests || 0), alert: false },
-    { to: '/usage', label: '消耗', icon: 'dollar' as IconName, value: '$' + formatCost(stats.value?.today_actual_cost || 0), note: '标准 $' + formatCost(stats.value?.today_cost || 0), alert: false },
+    { to: '/usage', label: '今日请求', icon: 'chart' as IconName, value: formatNumber(stats.value?.today_requests || 0), note: '累计 ' + formatNumber(stats.value?.total_requests || 0), alert: false },
+    { to: '/usage', label: '今日消耗', icon: 'dollar' as IconName, value: '$' + formatCost(stats.value?.today_actual_cost || 0), note: '标准 $' + formatCost(stats.value?.today_cost || 0), alert: false },
     { to: '/usage', label: '响应', icon: 'clock' as IconName, value: formatDuration(stats.value?.average_duration_ms || 0), note: formatTokens(stats.value?.rpm || 0) + ' RPM', alert: (stats.value?.average_duration_ms || 0) > 3000 }
   ]
 
   if (!authStore.isSimpleMode) {
     const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
-    entries.unshift({ to: paymentEnabled ? '/purchase' : '/usage', label: paymentEnabled ? '充值' : '账册', icon: 'database' as IconName, value: '$' + formatMoney(user.value?.balance || 0), note: '账户余量', alert: (user.value?.balance ?? 0) <= 0 })
+    entries.unshift({ to: paymentEnabled ? '/purchase' : '/usage', label: '账册', icon: 'database' as IconName, value: '$' + formatMoney(user.value?.balance || 0), note: '账户余量', alert: (user.value?.balance ?? 0) <= 0 })
   }
 
   return entries
@@ -568,8 +591,8 @@ const gardenEntries = computed(() => {
 
 const ledgerSummary = computed(() => {
   const alertCount = gardenEntries.value.filter((item) => item.alert).length
-  if (alertCount > 0) return `${alertCount} 项待留意`
-  return '今日速览'
+  if (alertCount > 0) return `${alertCount} 项待核`
+  return '今日账页'
 })
 
 const modelPreview = computed(() => modelStats.value.slice(0, 5))
@@ -1761,6 +1784,18 @@ onBeforeUnmount(() => {
   color: var(--sst-seal);
 }
 
+.reason-item.tone-calm svg {
+  color: #51624f;
+}
+
+.reason-item.tone-notice svg {
+  color: var(--sst-brass);
+}
+
+.reason-item.tone-alert svg {
+  color: var(--sst-seal);
+}
+
 .reason-item strong,
 .reason-item small {
   display: block;
@@ -1795,11 +1830,16 @@ onBeforeUnmount(() => {
 
 .tone-notice em,
 .status-notice .watch-score strong {
-  color: var(--sst-seal);
+  color: var(--sst-brass);
 }
 
 .tone-alert {
-  background: linear-gradient(90deg, rgba(167, 58, 42, 0.075), transparent 68%);
+  background: linear-gradient(90deg, rgba(167, 58, 42, 0.06), transparent 68%);
+}
+
+.tone-alert em,
+.status-alert .watch-score strong {
+  color: var(--sst-seal);
 }
 
 .gate-grid {
@@ -1933,9 +1973,11 @@ onBeforeUnmount(() => {
 
 .center-seal strong {
   color: var(--sst-seal);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 1.85rem;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.76rem;
+  font-weight: 660;
   line-height: 1;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
 }
 
