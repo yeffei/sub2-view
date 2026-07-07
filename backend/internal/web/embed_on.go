@@ -113,6 +113,7 @@ func (s *FrontendServer) Middleware() gin.HandlerFunc {
 		}
 
 		// Serve static files normally
+		setStaticAssetCacheHeaders(c, cleanPath)
 		s.fileServer.ServeHTTP(c.Writer, c.Request)
 		c.Abort()
 	}
@@ -285,6 +286,7 @@ func ServeEmbeddedFrontend() gin.HandlerFunc {
 			if tryServeOverrideFile(c, overrideDir, cleanPath) {
 				return
 			}
+			setStaticAssetCacheHeaders(c, cleanPath)
 			fileServer.ServeHTTP(c.Writer, c.Request)
 			c.Abort()
 			return
@@ -336,6 +338,30 @@ func shouldBypassEmbeddedFrontend(path string) bool {
 		trimmed == "/responses" ||
 		strings.HasPrefix(trimmed, "/responses/") ||
 		strings.HasPrefix(trimmed, "/images/")
+}
+
+func setStaticAssetCacheHeaders(c *gin.Context, cleanPath string) {
+	if cleanPath == "" || cleanPath == "index.html" {
+		return
+	}
+
+	if isCacheableStaticAsset(cleanPath) {
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+	}
+}
+
+func isCacheableStaticAsset(cleanPath string) bool {
+	path := strings.ToLower(strings.TrimSpace(cleanPath))
+	if strings.HasPrefix(path, "assets/") {
+		return true
+	}
+
+	switch filepath.Ext(path) {
+	case ".css", ".js", ".mjs", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".otf":
+		return true
+	default:
+		return false
+	}
 }
 
 func serveIndexHTML(c *gin.Context, fsys fs.FS) {
