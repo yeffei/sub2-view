@@ -342,6 +342,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useAppStore } from '@/stores/app'
 import { useAnnouncementStore } from '@/stores/announcements'
 import { useRoute, useRouter } from 'vue-router'
 import { keysAPI } from '@/api'
@@ -353,11 +354,13 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem } from '@/utils/imageWorkshop'
 import { buildWorkbenchModelInsight } from '@/utils/apiKeyWorkbench'
 import { setThemePreference, themePreferenceLabels, useThemePreference, useThemeState, type ThemePreference } from '@/utils/theme'
 import type { ApiKey, ModelStat, PlatformQuotaItem, TrendDataPoint, UsageLog } from '@/types'
 
 const authStore = useAuthStore()
+const appStore = useAppStore()
 const announcementStore = useAnnouncementStore()
 const OPEN_ANNOUNCEMENT_CENTER_EVENT = 'sst-open-announcement-center'
 const route = useRoute()
@@ -382,7 +385,7 @@ const themePreference = useThemePreference()
 const isDark = useThemeState()
 let requestsFocusTimer: ReturnType<typeof setTimeout> | null = null
 
-type IconName = 'key' | 'chart' | 'user' | 'globe' | 'dollar' | 'clock' | 'database'
+type IconName = 'key' | 'chart' | 'user' | 'globe' | 'dollar' | 'clock' | 'database' | 'image'
 type StatusTone = 'calm' | 'notice' | 'alert'
 
 const themeOptions: Array<{ value: ThemePreference, label: string }> = [
@@ -530,6 +533,9 @@ const todayRequestLabel = computed(() => {
   return count ? formatNumber(count) + ' 请求' : '今日未起流'
 })
 
+const imageWorkshopMenuItem = computed(() => findImageWorkshopMenuItem(appStore.cachedPublicSettings?.custom_menu_items))
+const imageWorkshopPath = computed(() => `/custom/${IMAGE_WORKSHOP_MENU_ID}`)
+
 const courtyardGates = computed<Array<{ to: string, label: string, note: string, icon: IconName, position: string }>>(() => {
   const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
   const gates: Array<{ to: string, label: string, note: string, icon: IconName, position: string }> = [
@@ -537,6 +543,9 @@ const courtyardGates = computed<Array<{ to: string, label: string, note: string,
     { to: '/usage', label: '用量账册', note: todayRequestLabel.value, icon: 'chart', position: 'gate-east' },
     { to: !authStore.isSimpleMode && paymentEnabled ? '/purchase' : '/usage', label: !authStore.isSimpleMode && paymentEnabled ? '充值与兑换' : '用量账册', note: authStore.isSimpleMode || !paymentEnabled ? '账户设置' : '$' + formatMoney(user.value?.balance || 0), icon: 'user', position: 'gate-south' }
   ]
+  if (imageWorkshopMenuItem.value) {
+    gates.splice(1, 0, { to: imageWorkshopPath.value, label: '图像工坊', note: '外接创作入口', icon: 'image', position: 'gate-workshop' })
+  }
   if (!authStore.isSimpleMode) gates.splice(2, 0, { to: '/monitor', label: '服务状态', note: healthLabel.value, icon: 'globe', position: 'gate-west' })
   return gates
 })
@@ -1797,6 +1806,7 @@ onBeforeUnmount(() => {
   align-self: start;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-flow: dense;
   gap: 0.38rem;
   padding-top: 0.42rem;
 }
@@ -1888,6 +1898,19 @@ onBeforeUnmount(() => {
   left: auto;
   top: auto;
   transform: none;
+}
+
+.gate-workshop {
+  grid-column: 1 / -1;
+  min-height: 3.5rem;
+  border-color: rgba(167, 58, 42, 0.28);
+  background:
+    linear-gradient(90deg, rgba(167, 58, 42, 0.055), rgba(255, 252, 245, 0.18) 58%, transparent),
+    linear-gradient(180deg, rgba(255, 252, 246, 0.22), transparent);
+}
+
+.gate-workshop svg {
+  color: var(--sst-seal);
 }
 
 .center-seal {

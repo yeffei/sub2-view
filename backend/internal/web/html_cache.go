@@ -11,8 +11,8 @@ import (
 // HTMLCache manages the cached index.html with injected settings
 type HTMLCache struct {
 	mu              sync.RWMutex
-	cachedHTML      []byte
-	etag            string
+	cachedHTML      map[string][]byte
+	etags           map[string]string
 	baseHTMLHash    string // Hash of the original index.html (immutable after build)
 	settingsVersion uint64 // Incremented when settings change
 }
@@ -25,7 +25,10 @@ type CachedHTML struct {
 
 // NewHTMLCache creates a new HTML cache instance
 func NewHTMLCache() *HTMLCache {
-	return &HTMLCache{}
+	return &HTMLCache{
+		cachedHTML: make(map[string][]byte),
+		etags:      make(map[string]string),
+	}
 }
 
 // SetBaseHTML initializes the cache with the base HTML template
@@ -43,35 +46,53 @@ func (c *HTMLCache) Invalidate() {
 	defer c.mu.Unlock()
 
 	c.settingsVersion++
-	c.cachedHTML = nil
-	c.etag = ""
+	c.cachedHTML = make(map[string][]byte)
+	c.etags = make(map[string]string)
 }
 
 // Get returns the cached HTML or nil if cache is stale
-func (c *HTMLCache) Get() *CachedHTML {
+func (c *HTMLCache) Get(keys ...string) *CachedHTML {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
+	key := normalizeCacheKey(keys...)
 	if c.cachedHTML == nil {
 		return nil
 	}
-	return &CachedHTML{
-		Content: c.cachedHTML,
-		ETag:    c.etag,
+	html := c.cachedHTML[key]
+	etag := c.etags[key]
+	if html == nil || etag == "" {
+		return nil
 	}
+	return &CachedHTML{Content: html, ETag: etag}
 }
 
 // Set updates the cache with new rendered HTML
-func (c *HTMLCache) Set(html []byte, settingsJSON []byte) {
+func (c *HTMLCache) Set(html []byte, settingsJSON []byte, keys ...string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.cachedHTML = html
-	c.etag = c.generateETag(settingsJSON)
+	if c.cachedHTML == nil {
+		c.cachedHTML = make(map[string][]byte)
+	}
+	if c.etags == nil {
+		c.etags = make(map[string]string)
+	}
+	key := normalizeCacheKey(keys...)
+	c.cachedHTML[key] = html
+	c.etags[key] = c.generateETag(settingsJSON, key)
 }
 
 // generateETag creates an ETag from base HTML hash + settings hash
-func (c *HTMLCache) generateETag(settingsJSON []byte) string {
+func (c *HTMLCache) generateETag(settingsJSON []byte, key string) string {
 	settingsHash := sha256.Sum256(settingsJSON)
-	return `"` + c.baseHTMLHash + "-" + hex.EncodeToString(settingsHash[:8]) + `"`
+	keyHash := sha256.Sum256([]byte(key))
+	return `"` + c.baseHTMLHash + "-" + hex.EncodeToString(settingsHash[:6]) + "-" + hex.EncodeToString(keyHash[:6]) + `"`
+}
+
+func normalizeCacheKey(keys ...string) string {
+	if len(keys) == 0 || keys[0] == "" {
+		return "default"
+	}
+	return keys[0]
 }

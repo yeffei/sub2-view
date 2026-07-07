@@ -64,5 +64,20 @@ declare module 'vue-router' {
      * i18n key for the page description
      */
     descriptionKey?: string
+
+    /**
+     * Search snippet description for public SEO surfaces.
+     */
+    seoDescription?: string
+
+    /**
+     * Canonical path for public SEO surfaces.
+     */
+    canonicalPath?: string
+
+    /**
+     * Robots directive for this route.
+     */
+    robots?: string
   }
 }

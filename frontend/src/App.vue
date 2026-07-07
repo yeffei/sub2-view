@@ -8,6 +8,7 @@ import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminComplianceStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
+import { applyRouteSeo } from '@/utils/seo'
 
 const router = useRouter()
 const route = useRoute()
@@ -28,7 +29,9 @@ function updateDocumentTitle() {
     ...(appStore.cachedPublicSettings?.custom_menu_items ?? []),
     ...(authStore.isAdmin ? adminSettingsStore.customMenuItems : []),
   ]
-  document.title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
+  const title = resolveRouteDocumentTitle(route, appStore.siteName, customMenuItems)
+  document.title = title
+  applyRouteSeo(route, title, appStore.siteName)
 }
 
 /**
@@ -63,6 +66,9 @@ watch(
     () => route.params.id,
     () => route.meta.title,
     () => route.meta.titleKey,
+    () => route.meta.seoDescription,
+    () => route.meta.canonicalPath,
+    () => route.meta.robots,
     () => appStore.siteName,
     () => appStore.cachedPublicSettings?.custom_menu_items,
     () => authStore.isAdmin,

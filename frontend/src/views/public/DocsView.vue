@@ -31,7 +31,7 @@
         </aside>
 
         <article class="docs-article rounded-[1.35rem] border border-zen-paperLine/70 bg-white/62 p-5 shadow-paper-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/76 sm:p-6 lg:p-6">
-          <section v-if="activeSection === 'quickstart'" id="quickstart">
+          <section v-show="activeSection === 'quickstart'" id="quickstart">
             <div class="docs-kicker">快速开始</div>
             <h2 class="docs-title">按 OpenAI 兼容方式配置 Key 与基础地址后，即可直接开始调用。</h2>
             <ol class="docs-list docs-quickstart-list mt-5">
@@ -47,7 +47,7 @@
             </div>
           </section>
 
-          <section v-else-if="activeSection === 'authentication'" id="authentication">
+          <section v-show="activeSection === 'authentication'" id="authentication">
             <div class="docs-kicker">认证方式</div>
             <h2 class="docs-title">所有接口请求都需要在 Header 中携带有效的 API Key。</h2>
             <p class="docs-copy">Key 属于账户凭据，不要直接暴露在前端公开代码、客户端 App 或公开仓库中。推荐将 Key 保存在服务端环境变量中，由后端代理完成调用。</p>
@@ -64,14 +64,14 @@
             </div>
           </section>
 
-          <section v-else-if="activeSection === 'models'" id="models">
+          <section v-show="activeSection === 'models'" id="models">
             <div class="docs-kicker">模型查询</div>
             <h2 class="docs-title">接入前先查询模型列表，可以避免模型名错误或权限未开通。</h2>
             <p class="docs-copy">不同账户、分组、渠道或权限范围返回的模型可能不同。返回结果中的 <code>id</code>，通常就是后续请求 <code>chat/completions</code> 时应填写的 <code>model</code> 值。</p>
             <pre class="docs-code mt-5 overflow-x-auto"><code>{{ modelsExample }}</code></pre>
           </section>
 
-          <section v-else-if="activeSection === 'examples'" id="examples">
+          <section v-show="activeSection === 'examples'" id="examples">
             <div class="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div class="docs-kicker">请求示例</div>
@@ -93,14 +93,14 @@
             <pre class="docs-code mt-5 overflow-x-auto"><code>{{ activeExampleCode }}</code></pre>
           </section>
 
-          <section v-else-if="activeSection === 'streaming'" id="streaming">
+          <section v-show="activeSection === 'streaming'" id="streaming">
             <div class="docs-kicker">流式输出</div>
             <h2 class="docs-title">需要边生成边展示时，将 <code>stream</code> 设置为 <code>true</code>。</h2>
             <p class="docs-copy">兼容客户端会按 SSE 事件逐段返回内容。适合聊天窗口、逐字展示或需要更快首字响应的场景。</p>
             <pre class="docs-code mt-5 overflow-x-auto"><code>{{ streamExample }}</code></pre>
           </section>
 
-          <section v-else-if="activeSection === 'parameters'" id="parameters">
+          <section v-show="activeSection === 'parameters'" id="parameters">
             <div class="docs-kicker">常用参数</div>
             <h2 class="docs-title">以下参数是最常见的请求字段，具体支持情况以模型与上游能力为准。</h2>
             <div class="docs-table mt-5 overflow-hidden rounded-[1rem] border border-zen-paperLine/70 dark:border-zen-nightLine">
@@ -117,7 +117,7 @@
             </div>
           </section>
 
-          <section v-else-if="activeSection === 'errors'" id="errors">
+          <section v-show="activeSection === 'errors'" id="errors">
             <div class="docs-kicker">响应说明</div>
             <h2 class="docs-title">当接口返回异常状态时，通常可以先从以下几类原因排查。</h2>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
@@ -128,7 +128,7 @@
             </div>
           </section>
 
-          <section v-else id="notes">
+          <section v-show="activeSection === 'notes'" id="notes">
             <div class="docs-kicker">注意事项</div>
             <h2 class="docs-title">排查问题时，优先保留模型名、时间、错误码与请求上下文。</h2>
             <ul class="docs-list mt-5">
@@ -137,11 +137,25 @@
           </section>
         </article>
       </section>
+
+      <section class="docs-topic-grid mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <RouterLink
+          v-for="item in topicLinks"
+          :key="item.to"
+          :to="item.to"
+          class="docs-topic-card"
+        >
+          <div class="docs-topic-card-kicker">{{ item.kicker }}</div>
+          <h2>{{ item.title }}</h2>
+          <p>{{ item.copy }}</p>
+        </RouterLink>
+      </section>
   </PublicPageLayout>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 import { useAppStore } from '@/stores'
 
@@ -253,6 +267,45 @@ const notes = [
   { title: '服务端保存 Key', copy: '不要把 API Key 暴露在浏览器、移动端客户端或公开仓库中。' },
   { title: '地址使用 /v1', copy: 'OpenAI SDK 的 base_url 或 baseURL 通常填写到 /v1 这一层。' },
   { title: '记录请求信息', copy: '排查问题时保留时间、模型名、错误码和 request id，有助于定位上游或权限问题。' },
+] as const
+
+const topicLinks = [
+  {
+    to: '/docs/openai-compatible-api',
+    kicker: 'OpenAI API',
+    title: 'OpenAI 兼容 API 接入',
+    copy: '用现有 SDK 替换 base_url 与 API Key 后接入统一入口。',
+  },
+  {
+    to: '/docs/base-url',
+    kicker: 'Base URL',
+    title: 'base_url 配置',
+    copy: '确认 /v1 基础地址、endpoint 拼接和生产域名边界。',
+  },
+  {
+    to: '/docs/api-key',
+    kicker: 'API Key',
+    title: 'API Key 使用',
+    copy: '创建、保存、鉴权和轮换 Key，避免凭据泄露。',
+  },
+  {
+    to: '/docs/streaming',
+    kicker: 'Streaming',
+    title: '流式输出',
+    copy: '用 stream=true 和 SSE 方式处理逐段响应。',
+  },
+  {
+    to: '/docs/codex',
+    kicker: 'Codex',
+    title: 'Codex 客户端接入',
+    copy: '配置 Codex 类客户端的入口、模型和账册核对。',
+  },
+  {
+    to: '/docs/claude-code',
+    kicker: 'Claude Code',
+    title: 'Claude Code 接入',
+    copy: '统一管理 Claude Code 类客户端的 Key、权限和计量。',
+  },
 ] as const
 
 onMounted(() => {
@@ -475,6 +528,48 @@ onMounted(() => {
 
 .docs-table-copy {
   margin-top: 0;
+}
+
+.docs-topic-grid {
+  max-width: 60rem;
+}
+
+.docs-topic-card {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  border: 1px solid rgba(216, 205, 185, 0.7);
+  border-radius: 1rem;
+  background: rgba(255, 252, 246, 0.58);
+  padding: 1.05rem;
+  color: inherit;
+  box-shadow: 0 12px 28px rgba(84, 57, 31, 0.045);
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.docs-topic-card:hover {
+  border-color: rgba(185, 93, 31, 0.28);
+  background: rgba(255, 252, 246, 0.82);
+}
+
+.docs-topic-card-kicker {
+  color: #8f6f43;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.docs-topic-card h2 {
+  color: #1f2320;
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.docs-topic-card p {
+  color: #5f685c;
+  font-size: 0.92rem;
+  line-height: 1.75;
 }
 
 .docs-example-tab {

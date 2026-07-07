@@ -84,9 +84,11 @@
           </div>
 
           <div class="notice-list" aria-label="首页能力锚点">
-            <article
+            <component
+              :is="item.to ? 'router-link' : 'article'"
               v-for="item in trustAnchors"
               :key="item.title"
+              :to="item.to"
               class="notice-item"
             >
               <div class="notice-item-mark">
@@ -102,7 +104,7 @@
                   <template v-else>{{ item.copy }}</template>
                 </p>
               </div>
-            </article>
+            </component>
           </div>
         </div>
       </section>
@@ -158,6 +160,7 @@ import { useAuthStore, useAppStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
 import PublicSiteFooter from '@/components/layout/PublicSiteFooter.vue'
 import PublicSiteHeader from '@/components/layout/PublicSiteHeader.vue'
+import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem } from '@/utils/imageWorkshop'
 import { useThemeState } from '@/utils/theme'
 import paperInkBg from '@/assets/brand/sst-paper-ink-bg.png'
 
@@ -198,6 +201,8 @@ const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dash
 const homeBackgroundStyle = computed(() => ({
   '--sst-home-bg': `url(${paperInkBg})`,
 }))
+const imageWorkshopMenuItem = computed(() => findImageWorkshopMenuItem(appStore.cachedPublicSettings?.custom_menu_items))
+const imageWorkshopPath = computed(() => `/custom/${IMAGE_WORKSHOP_MENU_ID}`)
 
 const quietWords = [
   '稳定供给',
@@ -206,7 +211,16 @@ const quietWords = [
   '长期维护',
 ]
 
-const trustAnchors = [
+interface TrustAnchor {
+  index: string
+  title: string
+  copy: string
+  copyClass: string
+  copyLines: string[]
+  to?: string
+}
+
+const baseTrustAnchors: TrustAnchor[] = [
   {
     index: '甲',
     title: '故障转移',
@@ -235,7 +249,25 @@ const trustAnchors = [
     copyClass: 'notice-copy-two-line',
     copyLines: ['请求经加密链路转发，代码与密钥', '只作当次通行，不作长期留存。'],
   },
-] as const
+]
+
+const trustAnchors = computed(() => {
+  const anchors = [...baseTrustAnchors]
+  if (imageWorkshopMenuItem.value) {
+    anchors.splice(2, 0, {
+      index: '丙',
+      title: '图像工坊',
+      copy: '图像生成作为庭中能力独立接入，外部工坊可从统一入口抵达。',
+      copyClass: 'notice-copy-two-line',
+      copyLines: ['图像生成作为庭中能力独立接入，', '外部工坊可从统一入口抵达。'],
+      to: imageWorkshopPath.value,
+    })
+  }
+  return anchors.map((item, index) => ({
+    ...item,
+    index: ['甲', '乙', '丙', '丁', '戊'][index] ?? item.index,
+  }))
+})
 
 const valueCards = [
   {
@@ -264,10 +296,11 @@ const valueCards = [
   },
 ] as const
 
-const connectedProviders = [
+const connectedProviders = computed(() => [
   'Anthropic',
   'OpenAI',
-] as const
+  ...(imageWorkshopMenuItem.value ? ['图像工坊'] : []),
+])
 
 onMounted(() => {
   authStore.checkAuth()
@@ -755,7 +788,7 @@ onMounted(() => {
 
 .notice-list {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
 }
 
 .notice-item {

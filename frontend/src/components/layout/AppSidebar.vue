@@ -196,6 +196,7 @@ import VersionBadge from '@/components/common/VersionBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
+import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem, isImageWorkshopMenuItem } from '@/utils/imageWorkshop'
 import { initTheme, toggleTheme as toggleDocumentTheme, useThemeState } from '@/utils/theme'
 
 type SidebarIconName = InstanceType<typeof Icon>['$props']['name']
@@ -319,12 +320,15 @@ function finalizeSectionItems(items: NavItem[]): NavItem[] {
 
 // User navigation sections (for regular users)
 const userNavSections = computed((): NavSection[] => {
-  const customItems = customMenuItemsForUser.value.map((item): NavItem => ({
-    path: `/custom/${item.id}`,
-    label: item.label,
-    icon: null,
-    iconSvg: item.icon_svg,
-  }))
+  const customItems = customMenuItemsForUser.value
+    .filter((item) => !isImageWorkshopMenuItem(item))
+    .map((item): NavItem => ({
+      path: `/custom/${item.id}`,
+      label: item.label,
+      icon: null,
+      iconSvg: item.icon_svg,
+    }))
+  const imageWorkshopItem = findImageWorkshopMenuItem(customMenuItemsForUser.value)
 
   return [
     {
@@ -350,6 +354,7 @@ const userNavSections = computed((): NavSection[] => {
     {
       title: '能力与状态',
       items: finalizeSectionItems([
+        ...(imageWorkshopItem ? [{ path: `/custom/${IMAGE_WORKSHOP_MENU_ID}`, label: '图像工坊', icon: 'image' as const }] : []),
         { path: '/monitor', label: '服务状态', icon: 'signal', featureFlag: flagChannelMonitor },
       ]),
     },
