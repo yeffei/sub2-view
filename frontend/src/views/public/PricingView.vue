@@ -67,7 +67,7 @@
                   <th>缓存读取</th>
                 </tr>
               </thead>
-              <tbody v-if="activePlatform === 'codex'">
+              <tbody v-show="activePlatform === 'codex'">
                 <tr v-for="item in activeModels" :key="item.name">
                   <td data-label="模型">
                     <div class="pricing-model-cell">
@@ -87,8 +87,8 @@
                   </td>
                 </tr>
               </tbody>
-              <tbody v-if="activePlatform === 'claude'">
-                <tr v-for="item in activeClaudeCodeModels" :key="item.name">
+              <tbody v-show="activePlatform === 'claude'">
+                <tr v-for="item in claudeCodeModels" :key="item.name">
                   <td data-label="模型">
                     <div class="pricing-model-cell">
                       <div class="pricing-model-name-row">
@@ -114,6 +114,19 @@
           </div>
         </div>
       </article>
+
+      <div v-if="publicContact" class="pricing-contact-note">
+        <span>开通前需核对模型或账册，可</span>
+        <a
+          v-if="publicContact.href"
+          :href="publicContact.href"
+          :target="publicContact.external ? '_blank' : undefined"
+          :rel="publicContact.external ? 'noopener noreferrer' : undefined"
+        >
+          联系庭务
+        </a>
+        <strong v-else>联系庭务：{{ publicContact.label }}</strong>
+      </div>
     </div>
   </PublicPageLayout>
 </template>
@@ -121,6 +134,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
+import { useAppStore } from '@/stores'
+import { resolvePublicContact } from '@/utils/contact'
 
 interface ModelRow {
   name: string
@@ -142,6 +157,7 @@ type PlatformKey = 'claude' | 'codex'
 const activePlatform = ref<PlatformKey>('codex')
 const activeGroupKey = ref('codex-plus')
 const perMillionScale = 1_000_000
+const appStore = useAppStore()
 
 const platforms = [
   { key: 'claude', label: 'Claude Code', icon: '✳' },
@@ -184,8 +200,8 @@ const modelsByPlatform: Record<PlatformKey, ModelRow[]> = {
 const activeGroups = computed(() => groupsByPlatform[activePlatform.value])
 const activeModels = computed(() => modelsByPlatform[activePlatform.value])
 const activeGroup = computed(() => activeGroups.value.find(group => group.key === activeGroupKey.value) || activeGroups.value[0] || codexGroups[0])
-const activeClaudeCodeModels = computed(() => (activePlatform.value === 'claude' ? claudeCodeModels : []))
-const activeHasPricingRows = computed(() => activePlatform.value === 'codex' ? activeModels.value.length > 0 : activeClaudeCodeModels.value.length > 0)
+const activeHasPricingRows = computed(() => activePlatform.value === 'codex' ? activeModels.value.length > 0 : claudeCodeModels.length > 0)
+const publicContact = computed(() => resolvePublicContact(appStore.cachedPublicSettings?.contact_info || appStore.contactInfo))
 
 function selectPlatform(key: PlatformKey) {
   activePlatform.value = key
@@ -378,6 +394,28 @@ function scalePrice(value: number | null, multiplier: number): number | null {
 .pricing-price-main { color: #c98a43; font-family: 'Geist Mono', 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 600; white-space: nowrap; }
 .pricing-price-unit { color: #9f8662; font-size: 0.82rem; font-weight: 400; }
 .pricing-empty-card { padding: 1rem 1rem 1.2rem; color: #7b6a53; font-size: 0.92rem; }
+
+.pricing-contact-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.1rem 0;
+  color: #6f6658;
+  font-size: 0.9rem;
+  line-height: 1.7;
+}
+
+.pricing-contact-note a,
+.pricing-contact-note strong {
+  color: #9c4c26;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.pricing-contact-note a:hover {
+  color: #a73a2a;
+}
 
 .pricing-table tbody tr {
   transition: background-color 180ms ease;
@@ -655,6 +693,19 @@ html.dark .pricing-page .pricing-price-main {
 
 html.dark .pricing-page .pricing-price-unit {
   color: #928570;
+}
+
+html.dark .pricing-page .pricing-contact-note {
+  color: #d0baa0;
+}
+
+html.dark .pricing-page .pricing-contact-note a,
+html.dark .pricing-page .pricing-contact-note strong {
+  color: #efab69;
+}
+
+html.dark .pricing-page .pricing-contact-note a:hover {
+  color: #efc183;
 }
 
 html.dark .pricing-page .pricing-table tbody tr:hover {

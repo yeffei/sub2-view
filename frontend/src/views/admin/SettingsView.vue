@@ -4751,6 +4751,24 @@
                 </p>
               </div>
 
+              <!-- Contact Info -->
+              <div>
+                <label
+                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
+                  {{ t("admin.settings.site.contactInfo") }}
+                </label>
+                <input
+                  v-model="form.contact_info"
+                  type="text"
+                  class="input"
+                  :placeholder="t('admin.settings.site.contactInfoPlaceholder')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.contactInfoHint") }}
+                </p>
+              </div>
+
               <!-- Global Table Preferences -->
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -4928,24 +4946,6 @@
                   </svg>
                   {{ t("admin.settings.site.customEndpoints.add") }}
                 </button>
-              </div>
-
-              <!-- Contact Info -->
-              <div>
-                <label
-                  class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.settings.site.contactInfo") }}
-                </label>
-                <input
-                  v-model="form.contact_info"
-                  type="text"
-                  class="input"
-                  :placeholder="t('admin.settings.site.contactInfoPlaceholder')"
-                />
-                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t("admin.settings.site.contactInfoHint") }}
-                </p>
               </div>
 
               <!-- Doc URL -->

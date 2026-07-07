@@ -3,6 +3,11 @@
     <div class="public-site-footer-shell mx-auto flex max-w-7xl flex-col gap-3 border-t border-zen-paperLine/70 pt-4 text-[0.92rem] text-zen-mist dark:border-zen-nightLine dark:text-zen-stone sm:flex-row sm:items-center sm:justify-between">
       <div class="footer-note">{{ brandName }} · 统一入口，安静流转。</div>
       <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <RouterLink to="/home" class="footer-link">首页</RouterLink>
+        <RouterLink to="/pricing" class="footer-link">价目</RouterLink>
+        <RouterLink to="/docs" class="footer-link">文档</RouterLink>
+        <RouterLink to="/faq" class="footer-link">问答</RouterLink>
+        <RouterLink v-if="publicContact" to="/faq#public-contact" class="footer-link">联系</RouterLink>
         <RouterLink to="/terms" class="footer-link">条款</RouterLink>
         <RouterLink to="/privacy" class="footer-link">隐私</RouterLink>
       </div>
@@ -14,11 +19,13 @@
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAppStore } from '@/stores'
+import { resolvePublicContact } from '@/utils/contact'
 
 const appStore = useAppStore()
 
 const configuredName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || '')
 const brandName = computed(() => configuredName.value && configuredName.value !== 'Sub2API' ? configuredName.value : '山枢庭')
+const publicContact = computed(() => resolvePublicContact(appStore.cachedPublicSettings?.contact_info || appStore.contactInfo))
 </script>
 
 <style scoped>
@@ -35,6 +42,7 @@ const brandName = computed(() => configuredName.value && configuredName.value !=
 .footer-link:hover {
   color: #a73a2a;
 }
+
 </style>
 
 <style>
