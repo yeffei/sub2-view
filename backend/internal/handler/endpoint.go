@@ -81,10 +81,6 @@ func NormalizeInboundEndpoint(path string) string {
 		return EndpointImagesGenerations
 	case strings.Contains(path, EndpointImagesEdits) || strings.Contains(path, "/images/edits"):
 		return EndpointImagesEdits
-	case strings.Contains(path, EndpointVideosGenerations) || strings.Contains(path, "/videos/generations"):
-		return EndpointVideosGenerations
-	case strings.Contains(path, EndpointVideos) || strings.Contains(path, "/videos/"):
-		return EndpointVideos
 	case strings.Contains(path, EndpointResponsesCompact) || isResponsesCompactAliasPath(path):
 		return EndpointResponsesCompact
 	case strings.Contains(path, EndpointResponses) || isResponsesRootAliasPath(path):

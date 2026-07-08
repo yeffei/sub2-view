@@ -438,8 +438,7 @@ const startTest = async () => {
       requestBody.mode = testMode.value
     }
 
-    // Use the configured API base; EventSource does not support POST.
-    const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
+    const url = `/api/v1/admin/accounts/${props.account.id}/test`
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
     const response = await fetch(url, {
