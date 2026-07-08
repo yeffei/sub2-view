@@ -33,7 +33,7 @@
             {{ brandName }}
           </h1>
           <p class="home-lead mt-7 max-w-2xl font-serif text-[1.9rem] leading-tight text-zen-inkSoft dark:text-zen-paper sm:text-4xl">
-            统一入口，安静流转。
+            {{ t('publicSite.tagline') }}
           </p>
           <p class="home-copy mt-6 max-w-[40rem] text-base leading-8 text-zen-mist dark:text-zen-stone sm:text-lg">
             {{ heroSubtitle }}
@@ -44,7 +44,7 @@
               :to="isAuthenticated ? dashboardPath : '/login'"
               class="home-primary-cta inline-flex items-center justify-center rounded-zen px-7 py-3 text-sm font-medium"
             >
-              入庭
+              {{ t('publicSite.enter') }}
               <Icon name="arrowRight" size="md" class="ml-2" :stroke-width="2" />
             </router-link>
             <component
@@ -52,7 +52,7 @@
               v-bind="docsLinkProps"
               class="home-secondary-cta inline-flex items-center justify-center rounded-zen px-7 py-3 text-sm font-medium"
             >
-              接入文档
+              {{ t('publicSite.nav.docs') }}
             </component>
           </div>
         </div>
@@ -73,17 +73,15 @@
       </section>
 
       <section class="home-notice-shell mx-auto max-w-7xl px-5 pb-14 sm:px-8">
-        <div class="home-notice-ribbon" aria-label="庭前告示">
+        <div class="home-notice-ribbon" :aria-label="t('publicHome.notice.aria')">
           <div class="notice-intro">
-            <span class="notice-kicker">庭前告示</span>
+            <span class="notice-kicker">{{ t('publicHome.notice.kicker') }}</span>
             <p>
-              <span class="notice-intro-line">不是只把多家能力并排陈列，</span>
-              <span class="notice-intro-line">而是把接入、值守、计量与准入</span>
-              <span class="notice-intro-line">整理成一套可长期使用的入口秩序。</span>
+              <span v-for="line in noticeLines" :key="line" class="notice-intro-line">{{ line }}</span>
             </p>
           </div>
 
-          <div class="notice-list" aria-label="首页能力锚点">
+          <div class="notice-list" :aria-label="t('publicHome.notice.listAria')">
             <component
               :is="item.to ? 'router-link' : 'article'"
               v-for="item in trustAnchors"
@@ -131,11 +129,11 @@
           <div class="home-capability-note">
             <p class="capability-copy">
               <span class="capability-dot" aria-hidden="true"></span>
-              自研负载均衡、自动故障转移与智能路由，守住高并发下的稳定与低延迟。
+              {{ t('publicHome.capabilityCopy') }}
             </p>
           </div>
           <div class="providers-meta">
-            <div class="providers-kicker">已接入</div>
+            <div class="providers-kicker">{{ t('publicHome.providersKicker') }}</div>
             <div class="providers-list">
               <span
                 v-for="provider in connectedProviders"
@@ -156,6 +154,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
 import PublicSiteFooter from '@/components/layout/PublicSiteFooter.vue'
@@ -166,6 +165,7 @@ import paperInkBg from '@/assets/brand/sst-paper-ink-bg.png'
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const { t, tm, locale } = useI18n()
 const isDark = useThemeState()
 
 const configuredName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || '')
@@ -175,11 +175,16 @@ const heroSubtitle = computed(() => {
   const legacySubtitles = new Set([
     'AI API Gateway Platform',
     'Subscription to API Conversion Platform',
+    '统一入口，安静流转。',
   ])
+
+  if (locale.value.startsWith('en') && subtitle === '统一入口，安静流转。') {
+    return t('publicHome.heroSubtitle')
+  }
 
   return subtitle && !legacySubtitles.has(subtitle)
     ? subtitle
-    : '为长期使用而设，收束多源能力，保持稳定供给、清晰计量与审慎准入。'
+    : t('publicHome.heroSubtitle')
 })
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
 const resolvedDocsRoute = '/docs'
@@ -204,12 +209,8 @@ const homeBackgroundStyle = computed(() => ({
 const imageWorkshopMenuItem = computed(() => findImageWorkshopMenuItem(appStore.cachedPublicSettings?.custom_menu_items))
 const imageWorkshopPath = computed(() => `/custom/${IMAGE_WORKSHOP_MENU_ID}`)
 
-const quietWords = [
-  '稳定供给',
-  '清晰计量',
-  '审慎准入',
-  '长期维护',
-]
+const quietWords = computed(() => tm('publicHome.quietWords') as unknown as string[])
+const noticeLines = computed(() => tm('publicHome.notice.lines') as unknown as string[])
 
 interface TrustAnchor {
   index: string
@@ -220,46 +221,17 @@ interface TrustAnchor {
   to?: string
 }
 
-const baseTrustAnchors: TrustAnchor[] = [
-  {
-    index: '甲',
-    title: '故障转移',
-    copy: '上游波动时先稳住入口连续性，把切换动作收在系统内部完成。',
-    copyClass: '',
-    copyLines: [],
-  },
-  {
-    index: '乙',
-    title: '统一账册',
-    copy: '请求、消耗、余额与分组计量归在同一账册内，便于统一核算。',
-    copyClass: '',
-    copyLines: [],
-  },
-  {
-    index: '丙',
-    title: '准入分层',
-    copy: '分组、密钥与风控边界分层落位，让权限与调用路径各守其序。',
-    copyClass: 'notice-copy-two-line',
-    copyLines: ['分组、密钥与风控边界分层落位，', '让权限与调用路径各守其序。'],
-  },
-  {
-    index: '丁',
-    title: '过路不留存',
-    copy: '请求经加密链路转发，代码与密钥只作当次通行，不作长期留存。',
-    copyClass: 'notice-copy-two-line',
-    copyLines: ['请求经加密链路转发，代码与密钥', '只作当次通行，不作长期留存。'],
-  },
-]
+const baseTrustAnchors = computed<TrustAnchor[]>(() => tm('publicHome.trustAnchors') as unknown as TrustAnchor[])
 
 const trustAnchors = computed(() => {
-  const anchors = [...baseTrustAnchors]
+  const anchors = [...baseTrustAnchors.value]
   if (imageWorkshopMenuItem.value) {
     anchors.splice(2, 0, {
       index: '丙',
-      title: '图像工坊',
-      copy: '图像生成作为庭中能力独立接入，外部工坊可从统一入口抵达。',
+      title: t('publicHome.imageWorkshop.title'),
+      copy: t('publicHome.imageWorkshop.copy'),
       copyClass: 'notice-copy-two-line',
-      copyLines: ['图像生成作为庭中能力独立接入，', '外部工坊可从统一入口抵达。'],
+      copyLines: tm('publicHome.imageWorkshop.copyLines') as unknown as string[],
       to: imageWorkshopPath.value,
     })
   }
@@ -269,37 +241,17 @@ const trustAnchors = computed(() => {
   }))
 })
 
-const valueCards = [
-  {
-    index: '01',
-    title: '稳定供给',
-    copy: '多源能力被收束成一个稳定、持续可用的统一入口。',
-    copyClass: 'value-copy-single-line',
-  },
-  {
-    index: '02',
-    title: '核对清楚',
-    copy: '余额、用量与调用明细对应明确，日常对账更省心。',
-    copyClass: '',
-  },
-  {
-    index: '03',
-    title: '权限安静',
-    copy: '权限、渠道与风控边界清楚，减少无效与噪声调用。',
-    copyClass: '',
-  },
-  {
-    index: '04',
-    title: '可长期托付',
-    copy: '链路可追踪、系统可维护，适合放在长期运行里使用。',
-    copyClass: '',
-  },
-] as const
+const valueCards = computed(() => tm('publicHome.valueCards') as unknown as Array<{
+  index: string
+  title: string
+  copy: string
+  copyClass: string
+}>)
 
 const connectedProviders = computed(() => [
   'Anthropic',
   'OpenAI',
-  ...(imageWorkshopMenuItem.value ? ['图像工坊'] : []),
+  ...(imageWorkshopMenuItem.value ? [t('publicHome.imageWorkshop.title')] : []),
 ])
 
 onMounted(() => {
@@ -426,11 +378,12 @@ onMounted(() => {
 .home-copy {
   max-width: 48rem;
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 1024px) {
   .home-copy {
-    white-space: nowrap;
+    max-width: 44rem;
   }
 }
 
@@ -783,7 +736,9 @@ onMounted(() => {
 
 .notice-intro-line {
   display: block;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .notice-list {
@@ -863,7 +818,9 @@ onMounted(() => {
 
 .notice-copy-line {
   display: block;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .home-values-shell,
@@ -960,11 +917,11 @@ onMounted(() => {
 }
 
 .value-item-primary p.value-copy-single-line {
-  font-size: clamp(0.72rem, 0.88vw, 0.78rem);
+  font-size: clamp(0.74rem, 0.88vw, 0.82rem);
   letter-spacing: 0;
   max-width: none;
-  white-space: nowrap;
-  text-wrap: nowrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .home-provider-panel {
@@ -1434,8 +1391,8 @@ onMounted(() => {
 
   .value-item-primary p.value-copy-single-line {
     font-size: clamp(0.72rem, 3.25vw, 0.82rem);
-    white-space: nowrap;
-    text-wrap: nowrap;
+    white-space: normal;
+    text-wrap: pretty;
   }
 
   .home-provider-panel,

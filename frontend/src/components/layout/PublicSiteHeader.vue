@@ -35,25 +35,25 @@
           :to="isAuthenticated ? dashboardPath : '/login'"
           class="public-site-cta public-site-cta-mobile inline-flex sm:hidden"
         >
-          入庭
+          {{ t('publicSite.enter') }}
         </RouterLink>
         <button
           type="button"
           @click="toggleTheme"
           class="public-site-tool public-site-tool-public"
-          :title="isDark ? '切换到纸面' : '切换到夜庭'"
+          :title="isDark ? t('publicSite.theme.toLight') : t('publicSite.theme.toDark')"
         >
           <span class="public-site-tool-mark" aria-hidden="true">
             <Icon v-if="isDark" name="sun" size="sm" :stroke-width="1.55" />
             <Icon v-else name="courtyardMoon" size="sm" :stroke-width="1.55" />
           </span>
-          <span class="public-site-tool-label">{{ isDark ? '纸面' : '夜庭' }}</span>
+          <span class="public-site-tool-label">{{ isDark ? t('publicSite.theme.lightShort') : t('publicSite.theme.darkShort') }}</span>
         </button>
         <RouterLink
           :to="isAuthenticated ? dashboardPath : '/login'"
           class="public-site-cta hidden sm:inline-flex"
         >
-          入庭
+          {{ t('publicSite.enter') }}
         </RouterLink>
       </div>
 
@@ -75,6 +75,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore, useAuthStore } from '@/stores'
@@ -92,6 +93,7 @@ const props = withDefaults(defineProps<{
 })
 
 const route = useRoute()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
@@ -104,8 +106,8 @@ const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dash
 const resolvedNavItems = computed(() => props.navItems.length > 0
   ? props.navItems
   : [
-    { to: '/pricing', label: '价目' },
-    { to: '/docs', label: '文档' },
+    { to: '/pricing', label: t('publicSite.nav.pricing') },
+    { to: '/docs', label: t('publicSite.nav.docs') },
   ])
 
 function toggleTheme() {

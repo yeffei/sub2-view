@@ -8,7 +8,7 @@
       <template v-else>
         <!-- Status Icon -->
         <section class="payment-result-hero text-center">
-          <div class="payment-result-kicker">支付回执</div>
+          <div class="payment-result-kicker">{{ t('payment.result.receiptKicker') }}</div>
           <div v-if="isSuccess"
             class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
             <Icon name="check" size="xl" class="text-green-500" :stroke-width="2" />
@@ -181,12 +181,12 @@ const statusTitle = computed(() => {
 
 const statusNote = computed(() => {
   if (isSuccess.value) {
-    return '款项结果已回写到当前页面，后续也可随时去往来订单中核对到账与支付信息。'
+    return t('payment.result.successNote')
   }
   if (isPending.value) {
     return t('payment.result.processingHint')
   }
-  return '这次支付尚未完成，你可以回到充值与兑换重新发起，或去往来订单里查看当前状态。'
+  return t('payment.result.failedNote')
 })
 
 function normalizedOrderPaymentType(paymentType: string): string {

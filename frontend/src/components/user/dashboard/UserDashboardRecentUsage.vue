@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <div>
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
-        <p class="usage-caption">近时段调用摘录</p>
+        <p class="usage-caption">{{ t('dashboard.recentUsageCaption') }}</p>
       </div>
       <span class="badge badge-gray">{{ t('dashboard.last7Days') }}</span>
     </div>
@@ -11,7 +11,7 @@
       <div v-if="loading" class="flex items-center justify-center py-12">
         <div class="usage-state">
           <LoadingSpinner size="lg" />
-          <p>正在归拢最近调用记录...</p>
+          <p>{{ t('dashboard.loadingRecentUsage') }}</p>
         </div>
       </div>
       <div v-else-if="data.length === 0" class="py-8">

@@ -372,16 +372,252 @@ export default {
     adminCompliance: '部署与运营合规承诺'
   },
 
+  brand: {
+    defaultName: '山枢庭'
+  },
+
+  publicSite: {
+    tagline: '统一入口，安静流转。',
+    enter: '入庭',
+    nav: {
+      home: '首页',
+      pricing: '价目',
+      docs: '文档',
+      faq: '问答',
+      contact: '联系',
+      terms: '条款',
+      privacy: '隐私'
+    },
+    theme: {
+      toLight: '切换到纸面',
+      toDark: '切换到夜庭',
+      lightShort: '纸面',
+      darkShort: '夜庭'
+    },
+    cta: {
+      title: '若已看清路径，就直接入庭。',
+      description: 'Key、用量、订单与账册都在同一入口。',
+      open: '前往开通',
+      dashboard: '进入控制台',
+      backHome: '返回首页',
+      viewPricing: '查看价目'
+    }
+  },
+
+  publicHome: {
+    heroSubtitle: '为长期使用而设，收束多源能力，保持稳定供给、清晰计量与审慎准入。',
+    quietWords: ['稳定供给', '清晰计量', '审慎准入', '长期维护'],
+    notice: {
+      aria: '庭前告示',
+      kicker: '庭前告示',
+      listAria: '首页能力锚点',
+      lines: ['不是只把多家能力并排陈列，', '而是把接入、值守、计量与准入', '整理成一套可长期使用的入口秩序。']
+    },
+    trustAnchors: [
+      { index: '甲', title: '故障转移', copy: '上游波动时先稳住入口连续性，把切换动作收在系统内部完成。', copyClass: '', copyLines: [] },
+      { index: '乙', title: '统一账册', copy: '请求、消耗、余额与分组计量归在同一账册内，便于统一核算。', copyClass: '', copyLines: [] },
+      { index: '丙', title: '准入分层', copy: '分组、密钥与风控边界分层落位，让权限与调用路径各守其序。', copyClass: 'notice-copy-two-line', copyLines: ['分组、密钥与风控边界分层落位，', '让权限与调用路径各守其序。'] },
+      { index: '丁', title: '过路不留存', copy: '请求经加密链路转发，代码与密钥只作当次通行，不作长期留存。', copyClass: 'notice-copy-two-line', copyLines: ['请求经加密链路转发，代码与密钥', '只作当次通行，不作长期留存。'] }
+    ],
+    imageWorkshop: {
+      title: '图像工坊',
+      copy: '图像生成作为庭中能力独立接入，外部工坊可从统一入口抵达。',
+      copyLines: ['图像生成作为庭中能力独立接入，', '外部工坊可从统一入口抵达。']
+    },
+    valueCards: [
+      { index: '01', title: '稳定供给', copy: '多源能力被收束成一个稳定、持续可用的统一入口。', copyClass: 'value-copy-single-line' },
+      { index: '02', title: '核对清楚', copy: '余额、用量与调用明细对应明确，日常对账更省心。', copyClass: '' },
+      { index: '03', title: '权限安静', copy: '权限、渠道与风控边界清楚，减少无效与噪声调用。', copyClass: '' },
+      { index: '04', title: '可长期托付', copy: '链路可追踪、系统可维护，适合放在长期运行里使用。', copyClass: '' }
+    ],
+    capabilityCopy: '自研负载均衡、自动故障转移与智能路由，守住高并发下的稳定与低延迟。',
+    providersKicker: '已接入'
+  },
+
+  publicPricing: {
+    eyebrow: '价目',
+    title: '模型价格',
+    platformSwitch: '平台切换',
+    empty: '暂无可用模型。',
+    table: {
+      modelId: '模型 ID',
+      model: '模型',
+      input: '输入价格',
+      output: '输出价格',
+      cacheWrite: '缓存写入',
+      cacheRead: '缓存读取'
+    },
+    contactPrefix: '开通前需核对模型或账册，可',
+    contactAction: '联系庭务'
+  },
+
+  publicDocs: {
+    eyebrow: '文档',
+    title: 'API 文档',
+    toc: '目录',
+    tocCaption: '按常用顺序阅读',
+    topicNavAria: '专题文档',
+    sections: [
+      { id: 'quickstart', label: '快速开始' },
+      { id: 'authentication', label: '认证方式' },
+      { id: 'models', label: '获取模型列表' },
+      { id: 'examples', label: '请求示例' },
+      { id: 'streaming', label: '流式输出' },
+      { id: 'parameters', label: '常用参数' },
+      { id: 'errors', label: '常见响应说明' },
+      { id: 'notes', label: '注意事项' }
+    ],
+    quickstart: {
+      kicker: '快速开始',
+      title: '按 OpenAI 兼容方式配置 Key 与基础地址后，即可直接开始调用。',
+      steps: {
+        login: '登录控制台并创建 API Key。',
+        configureBefore: '把 SDK 的',
+        or: '或',
+        configureAfter: '设置为',
+        authHeader: '，并带上',
+        models: '先调用 GET /v1/models 确认可用模型，再发起对话请求。'
+      },
+      noticeTitle: '接入提示',
+      noticeBefore: '大多数客户端只需要改',
+      noticeAfter: '，模型名以模型列表接口返回值为准。'
+    },
+    authentication: {
+      kicker: '认证方式',
+      title: '所有接口请求都需要在 Header 中携带有效的 API Key。',
+      copy: 'Key 属于账户凭据，不要直接暴露在前端公开代码、客户端 App 或公开仓库中。推荐将 Key 保存在服务端环境变量中，由后端代理完成调用。',
+      recommendedTitle: '推荐做法',
+      recommendedBefore: '把 Key 放在服务端环境变量中，例如',
+      recommendedAfter: '，并由后端统一拼接鉴权头。',
+      failureTitle: '常见失败',
+      failureCopy: '前缀缺失、Key 前后多出空格、使用了已停用 Key，都可能返回 401。'
+    },
+    models: {
+      kicker: '模型查询',
+      title: '接入前先查询模型列表，可以避免模型名错误或权限未开通。',
+      copyBefore: '不同账户、分组、渠道或权限范围返回的模型可能不同。返回结果中的',
+      copyMiddle: '，通常就是后续请求',
+      copyAfter: '时应填写的',
+      copyEnd: '值。'
+    },
+    examples: {
+      kicker: '请求示例',
+      title: '下面提供最常用的三种调用方式，可直接按需替换模型与消息内容。'
+    },
+    streaming: {
+      kicker: '流式输出',
+      titleBefore: '需要边生成边展示时，将',
+      titleAfter: '设置为',
+      copy: '兼容客户端会按 SSE 事件逐段返回内容。适合聊天窗口、逐字展示或需要更快首字响应的场景。'
+    },
+    parameters: {
+      kicker: '常用参数',
+      title: '以下参数是最常见的请求字段，具体支持情况以模型与上游能力为准。',
+      table: { name: '参数', type: '类型', description: '说明' },
+      items: [
+        { name: 'model', type: 'string', copy: '要调用的模型名称，建议先通过模型列表接口确认具体值。' },
+        { name: 'messages', type: 'array', copy: '对话消息数组，按 OpenAI Chat Completions 标准结构传入。' },
+        { name: 'temperature', type: 'number', copy: '可选参数，用于控制生成随机性。' },
+        { name: 'stream', type: 'boolean', copy: '可选参数，设为 true 时返回流式输出。' },
+        { name: 'max_tokens', type: 'number', copy: '可选参数，用于限制本次生成的最大 token 数。' },
+        { name: 'top_p', type: 'number', copy: '可选参数，用于控制采样范围，通常不建议和 temperature 同时大幅调整。' }
+      ]
+    },
+    errors: {
+      kicker: '响应说明',
+      title: '当接口返回异常状态时，通常可以先从以下几类原因排查。',
+      items: [
+        { title: '401 Unauthorized', copy: 'API Key 缺失、无效、被停用，或请求头没有使用 Bearer 格式。' },
+        { title: '403 Forbidden', copy: '当前账号、分组或渠道没有权限调用该模型。' },
+        { title: '404 Model Not Found', copy: '模型名不存在，或没有先按模型列表接口返回的 id 填写。' },
+        { title: '429 Rate Limited', copy: '请求过于频繁、额度不足，或上游限流。稍后重试或切换可用模型。' },
+        { title: '400 Bad Request', copy: '请求体字段格式不正确，常见于 messages 结构、stream 类型或 JSON 格式错误。' },
+        { title: '5xx Upstream Error', copy: '通常表示上游服务异常或网络波动，可以稍后重试并保留请求时间用于排查。' }
+      ]
+    },
+    notes: {
+      kicker: '注意事项',
+      title: '排查问题时，优先保留模型名、时间、错误码与请求上下文。',
+      items: [
+        { title: '先查模型', copy: '不同账户、分组或渠道的可用模型可能不同，接入前先调用模型列表接口。' },
+        { title: '服务端保存 Key', copy: '不要把 API Key 暴露在浏览器、移动端客户端或公开仓库中。' },
+        { title: '地址使用 /v1', copy: 'OpenAI SDK 的 base_url 或 baseURL 通常填写到 /v1 这一层。' },
+        { title: '记录请求信息', copy: '排查问题时保留时间、模型名、错误码和 request id，有助于定位上游或权限问题。' }
+      ]
+    },
+    topicLinks: [
+      { to: '/docs/openai-compatible-api', kicker: 'OpenAI API', title: 'OpenAI 兼容 API 接入', copy: '用现有 SDK 替换 base_url 与 API Key 后接入统一入口。' },
+      { to: '/docs/base-url', kicker: 'Base URL', title: 'base_url 配置', copy: '确认 /v1 基础地址、endpoint 拼接和生产域名边界。' },
+      { to: '/docs/api-key', kicker: 'API Key', title: 'API Key 使用', copy: '创建、保存、鉴权和轮换 Key，避免凭据泄露。' },
+      { to: '/docs/streaming', kicker: 'Streaming', title: '流式输出', copy: '用 stream=true 和 SSE 方式处理逐段响应。' },
+      { to: '/docs/codex', kicker: 'Codex', title: 'Codex 客户端接入', copy: '配置 Codex 类客户端的入口、模型和账册核对。' },
+      { to: '/docs/claude-code', kicker: 'Claude Code', title: 'Claude Code 接入', copy: '统一管理 Claude Code 类客户端的 Key、权限和计量。' }
+    ]
+  },
+
+  authBrand: {
+    defaultSubtitle: '为长期使用者保留秩序、稳定与清晰计量。',
+    marks: { stable: '稳态供给', ledger: '清晰账册', access: '审慎准入' },
+    cardKicker: '入庭校验',
+    cardTitle: '入庭凭记',
+    copyright: '庭中诸务，各归其位。',
+    loginTitle: '确认身份',
+    loginSubtitle: '以邮箱进入你的账户、账册与调用入口。',
+    registerTitle: '申请入庭',
+    registerSubtitle: '为长期使用建立身份，后续用量与密钥都归入同一账册。',
+    loginAgreementRejectWarning: '未同意最新条款前，无法输入账号密码或使用快捷登录。',
+    loginAgreementRequiredWarning: '请先阅读并同意最新条款后再登录。',
+    registerAgreementRejectWarning: '需先同意最新条款，才能继续注册或使用快捷登录。',
+    registerAgreementRequiredWarning: '请先阅读并同意最新条款，再继续申请入庭。'
+  },
+
+  userShell: {
+    backHomeAria: '返回首页',
+    defaultAccount: '山枢庭账户',
+    accountMenu: '账户菜单',
+    accountMark: '身',
+    profileDocument: '身份文书',
+    themeSettings: '外观设置',
+    backDashboard: '返回庭院',
+    navAria: '用户功能导航',
+    fallbackTitle: '用户后台',
+    theme: { system: '跟随系统', light: '纸面', dark: '夜庭' },
+    nav: {
+      dashboard: '今日概览',
+      keys: 'API 密钥',
+      usage: '用量账册',
+      monitor: '服务状态',
+      purchase: '充值与兑换',
+      affiliate: '团队引荐',
+      profile: '账户安全'
+    },
+    marks: {
+      dashboard: '庭',
+      keys: '钥',
+      usage: '账',
+      monitor: '候',
+      purchase: '财',
+      affiliate: '荐',
+      profile: '身',
+      custom: '册'
+    }
+  },
+
   // Navigation
   nav: {
     home: '首页',
     pricing: '价格',
     dashboard: '仪表盘',
+    todayOverview: '今日概览',
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
+    usageLedger: '用量账册',
     redeem: '兑换',
+    rechargeRedeem: '充值与兑换',
+    transactionOrders: '往来订单',
     affiliate: '邀请返利',
+    teamReferrals: '团队引荐',
     affiliateManagement: '邀请返利',
     affiliateInviteRecords: '邀请记录',
     affiliateRebateRecords: '返利记录',
@@ -417,7 +653,16 @@ export default {
     upstreamPools: '上游池',
     channelMonitor: '线路诊断',
     channelStatus: '渠道状态',
+    serviceStatus: '服务状态',
+    imageWorkshop: '图像工坊',
     riskControl: '风控中心',
+    sections: {
+      overview: '庭中概览',
+      keysCalls: '密钥与调用',
+      usageLedger: '用量与账册',
+      capabilitiesStatus: '能力与状态',
+      accountRules: '账户与规则',
+    },
   },
 
   // Auth
@@ -497,6 +742,18 @@ export default {
     invitationCodeValidating: '正在验证邀请码...',
     invitationCodeInvalidCannotRegister: '邀请码无效，请检查后重试',
     oauthOrContinue: '或使用其他继续',
+    loginAgreementPrompt: {
+      readAndAgree: '我已阅读并同意',
+      needConsent: '继续登录前需要先同意最新条款。',
+      disabledHint: '未同意前，账号密码输入和快捷登录会保持禁用。',
+      viewTerms: '查看条款',
+      updateNotice: '条款更新通知',
+      updatedCopy: '我们的服务条款已于 {date} 更新。在继续使用服务之前，请仔细阅读并同意以下条款。',
+      recently: '近期',
+      relatedDocs: '相关文档',
+      reject: '拒绝',
+      accept: '同意并继续'
+    },
     linuxdo: {
       signIn: '使用 Linux.do 登录',
       orContinue: '或使用邮箱密码继续',
@@ -690,6 +947,18 @@ export default {
     startUsingApi: '开始使用 API 后，您的使用历史将显示在这里。',
     viewAllUsage: '查看全部',
     quickActions: '快捷操作',
+    quickActionsCaption: '常用入口',
+    quickKeysTitle: '密钥与调用',
+    quickKeysDescription: '查看、创建与整理调用凭证',
+    quickUsageTitle: '用量与账册',
+    quickUsageDescription: '按时段回看请求、Token 与费用',
+    quickProfileTitle: '账户与安全',
+    quickProfileDescription: '查看资料、绑定方式、提醒与安全设置',
+    quickProfileSimpleTitle: '账户与规则',
+    quickProfileSimpleDescription: '查看个人资料与站点规则',
+    recentUsageCaption: '近时段调用摘录',
+    loadingRecentUsage: '正在归拢最近调用记录...',
+    loadingCharts: '正在校准图表...',
     createApiKey: '创建 API 密钥',
     generateNewKey: '生成新的 API 密钥',
     viewUsage: '查看使用记录',
@@ -1485,6 +1754,14 @@ export default {
   redeem: {
     title: '兑换码',
     description: '输入兑换码以充值余额或增加并发数',
+    panelKicker: '兑换入账',
+    panelTitle: '使用兑换码补充余额、并发或账户权益',
+    redeemCodeDeposit: '兑换码入账',
+    redirect: {
+      kicker: '兑换入账',
+      title: '正在转往充值与兑换页',
+      copy: '兑换码入口已并入统一页面，稍后会自动跳转过去并保留当前入账意图。'
+    },
     currentBalance: '当前余额',
     concurrency: '并发数',
     requests: '请求',
@@ -1535,8 +1812,12 @@ export default {
     memberSince: '注册时间',
     overviewTitle: '账户总览',
     overviewDescription: '快速查看账号状态、资料来源与常用设置。',
+    basicsKicker: '基础资料',
     basicsTitle: '资料与头像',
     basicsDescription: '维护公开展示信息，并保持头像与昵称风格一致。',
+    bindingsKicker: '绑定方式',
+    bindingsHeading: '登录来源与身份凭引',
+    sourceKicker: '来源说明',
     linkedProfileSources: '资料来源',
     linkedProfileSourcesDescription: '部分头像和昵称可能同步自第三方登录方式。',
     securityTitle: '安全设置',
@@ -1549,12 +1830,14 @@ export default {
     role: '角色',
     enterUsername: '输入用户名',
     editProfile: '编辑个人资料',
+    editProfileKicker: '资料更新',
     updateProfile: '更新资料',
     updating: '更新中...',
     updateSuccess: '资料更新成功',
     updateFailed: '资料更新失败',
     usernameRequired: '用户名不能为空',
     changePassword: '修改密码',
+    passwordKicker: '密码更新',
     currentPassword: '当前密码',
     newPassword: '新密码',
     confirmNewPassword: '确认新密码',
@@ -7839,6 +8122,9 @@ export default {
       failed: '支付失败',
       backToRecharge: '返回充值',
       viewOrders: '查看订单',
+      receiptKicker: '支付回执',
+      successNote: '款项结果已回写到当前页面，后续也可随时去往来订单中核对到账与支付信息。',
+      failedNote: '这次支付尚未完成，你可以回到充值与兑换重新发起，或去往来订单里查看当前状态。',
     },
     currentBalance: '当前余额',
     groupFallback: '分组 #{id}',
@@ -7854,8 +8140,10 @@ export default {
     externalPurchaseTitle: '先在外部小店下单，再回到本页兑换入账',
     externalPurchaseDescription: '',
     externalPurchaseAction: '前往小店购买',
+    viewOrders: '查看订单',
     goToRedeem: '去兑换',
     useRedeemCode: '使用兑换码',
+    retryOrCheckOrders: '可重新选择支付方式后再试，或先查看往来订单确认是否已生成待支付记录。',
     rechargeRatePreview: '当前倍率：1 CNY = {usd} USD',
     rechargeCampaignBonus: '活动加赠',
     rechargeCampaignTotal: '活动到账总额',

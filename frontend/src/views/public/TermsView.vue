@@ -2,15 +2,15 @@
   <PublicPageLayout
     class="terms-page"
     tone="legal"
-    eyebrow="条款"
-    title="服务条款"
+    :eyebrow="termsContent.eyebrow"
+    :title="termsContent.title"
     intro=""
     :show-cta="false"
   >
       <section class="terms-main-grid mt-10 grid gap-8 lg:gap-8">
         <aside class="self-start">
           <div class="sticky top-5 h-fit">
-            <div class="mb-4 text-xs uppercase tracking-[0.24em] text-zen-mist dark:text-zen-stone">目录</div>
+            <div class="mb-4 text-xs uppercase tracking-[0.24em] text-zen-mist dark:text-zen-stone">{{ termsContent.toc }}</div>
             <nav class="grid gap-1 text-sm text-zen-ink dark:text-zen-paper">
               <button
                 v-for="item in sections"
@@ -28,23 +28,23 @@
 
         <article class="terms-article rounded-[1.35rem] border border-zen-paperLine/70 bg-white/62 p-5 shadow-paper-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/76 sm:p-6 lg:p-6">
           <section v-if="activeSection === 'overview'" id="overview">
-            <div class="terms-kicker">总述</div>
-            <h2 class="terms-title">访问、注册、购买或继续使用本服务，即表示你同意遵守本条款。</h2>
+            <div class="terms-kicker">{{ termsContent.overview.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.overview.title }}</h2>
             <p class="terms-copy">
-              本条款适用于站点公开页面、账户体系、控制台、支付与订单相关页面，以及通过本服务发起的 API 调用。若你不同意本条款的任何内容，请不要注册、购买或继续使用本服务。除非适用法律另有要求，本条款与本网站展示的价格、说明、风险提示及隐私政策共同构成对外规则基础。
+              {{ termsContent.overview.copy }}
             </p>
             <div class="terms-notice mt-5">
               <Icon name="shield" size="md" class="mt-0.5 text-zen-seal" />
               <div>
-                <div class="terms-notice-title">与隐私政策配套适用</div>
-                <p class="terms-notice-copy">关于数据如何收集、保存、共享与保护，请同时参阅隐私政策；本页主要说明使用规则、计费关系、责任边界与终止条件。</p>
+                <div class="terms-notice-title">{{ termsContent.overview.noticeTitle }}</div>
+                <p class="terms-notice-copy">{{ termsContent.overview.noticeCopy }}</p>
               </div>
             </div>
           </section>
 
           <section v-else-if="activeSection === 'eligibility'" id="eligibility">
-            <div class="terms-kicker">使用资格</div>
-            <h2 class="terms-title">本服务并非面向所有地区或所有主体开放，使用前应先确认自身资格。</h2>
+            <div class="terms-kicker">{{ termsContent.eligibility.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.eligibility.title }}</h2>
             <div class="mt-6 space-y-4">
               <article v-for="item in eligibilityItems" :key="item.title" class="terms-card">
                 <div class="terms-card-title">{{ item.title }}</div>
@@ -54,8 +54,8 @@
           </section>
 
           <section v-else-if="activeSection === 'account'" id="account">
-            <div class="terms-kicker">账户与凭证</div>
-            <h2 class="terms-title">账号、登录方式、API Key 与控制台权限均由你自行保管并承担相应责任。</h2>
+            <div class="terms-kicker">{{ termsContent.account.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.account.title }}</h2>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
               <article v-for="item in accountItems" :key="item.title" class="terms-card">
                 <div class="flex items-start gap-3">
@@ -70,12 +70,12 @@
           </section>
 
           <section v-else-if="activeSection === 'billing'" id="billing">
-            <div class="terms-kicker">计费与订单</div>
-            <h2 class="terms-title">价格展示、倍率折算、订单结果与账户账册记录共同决定最终计费结果。</h2>
+            <div class="terms-kicker">{{ termsContent.billing.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.billing.title }}</h2>
             <div class="terms-table mt-5 overflow-hidden rounded-[1rem] border border-zen-paperLine/70 dark:border-zen-nightLine">
               <div class="grid grid-cols-[12rem_minmax(0,1fr)] bg-white/32 text-xs uppercase tracking-[0.12em] text-zen-mist dark:bg-zen-nightPanel/55 dark:text-zen-stone">
-                <span class="px-4 py-3">事项</span>
-                <span class="px-4 py-3">说明</span>
+                <span class="px-4 py-3">{{ termsContent.billing.tableItem }}</span>
+                <span class="px-4 py-3">{{ termsContent.billing.tableDescription }}</span>
               </div>
               <div v-for="item in billingItems" :key="item.title" class="terms-table-row grid grid-cols-[12rem_minmax(0,1fr)] border-t border-zen-paperLine/60 bg-white/26 text-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/45">
                 <div class="px-4 py-4 font-medium text-zen-ink dark:text-zen-paper">{{ item.title }}</div>
@@ -85,8 +85,8 @@
           </section>
 
           <section v-else-if="activeSection === 'conduct'" id="conduct">
-            <div class="terms-kicker">禁止行为</div>
-            <h2 class="terms-title">你不得利用本服务从事违法、滥用、规避规则或危害系统稳定性的行为。</h2>
+            <div class="terms-kicker">{{ termsContent.conduct.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.conduct.title }}</h2>
             <div class="mt-6 space-y-4">
               <article v-for="item in conductItems" :key="item.title" class="terms-card">
                 <div class="terms-card-title">{{ item.title }}</div>
@@ -96,8 +96,8 @@
           </section>
 
           <section v-else-if="activeSection === 'thirdparty'" id="thirdparty">
-            <div class="terms-kicker">上游与第三方</div>
-            <h2 class="terms-title">本服务可能依赖第三方模型、支付通道、云资源与安全基础设施，相关部分不由我们单方完全控制。</h2>
+            <div class="terms-kicker">{{ termsContent.thirdParty.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.thirdParty.title }}</h2>
             <div class="mt-6 space-y-4">
               <article v-for="item in thirdPartyItems" :key="item.title" class="terms-card">
                 <div class="terms-card-title">{{ item.title }}</div>
@@ -107,16 +107,16 @@
           </section>
 
           <section v-else-if="activeSection === 'availability'" id="availability">
-            <div class="terms-kicker">服务可用性</div>
-            <h2 class="terms-title">服务能力、模型可用性、价格、入口与风控策略可能随时调整，持续可用并不当然构成承诺。</h2>
+            <div class="terms-kicker">{{ termsContent.availability.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.availability.title }}</h2>
             <ul class="mt-5 grid gap-3 text-sm leading-8 text-zen-mist dark:text-zen-stone sm:text-base">
-              <li v-for="item in availabilityItems" :key="item.title"><strong class="text-zen-ink dark:text-zen-paper">{{ item.title }}：</strong>{{ item.copy }}</li>
+              <li v-for="item in availabilityItems" :key="item.title"><strong class="text-zen-ink dark:text-zen-paper">{{ item.title }}{{ termsContent.colon }}</strong>{{ item.copy }}</li>
             </ul>
           </section>
 
           <section v-else-if="activeSection === 'termination'" id="termination">
-            <div class="terms-kicker">暂停与终止</div>
-            <h2 class="terms-title">如出现违规、争议、风险或运营需要，我们可以限制、暂停或终止全部或部分服务。</h2>
+            <div class="terms-kicker">{{ termsContent.termination.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.termination.title }}</h2>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
               <article v-for="item in terminationItems" :key="item.title" class="terms-card">
                 <div class="terms-card-title">{{ item.title }}</div>
@@ -126,16 +126,16 @@
           </section>
 
           <section v-else id="updates">
-            <div class="terms-kicker">更新与联系</div>
-            <h2 class="terms-title">条款会随服务结构、价格体系、风险策略或合规要求变化而更新；争议应先联系管理员处理。</h2>
+            <div class="terms-kicker">{{ termsContent.updates.kicker }}</div>
+            <h2 class="terms-title">{{ termsContent.updates.title }}</h2>
             <div class="mt-5 space-y-4">
               <article class="terms-card">
-                <div class="terms-card-title">条款更新</div>
-                <p class="terms-card-copy">当服务范围、计费方式、资格边界、禁止行为、责任限制或终止规则发生实质变化时，我们会更新本页，并同步更新页面顶部日期。更新后的条款自公布之日起生效。</p>
+                <div class="terms-card-title">{{ termsContent.updates.termsTitle }}</div>
+                <p class="terms-card-copy">{{ termsContent.updates.termsCopy }}</p>
               </article>
               <article class="terms-card">
-                <div class="terms-card-title">联系与争议</div>
-                <p class="terms-card-copy">如你对订单、账册、限制措施、资格判断或其他条款适用问题有异议，请先通过 {{ contactInfoLabel }} 联系我们。双方将优先通过沟通与核验解决；如适用法律另有要求，则按适用法律处理。</p>
+                <div class="terms-card-title">{{ termsContent.updates.contactTitle }}</div>
+                <p class="terms-card-copy">{{ termsContent.updates.contactBefore }} {{ contactInfoLabel }} {{ termsContent.updates.contactAfter }}</p>
               </article>
             </div>
           </section>
@@ -146,14 +146,82 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
 
+type TermsSectionId = 'overview' | 'eligibility' | 'account' | 'billing' | 'conduct' | 'thirdparty' | 'availability' | 'termination' | 'updates'
+type IconName = InstanceType<typeof Icon>['$props']['name']
+type SectionItem = { id: TermsSectionId; label: string }
+type IconCardItem = { title: string; copy: string; icon: IconName }
+
 const appStore = useAppStore()
+const { locale } = useI18n()
 
+const zhTermsContent = {
+  eyebrow: '条款',
+  title: '服务条款',
+  toc: '目录',
+  colon: '：',
+  overview: {
+    kicker: '总述',
+    title: '访问、注册、购买或继续使用本服务，即表示你同意遵守本条款。',
+    copy: '本条款适用于站点公开页面、账户体系、控制台、支付与订单相关页面，以及通过本服务发起的 API 调用。若你不同意本条款的任何内容，请不要注册、购买或继续使用本服务。除非适用法律另有要求，本条款与本网站展示的价格、说明、风险提示及隐私政策共同构成对外规则基础。',
+    noticeTitle: '与隐私政策配套适用',
+    noticeCopy: '关于数据如何收集、保存、共享与保护，请同时参阅隐私政策；本页主要说明使用规则、计费关系、责任边界与终止条件。',
+  },
+  eligibility: { kicker: '使用资格', title: '本服务并非面向所有地区或所有主体开放，使用前应先确认自身资格。' },
+  account: { kicker: '账户与凭证', title: '账号、登录方式、API Key 与控制台权限均由你自行保管并承担相应责任。' },
+  billing: { kicker: '计费与订单', title: '价格展示、倍率折算、订单结果与账户账册记录共同决定最终计费结果。', tableItem: '事项', tableDescription: '说明' },
+  conduct: { kicker: '禁止行为', title: '你不得利用本服务从事违法、滥用、规避规则或危害系统稳定性的行为。' },
+  thirdParty: { kicker: '上游与第三方', title: '本服务可能依赖第三方模型、支付通道、云资源与安全基础设施，相关部分不由我们单方完全控制。' },
+  availability: { kicker: '服务可用性', title: '服务能力、模型可用性、价格、入口与风控策略可能随时调整，持续可用并不当然构成承诺。' },
+  termination: { kicker: '暂停与终止', title: '如出现违规、争议、风险或运营需要，我们可以限制、暂停或终止全部或部分服务。' },
+  updates: {
+    kicker: '更新与联系',
+    title: '条款会随服务结构、价格体系、风险策略或合规要求变化而更新；争议应先联系管理员处理。',
+    termsTitle: '条款更新',
+    termsCopy: '当服务范围、计费方式、资格边界、禁止行为、责任限制或终止规则发生实质变化时，我们会更新本页，并同步更新页面顶部日期。更新后的条款自公布之日起生效。',
+    contactTitle: '联系与争议',
+    contactBefore: '如你对订单、账册、限制措施、资格判断或其他条款适用问题有异议，请先通过',
+    contactAfter: '联系我们。双方将优先通过沟通与核验解决；如适用法律另有要求，则按适用法律处理。',
+  },
+} as const
 
-const sections = [
+const enTermsContent = {
+  eyebrow: 'Terms',
+  title: 'Terms of Service',
+  toc: 'Contents',
+  colon: ': ',
+  overview: {
+    kicker: 'Overview',
+    title: 'By accessing, registering, purchasing, or continuing to use the service, you agree to these terms.',
+    copy: 'These terms apply to public pages, account systems, the console, payment and order pages, and API calls made through this service. If you disagree with any part, do not register, purchase, or continue using the service. Unless applicable law requires otherwise, these terms, displayed prices, explanations, risk notices, and the privacy policy form the external rule basis.',
+    noticeTitle: 'Read with the privacy policy',
+    noticeCopy: 'For how data is collected, retained, shared, and protected, also read the privacy policy. This page explains usage rules, billing relationships, responsibility boundaries, and termination conditions.',
+  },
+  eligibility: { kicker: 'Eligibility', title: 'The service is not open to every region or entity; confirm your eligibility before use.' },
+  account: { kicker: 'Accounts and credentials', title: 'You are responsible for safeguarding your account, sign-in methods, API Keys, and console permissions.' },
+  billing: { kicker: 'Billing and orders', title: 'Displayed prices, rate conversion, order results, and account ledger records together determine final charges.', tableItem: 'Item', tableDescription: 'Description' },
+  conduct: { kicker: 'Prohibited conduct', title: 'You must not use the service for unlawful, abusive, evasive, or stability-harming behavior.' },
+  thirdParty: { kicker: 'Upstreams and third parties', title: 'The service may depend on third-party models, payment channels, cloud resources, and security infrastructure not fully controlled by us.' },
+  availability: { kicker: 'Service availability', title: 'Capabilities, model availability, prices, entrances, and risk-control policies may change at any time; continued availability is not guaranteed.' },
+  termination: { kicker: 'Suspension and termination', title: 'For violations, disputes, risks, or operational needs, we may limit, suspend, or terminate all or part of the service.' },
+  updates: {
+    kicker: 'Updates and contact',
+    title: 'Terms may change with service structure, pricing, risk policies, or compliance requirements. Disputes should first be raised with support.',
+    termsTitle: 'Terms updates',
+    termsCopy: 'When service scope, billing methods, eligibility boundaries, prohibited conduct, liability limits, or termination rules materially change, we will update this page and the date at the top. Updated terms take effect when published.',
+    contactTitle: 'Contact and disputes',
+    contactBefore: 'If you dispute orders, ledgers, restrictions, eligibility decisions, or any other application of these terms, contact us first through',
+    contactAfter: 'Both parties will prioritize communication and verification. If applicable law requires otherwise, applicable law controls.',
+  },
+} as const
+
+const termsContent = computed(() => locale.value.startsWith('zh') ? zhTermsContent : enTermsContent)
+
+const zhSections: SectionItem[] = [
   { id: 'overview', label: '总述' },
   { id: 'eligibility', label: '使用资格' },
   { id: 'account', label: '账户与凭证' },
@@ -165,13 +233,27 @@ const sections = [
   { id: 'updates', label: '更新与联系' },
 ] as const
 
-type SectionId = (typeof sections)[number]['id']
+const enSections: SectionItem[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'eligibility', label: 'Eligibility' },
+  { id: 'account', label: 'Accounts' },
+  { id: 'billing', label: 'Billing' },
+  { id: 'conduct', label: 'Conduct' },
+  { id: 'thirdparty', label: 'Third parties' },
+  { id: 'availability', label: 'Availability' },
+  { id: 'termination', label: 'Termination' },
+  { id: 'updates', label: 'Updates' },
+]
+
+const sections = computed(() => locale.value.startsWith('zh') ? zhSections : enSections)
+
+type SectionId = TermsSectionId
 
 const activeSection = ref<SectionId>('overview')
 
-const contactInfoLabel = computed(() => appStore.cachedPublicSettings?.contact_info?.trim() || '站点管理员联系入口')
+const contactInfoLabel = computed(() => appStore.cachedPublicSettings?.contact_info?.trim() || (locale.value.startsWith('zh') ? '站点管理员联系入口' : 'site administrator contact channel'))
 
-const eligibilityItems = [
+const zhEligibilityItems = [
   {
     title: '适用地域',
     copy: '本服务目前仅面向中国大陆以外的地区和用户提供。中国大陆用户不得注册、购买或使用本服务；若你的访问或使用行为受中国大陆相关限制，请不要继续使用。',
@@ -185,8 +267,14 @@ const eligibilityItems = [
     copy: '本服务的服务器和主要数据处理设施不位于中国大陆，与服务有关的运营、技术支持、日志分析、账务处理与安全监测均在中国大陆以外进行。',
   },
 ] as const
+const enEligibilityItems = [
+  { title: 'Applicable regions', copy: 'This service is currently provided only to regions and users outside mainland China. Mainland China users must not register, purchase, or use this service. If your access or use is subject to mainland China restrictions, do not continue.' },
+  { title: 'Age and authority', copy: 'You must have the civil capacity required by applicable law. If you use the service on behalf of a company, team, or organization, you must have authority to accept these terms and assume responsibilities for that entity.' },
+  { title: 'Server and processing location', copy: 'The service servers and primary data processing facilities are not located in mainland China. Operations, support, log analysis, accounting, and security monitoring related to the service occur outside mainland China.' },
+]
+const eligibilityItems = computed(() => locale.value.startsWith('zh') ? zhEligibilityItems : enEligibilityItems)
 
-const accountItems = [
+const zhAccountItems: IconCardItem[] = [
   {
     title: '账户信息真实有效',
     copy: '注册、登录、绑定第三方身份或找回账号时，你应提供真实、完整且持续有效的信息；若信息失真、失效或存在冒用风险，我们可以限制相关账户功能。',
@@ -208,8 +296,15 @@ const accountItems = [
     icon: 'shield',
   },
 ] as const
+const enAccountItems: IconCardItem[] = [
+  { title: 'Accurate account information', copy: 'When registering, signing in, binding third-party identities, or recovering an account, you must provide truthful, complete, and valid information. If information is false, invalid, or impersonation risk exists, we may restrict account functions.', icon: 'userCircle' },
+  { title: 'Credential protection', copy: 'You are responsible for safeguarding passwords, email codes, third-party sessions, API Keys, and other access credentials. Consequences caused by leakage, lending, sharing, screenshots, public repository uploads, or poor handling are your responsibility.', icon: 'key' },
+  { title: 'Console permission boundaries', copy: 'Keys, usage, balance, orders, subscriptions, channels, and other console functions are available only within your current account, group, and permission scope, and may change with risk-control, payment, compliance, or operational policies.', icon: 'grid' },
+  { title: 'Abnormal access handling', copy: 'If abnormal sign-ins, bulk registrations, script abuse, shared credentials, proxy resale, or other high-risk behavior is detected, we may require secondary verification, temporarily freeze access, revoke Keys, suspend payment, or terminate service.', icon: 'shield' },
+]
+const accountItems = computed(() => locale.value.startsWith('zh') ? zhAccountItems : enAccountItems)
 
-const billingItems = [
+const zhBillingItems = [
   {
     title: '价格展示',
     copy: '公开页、控制台、订单页、分组倍率、模型价格表、活动说明与补充提示，可能共同构成对某次调用或某项权益的价格说明；若显示内容不一致，以实际下单页、支付页和账户账册记录为准。',
@@ -231,8 +326,16 @@ const billingItems = [
     copy: '如你对价格、扣费、倍率、订单状态或权益期限有异议，应以账户账册、订单记录、时间戳、请求记录、支付状态及站点配置记录为核验基础。',
   },
 ] as const
+const enBillingItems = [
+  { title: 'Price display', copy: 'Public pages, console pages, order pages, group rates, model price tables, campaigns, and supplemental notices may together describe prices for a call or entitlement. If displays conflict, actual order pages, payment pages, and ledger records prevail.' },
+  { title: 'Usage metering', copy: 'Tokens, request counts, cache reads, image outputs, rate conversion, channel pricing, and other metering dimensions may differ by model type, accounting rules, group strategy, and site configuration.' },
+  { title: 'Orders and payment', copy: 'Purchases, recharges, subscriptions, and order handling usually require confirmation through third-party payment services and site settlement flows. Successful payment does not automatically mean every dispute is finally resolved.' },
+  { title: 'Refunds and disputes', copy: 'Unless applicable law requires otherwise, consumed usage, opened and usable entitlements, upstream model costs already incurred, and purchases made in error for your own reasons generally do not automatically create refund obligations.' },
+  { title: 'Records prevail', copy: 'If you dispute prices, deductions, rates, order status, or entitlement periods, account ledgers, order records, timestamps, request records, payment status, and site configuration records are the basis for verification.' },
+]
+const billingItems = computed(() => locale.value.startsWith('zh') ? zhBillingItems : enBillingItems)
 
-const conductItems = [
+const zhConductItems = [
   {
     title: '违法或侵权使用',
     copy: '你不得利用本服务从事违反适用法律法规、侵犯知识产权、侵犯隐私、散播恶意内容、欺诈、洗钱、绕过制裁或其他违法违规活动。',
@@ -250,8 +353,15 @@ const conductItems = [
     copy: '你不得通过多账号、多设备、伪造身份、伪造地区、伪造支付信息、虚构交易、套壳请求、逆向规则或其他方式规避站点风控、资格判断、计费逻辑与使用限制。',
   },
 ] as const
+const enConductItems = [
+  { title: 'Unlawful or infringing use', copy: 'You must not use the service for activities that violate applicable law, infringe intellectual property or privacy rights, spread malicious content, commit fraud, launder money, evade sanctions, or otherwise break rules.' },
+  { title: 'System and resource abuse', copy: 'You must not affect service stability, others rights, or upstream allocation through bulk scripts, credential stuffing, scanning, load testing, exploit attempts, floods, malicious retries, fake volume, abuse of promotions, or bypassing rate controls.' },
+  { title: 'Resale and sharing risk', copy: 'Without explicit permission, you must not lend, resell, rent, share, recharge for resale, or otherwise redistribute accounts, API Keys, console permissions, balance, group entitlements, or opened capabilities.' },
+  { title: 'Evasion of controls and limits', copy: 'You must not evade site risk controls, eligibility decisions, billing logic, or use limits through multiple accounts, devices, false identities, false regions, false payment information, fake transactions, wrapped requests, or reverse-engineered rules.' },
+]
+const conductItems = computed(() => locale.value.startsWith('zh') ? zhConductItems : enConductItems)
 
-const thirdPartyItems = [
+const zhThirdPartyItems = [
   {
     title: '上游模型服务',
     copy: '你通过本服务发起的请求，可能会被转发至相应上游模型、通道方或基础设施服务。模型输出质量、响应时延、内容风格、限流策略、拒答行为与临时下线，不由本服务单方控制。',
@@ -265,8 +375,14 @@ const thirdPartyItems = [
     copy: '第三方模型、支付渠道、邮件服务、验证码、安全服务或云基础设施，均可能有各自独立的使用规则、隐私条款、可用性限制与地区限制；本条款不替代第三方条款。',
   },
 ] as const
+const enThirdPartyItems = [
+  { title: 'Upstream model services', copy: 'Requests sent through the service may be forwarded to the relevant upstream model, channel provider, or infrastructure service. Output quality, latency, style, rate limits, refusals, and temporary downtime are not solely controlled by this service.' },
+  { title: 'Third-party payment and accounting', copy: 'Payment, refunds, deduction risk controls, settlement failures, callback delays, chargebacks, and dispute handling may be affected by payment providers, banks, card networks, or accounting processors.' },
+  { title: 'Independent rules apply', copy: 'Third-party models, payment channels, email services, captcha, security services, or cloud infrastructure may have their own usage rules, privacy terms, availability limits, and regional restrictions. These terms do not replace third-party terms.' },
+]
+const thirdPartyItems = computed(() => locale.value.startsWith('zh') ? zhThirdPartyItems : enThirdPartyItems)
 
-const availabilityItems = [
+const zhAvailabilityItems = [
   {
     title: '服务可能变更',
     copy: '我们可以基于运营、上游变化、合规、支付、风控、容量或产品策略，对模型列表、价格结构、分组规则、入口展示、订单流程、支付方式、限速或权限进行调整。',
@@ -280,8 +396,14 @@ const availabilityItems = [
     copy: '系统维护、风控处置、账务核验、上游波动、网络故障、机房事件、政策调整、支付异常或其他不可控原因，均可能导致部分或全部服务临时不可用。',
   },
 ] as const
+const enAvailabilityItems = [
+  { title: 'Service may change', copy: 'We may adjust model lists, pricing structures, group rules, entry displays, order flows, payment methods, rate limits, or permissions due to operations, upstream changes, compliance, payment, risk control, capacity, or product strategy.' },
+  { title: 'No continuous availability guarantee', copy: 'Unless applicable law clearly requires otherwise, the service does not guarantee that any model, route, function, channel, price, or capability will remain available long term, or be uninterrupted, error-free, fluctuation-free, or fit for a specific purpose.' },
+  { title: 'Maintenance and interruptions', copy: 'System maintenance, risk-control actions, accounting checks, upstream fluctuations, network failures, data-center incidents, policy changes, payment abnormalities, or other uncontrollable causes may make some or all services temporarily unavailable.' },
+]
+const availabilityItems = computed(() => locale.value.startsWith('zh') ? zhAvailabilityItems : enAvailabilityItems)
 
-const terminationItems = [
+const zhTerminationItems = [
   {
     title: '限制措施',
     copy: '如出现未支付订单、异常退款、共享 Key、批量注册、滥用调用、争议未决、投诉举报、风险命中或其他违反本条款的情况，我们可以采取限流、禁用 Key、冻结订单、暂停登录、限制支付或降低权限等措施。',
@@ -299,6 +421,13 @@ const terminationItems = [
     copy: '在适用法律允许的范围内，对因你违反本条款、凭证保管不当、错误配置、误购误用、依赖第三方服务失败或超出合理控制范围的中断与损失，我们不承担超出法律强制要求之外的额外责任。',
   },
 ] as const
+const enTerminationItems = [
+  { title: 'Restrictive measures', copy: 'For unpaid orders, abnormal refunds, shared Keys, bulk registration, abusive calls, unresolved disputes, complaints, risk-control hits, or other violations, we may limit rate, disable Keys, freeze orders, suspend sign-in, restrict payment, or reduce permissions.' },
+  { title: 'Service termination', copy: 'If violations are serious, disputes cannot be resolved, risk is too high, third parties require discontinuation, or applicable law requires termination, we may suspend or terminate your access to all or part of the service without maintaining previous capabilities.' },
+  { title: 'Records after termination', copy: 'After an account is cancelled, frozen, or terminated, orders, ledgers, logs, dispute records, security audit records, and legally required information may still be retained for a reasonable period.' },
+  { title: 'Responsibility boundary', copy: 'To the extent allowed by applicable law, we do not assume additional liability beyond mandatory legal requirements for interruptions or losses caused by your breach, poor credential handling, misconfiguration, mistaken purchase or use, third-party service failure, or events beyond reasonable control.' },
+]
+const terminationItems = computed(() => locale.value.startsWith('zh') ? zhTerminationItems : enTerminationItems)
 
 onMounted(() => {
   if (!appStore.publicSettingsLoaded) {

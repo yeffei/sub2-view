@@ -2,8 +2,8 @@
   <div class="card">
     <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <div class="flex items-center justify-between gap-3">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">快捷入口</h2>
-        <span class="action-caption">常用入口</span>
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.quickActions') }}</h2>
+        <span class="action-caption">{{ t('dashboard.quickActionsCaption') }}</span>
       </div>
     </div>
     <div class="space-y-3 p-4">
@@ -12,8 +12,8 @@
           <Icon name="key" size="lg" class="text-primary-600 dark:text-primary-400" />
         </div>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium text-gray-900 dark:text-white">密钥与调用</p>
-          <p class="text-xs text-gray-500 dark:text-dark-400">查看、创建与整理调用凭证</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('dashboard.quickKeysTitle') }}</p>
+          <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('dashboard.quickKeysDescription') }}</p>
         </div>
         <Icon
           name="chevronRight"
@@ -27,8 +27,8 @@
           <Icon name="chart" size="lg" class="text-emerald-600 dark:text-emerald-400" />
         </div>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium text-gray-900 dark:text-white">用量与账册</p>
-          <p class="text-xs text-gray-500 dark:text-dark-400">按时段回看请求、Token 与费用</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ t('dashboard.quickUsageTitle') }}</p>
+          <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('dashboard.quickUsageDescription') }}</p>
         </div>
         <Icon
           name="chevronRight"
@@ -42,8 +42,8 @@
           <Icon :name="isSimple ? 'user' : 'shield'" size="lg" class="text-amber-600 dark:text-amber-400" />
         </div>
         <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ isSimple ? '账户与规则' : '账户与安全' }}</p>
-          <p class="text-xs text-gray-500 dark:text-dark-400">{{ isSimple ? '查看个人资料与站点规则' : '查看资料、绑定方式、提醒与安全设置' }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ isSimple ? t('dashboard.quickProfileSimpleTitle') : t('dashboard.quickProfileTitle') }}</p>
+          <p class="text-xs text-gray-500 dark:text-dark-400">{{ isSimple ? t('dashboard.quickProfileSimpleDescription') : t('dashboard.quickProfileDescription') }}</p>
         </div>
         <Icon
           name="chevronRight"
@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 
 defineProps<{
@@ -64,6 +65,7 @@ defineProps<{
 }>()
 
 const router = useRouter()
+const { t } = useI18n()
 </script>
 
 <style scoped>

@@ -11,7 +11,7 @@
     <div :class="props.embedded ? '' : 'px-6 py-6'">
       <form @submit.prevent="handleUpdateProfile" class="space-y-4">
         <div v-if="props.embedded">
-          <span class="profile-form-kicker">资料更新</span>
+          <span class="profile-form-kicker">{{ t('profile.editProfileKicker') }}</span>
           <p class="text-sm font-semibold text-zen-ink dark:text-zen-paper">
             {{ t('profile.editProfile') }}
           </p>

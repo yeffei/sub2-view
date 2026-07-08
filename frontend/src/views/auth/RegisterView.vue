@@ -4,10 +4,10 @@
       <!-- Title -->
       <div class="auth-form-header text-center">
         <h2 class="auth-form-title font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper">
-          申请入庭
+          {{ t('authBrand.registerTitle') }}
         </h2>
         <p class="auth-form-subtitle mt-2 text-sm leading-6 text-zen-mist dark:text-zen-stone">
-          为长期使用建立身份，后续用量与密钥都归入同一账册。
+          {{ t('authBrand.registerSubtitle') }}
         </p>
       </div>
 
@@ -303,7 +303,7 @@ const emailVerifyEnabled = ref<boolean>(false)
 const invitationCodeEnabled = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
-const siteName = ref<string>('山枢庭')
+const siteName = ref<string>(t('brand.defaultName'))
 const linuxdoOAuthEnabled = ref<boolean>(false)
 const wechatOAuthEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
@@ -398,7 +398,7 @@ onMounted(async () => {
     invitationCodeEnabled.value = settings.invitation_code_enabled
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
-    siteName.value = settings.site_name || '山枢庭'
+    siteName.value = settings.site_name || t('brand.defaultName')
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
     wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
     oidcOAuthEnabled.value = settings.oidc_oauth_enabled
@@ -492,7 +492,7 @@ function rejectLoginAgreement(): void {
   localStorage.removeItem(LOGIN_AGREEMENT_STORAGE_KEY)
   agreementAccepted.value = false
   showAgreementModal.value = false
-  appStore.showWarning('需先同意最新条款，才能继续注册或使用快捷登录。')
+  appStore.showWarning(t('authBrand.registerAgreementRejectWarning'))
 }
 
 // ==================== Invitation Code Validation ====================
@@ -609,7 +609,7 @@ function validateForm(): boolean {
   let isValid = true
 
   if (agreementGateActive.value) {
-    appStore.showWarning('请先阅读并同意最新条款，再继续申请入庭。')
+    appStore.showWarning(t('authBrand.registerAgreementRequiredWarning'))
     if (loginAgreementMode.value !== 'checkbox') {
       showAgreementModal.value = true
     }

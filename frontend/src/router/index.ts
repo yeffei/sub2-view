@@ -37,6 +37,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '统一入口，安静流转。',
+      titleKey: 'publicSite.tagline',
       seoDescription: '山枢庭 SST 是统一的 AI API 入口，将接入、计量、账册与稳定供给整理在一套安静、长期可维护的服务中。',
       canonicalPath: '/home',
       robots: 'index,follow',
@@ -49,6 +50,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '模型价格',
+      titleKey: 'publicPricing.title',
       seoDescription: '查看山枢庭 SST 的 Codex 与 Claude Code 模型价格、倍率与计量口径，理解 API 调用成本和开通边界。',
       canonicalPath: '/pricing',
       robots: 'index,follow',
@@ -61,6 +63,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '常见问题',
+      titleKey: 'publicSite.nav.faq',
       seoDescription: '山枢庭 SST 常见问题入口，说明价格、开通、控制台和实际配置应以公开价格页与登录后系统状态为准。',
       canonicalPath: '/faq',
       robots: 'index,follow',
@@ -73,6 +76,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '接入文档',
+      titleKey: 'publicDocs.title',
       seoDescription: '山枢庭 SST API 接入文档，说明 OpenAI 兼容 base_url、API Key、模型列表、流式输出和常见错误排查。',
       canonicalPath: '/docs',
       robots: 'index,follow',
@@ -85,6 +89,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'OpenAI 兼容 API 接入',
+      titleKey: 'publicDocs.topicLinks.0.title',
       seoDescription: '山枢庭 SST 保持 OpenAI 兼容调用方式，便于现有 SDK、CLI 与服务端应用接入统一入口。',
       canonicalPath: '/docs/openai-compatible-api',
       robots: 'index,follow',
@@ -97,6 +102,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'base_url 与 endpoint 配置',
+      titleKey: 'publicDocs.topicLinks.1.title',
       seoDescription: '配置 SST base_url 时应保留 /v1 前缀，避免把业务路径、网关路径和模型路径混在一起。',
       canonicalPath: '/docs/base-url',
       robots: 'index,follow',
@@ -109,6 +115,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'API Key 创建与使用',
+      titleKey: 'publicDocs.topicLinks.2.title',
       seoDescription: '了解 SST API Key 的创建、保存、调用、轮换和权限边界，避免在公开代码或客户端泄露凭据。',
       canonicalPath: '/docs/api-key',
       robots: 'index,follow',
@@ -121,6 +128,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '流式输出与 SSE 调用',
+      titleKey: 'publicDocs.topicLinks.3.title',
       seoDescription: 'SST 支持 OpenAI 兼容的流式输出方式，适用于聊天窗口、终端客户端和需要逐段展示的应用。',
       canonicalPath: '/docs/streaming',
       robots: 'index,follow',
@@ -133,6 +141,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'Codex 客户端接入',
+      titleKey: 'publicDocs.topicLinks.4.title',
       seoDescription: '使用 SST 为 Codex 类客户端配置统一 API 入口、Key、模型与账册，便于集中计量和维护。',
       canonicalPath: '/docs/codex',
       robots: 'index,follow',
@@ -145,6 +154,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: 'Claude Code 接入说明',
+      titleKey: 'publicDocs.topicLinks.5.title',
       seoDescription: '通过 SST 统一管理 Claude Code 类客户端的入口、Key、模型权限、倍率和调用账册。',
       canonicalPath: '/docs/claude-code',
       robots: 'index,follow',
@@ -157,6 +167,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '隐私政策',
+      titleKey: 'publicSite.nav.privacy',
       seoDescription: '山枢庭 SST 隐私政策，说明账户、账册、请求、安全信息和第三方服务边界的数据处理原则。',
       canonicalPath: '/privacy',
       robots: 'index,follow',
@@ -169,6 +180,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: false,
       title: '服务条款',
+      titleKey: 'publicSite.nav.terms',
       seoDescription: '山枢庭 SST 服务条款，说明账户、API Key、计费、订单、第三方上游、可用性和终止条件等规则。',
       canonicalPath: '/terms',
       robots: 'index,follow',

@@ -14,7 +14,7 @@
 
     <div :class="props.embedded ? 'space-y-4' : 'divide-y divide-gray-100 dark:divide-dark-700'">
       <div v-if="props.embedded">
-        <span class="binding-section-kicker">绑定方式</span>
+        <span class="binding-section-kicker">{{ t('profile.bindingsKicker') }}</span>
         <p class="mt-2 text-sm font-semibold text-zen-ink dark:text-zen-paper">
           {{ t('profile.authBindings.title') }}
         </p>

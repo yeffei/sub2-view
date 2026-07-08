@@ -6,17 +6,17 @@
     >
       <section class="profile-brief">
         <div>
-          <span>账户安全</span>
-          <h1>基础资料、验证方式与余额提醒</h1>
-          <p>身份信息、登录绑定和提醒阈值都在这里整理归位，方便你集中核对。</p>
+          <span>{{ profileCopy.hero.kicker }}</span>
+          <h1>{{ profileCopy.hero.title }}</h1>
+          <p>{{ profileCopy.hero.copy }}</p>
         </div>
-        <small>{{ user?.email || '山枢庭账户' }}</small>
+        <small>{{ user?.email || profileCopy.hero.accountFallback }}</small>
       </section>
 
       <details class="profile-fold" open>
-        <summary>
-          <span>账户摘要</span>
-          <strong>基础资料与绑定方式</strong>
+        <summary :data-expand="profileCopy.fold.expand" :data-collapse="profileCopy.fold.collapse">
+          <span>{{ profileCopy.summary.kicker }}</span>
+          <strong>{{ profileCopy.summary.title }}</strong>
         </summary>
         <ProfileInfoCard
           :user="user"
@@ -33,17 +33,17 @@
 
       <section class="runway-card">
         <div>
-          <span>余额续航</span>
+          <span>{{ profileCopy.runway.kicker }}</span>
           <strong>{{ balanceRunwayValue }}</strong>
           <p>{{ balanceRunwayNote }}</p>
         </div>
         <dl>
           <div>
-            <dt>估算基线</dt>
+            <dt>{{ profileCopy.runway.baseline }}</dt>
             <dd>{{ balanceRunwayBaseline }}</dd>
           </div>
           <div>
-            <dt>建议动作</dt>
+            <dt>{{ profileCopy.runway.action }}</dt>
             <dd>{{ balanceRunwayAction }}</dd>
           </div>
         </dl>
@@ -55,9 +55,9 @@
         :class="{ 'profile-fold-focus': isBalanceNotifyFocusActive }"
         :open="isBalanceNotifyFocusEnabled"
       >
-        <summary>
-          <span>安全设置</span>
-          <strong>密码、二次验证与余额提醒</strong>
+        <summary :data-expand="profileCopy.fold.expand" :data-collapse="profileCopy.fold.collapse">
+          <span>{{ profileCopy.security.kicker }}</span>
+          <strong>{{ profileCopy.security.title }}</strong>
         </summary>
         <div class="profile-security-grid">
           <ProfilePasswordForm />
@@ -72,12 +72,12 @@
           >
             <div v-if="isBalanceNotifyFocusEnabled" class="balance-notify-note" role="status">
               <div>
-                <span>余额提醒</span>
+                <span>{{ profileCopy.notify.kicker }}</span>
                 <strong>{{ balanceNotifyFocusTitle }}</strong>
                 <p>{{ balanceNotifyFocusDetail }}</p>
               </div>
               <router-link to="/dashboard">
-                回首页查看账户状态
+                {{ profileCopy.notify.backDashboard }}
               </router-link>
             </div>
             <ProfileBalanceNotifyCard
@@ -89,9 +89,9 @@
               :user-email="user.email"
             />
             <div v-else class="balance-notify-unavailable card p-5">
-              <span>当前未开放</span>
-              <strong>站点暂未启用余额提醒</strong>
-              <p>若你是从余额或额度提示跳到这里，可先回首页查看余量，或补充余额后再决定是否联系管理员开启提醒。</p>
+              <span>{{ profileCopy.notify.unavailableKicker }}</span>
+              <strong>{{ profileCopy.notify.unavailableTitle }}</strong>
+              <p>{{ profileCopy.notify.unavailableCopy }}</p>
             </div>
           </div>
         </div>
@@ -124,7 +124,7 @@ import { isWeChatWebOAuthEnabled } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const route = useRoute()
@@ -147,6 +147,106 @@ const isBalanceNotifyFocusActive = ref(false)
 const isBalanceNotifyFocusEnabled = computed(() => route.query.focus === 'balance-notify')
 let balanceNotifyFocusTimer: ReturnType<typeof setTimeout> | null = null
 
+const zhProfileCopy = {
+  hero: {
+    kicker: '账户安全',
+    title: '基础资料、验证方式与余额提醒',
+    copy: '身份信息、登录绑定和提醒阈值都在这里整理归位，方便你集中核对。',
+    accountFallback: '山枢庭账户'
+  },
+  summary: { kicker: '账户摘要', title: '基础资料与绑定方式' },
+  runway: { kicker: '余额续航', baseline: '估算基线', action: '建议动作' },
+  security: { kicker: '安全设置', title: '密码、二次验证与余额提醒' },
+  notify: {
+    kicker: '余额提醒',
+    backDashboard: '回首页查看账户状态',
+    unavailableKicker: '当前未开放',
+    unavailableTitle: '站点暂未启用余额提醒',
+    unavailableCopy: '若你是从余额或额度提示跳到这里，可先回首页查看余量，或补充余额后再决定是否联系管理员开启提醒。'
+  },
+  fold: { expand: '展开', collapse: '收起' },
+  runwayText: {
+    notBalanceMode: '当前未以余额模式计费',
+    insufficientSample: '近期样本不足',
+    baselinePrefix: '近 14 天约 $',
+    baselineSuffix: ' / 天',
+    siteMode: '按站点当前计费方式运行',
+    noSample: '暂无样本',
+    exhausted: '已见底',
+    about: '约 ',
+    notBalanceNote: '当前站点不以余额为主要限制，这里主要用于查看提醒设置。',
+    noSampleNote: '近时段样本不足，续航会在形成真实消耗后自动更新。',
+    criticalNote: '按近期消耗估算，余额已接近见底，建议优先充值或放缓请求节奏。',
+    weekNote: '按近期速度估算，余额续航已进入一周窗口，适合提前安排充值或削峰。',
+    calmNote: '当前余额对近期请求仍有缓冲，可以继续观察消耗与提醒阈值。',
+    keepEmail: '保持提醒邮箱可用',
+    waitSample: '先保持提醒开启，等待样本形成',
+    rechargeNow: '优先充值，并开启余额提醒',
+    checkThreshold: '校对提醒阈值，提前安排充值',
+    keepNotify: '保持提醒开关和邮箱状态正常',
+    day: ' 天'
+  },
+  focus: {
+    location: '这里是余额提醒所在位置',
+    enableFirst: '可以先开启提醒，再设定阈值',
+    checkSettings: '可以在这里核对阈值和通知邮箱',
+    unavailable: '当前站点尚未开放余额提醒，所以这次先把你带到最接近的账户安全位置。',
+    enableDetail: '若你刚遇到额度或余额相关提示，建议先开启提醒，再补上阈值和接收邮箱，避免再次无声耗尽。',
+    checkDetail: '若你是从余额提示跳到这里，可直接核对阈值、邮箱列表与开关状态，确保下次临近阈值时能及时收到通知。'
+  }
+}
+
+const enProfileCopy = {
+  hero: {
+    kicker: 'Account security',
+    title: 'Profile, sign-in methods, and balance alerts',
+    copy: 'Identity details, login bindings, and alert thresholds are gathered here for quick review.',
+    accountFallback: 'SST account'
+  },
+  summary: { kicker: 'Account summary', title: 'Profile details and sign-in bindings' },
+  runway: { kicker: 'Balance runway', baseline: 'Estimate baseline', action: 'Suggested action' },
+  security: { kicker: 'Security settings', title: 'Password, two-factor auth, and balance alerts' },
+  notify: {
+    kicker: 'Balance alert',
+    backDashboard: 'Back to account status',
+    unavailableKicker: 'Not enabled',
+    unavailableTitle: 'Balance alerts are not enabled for this site',
+    unavailableCopy: 'If you arrived here from a balance or quota notice, check the dashboard first, then top up or ask an administrator to enable alerts.'
+  },
+  fold: { expand: 'Expand', collapse: 'Collapse' },
+  runwayText: {
+    notBalanceMode: 'This site is not currently billing mainly by balance',
+    insufficientSample: 'Not enough recent samples',
+    baselinePrefix: 'About $',
+    baselineSuffix: ' / day over the last 14 days',
+    siteMode: 'Running under the current site billing mode',
+    noSample: 'No sample yet',
+    exhausted: 'Exhausted',
+    about: 'About ',
+    notBalanceNote: 'Balance is not the main limiter for this site right now; this section mainly helps review alert settings.',
+    noSampleNote: 'Recent samples are not enough yet. Runway will update after real usage is available.',
+    criticalNote: 'Based on recent spend, the balance is nearly exhausted. Top up first or slow request volume.',
+    weekNote: 'At the recent pace, runway is within a week. It is a good time to top up or smooth traffic.',
+    calmNote: 'The current balance still has room for recent request volume. Keep watching spend and alert thresholds.',
+    keepEmail: 'Keep alert email reachable',
+    waitSample: 'Keep alerts on while samples accumulate',
+    rechargeNow: 'Top up first and enable balance alerts',
+    checkThreshold: 'Review the alert threshold and plan a top-up',
+    keepNotify: 'Keep alert switches and email status healthy',
+    day: ' days'
+  },
+  focus: {
+    location: 'This is where balance alerts live',
+    enableFirst: 'Enable alerts first, then set a threshold',
+    checkSettings: 'Review thresholds and notification emails here',
+    unavailable: 'Balance alerts are not enabled for this site, so this is the closest account security location.',
+    enableDetail: 'If you just hit a balance or quota notice, enable alerts first, then add a threshold and recipient email.',
+    checkDetail: 'If you came here from a balance notice, review thresholds, email recipients, and the alert switch.'
+  }
+}
+
+const profileCopy = computed(() => locale.value === 'zh' ? zhProfileCopy : enProfileCopy)
+
 const paymentEnabled = computed(() => {
   const settings = appStore.cachedPublicSettings
   return settings?.payment_enabled ?? true
@@ -161,50 +261,50 @@ const balanceRunwayDays = computed(() => {
 
 const balanceRunwayBaseline = computed(() => {
   const avgDailyCost = Math.max(dashboardStats.value?.today_actual_cost || 0, (dashboardStats.value?.total_actual_cost || 0) / 14)
-  if (!paymentEnabled.value) return '当前未以余额模式计费'
-  if (avgDailyCost <= 0) return '近期样本不足'
-  return '近 14 天约 $' + avgDailyCost.toFixed(4) + ' / 天'
+  if (!paymentEnabled.value) return profileCopy.value.runwayText.notBalanceMode
+  if (avgDailyCost <= 0) return profileCopy.value.runwayText.insufficientSample
+  return profileCopy.value.runwayText.baselinePrefix + avgDailyCost.toFixed(4) + profileCopy.value.runwayText.baselineSuffix
 })
 
 const balanceRunwayValue = computed(() => {
-  if (!paymentEnabled.value) return '按站点当前计费方式运行'
+  if (!paymentEnabled.value) return profileCopy.value.runwayText.siteMode
   const days = balanceRunwayDays.value
-  if (days === null) return '暂无样本'
-  if (days <= 0) return '已见底'
-  return '约 ' + formatRunwayDays(days)
+  if (days === null) return profileCopy.value.runwayText.noSample
+  if (days <= 0) return profileCopy.value.runwayText.exhausted
+  return profileCopy.value.runwayText.about + formatRunwayDays(days)
 })
 
 const balanceRunwayNote = computed(() => {
-  if (!paymentEnabled.value) return '当前站点不以余额为主要限制，这里主要用于查看提醒设置。'
+  if (!paymentEnabled.value) return profileCopy.value.runwayText.notBalanceNote
   const days = balanceRunwayDays.value
-  if (days === null) return '近时段样本不足，续航会在形成真实消耗后自动更新。'
-  if (days <= 3) return '按近期消耗估算，余额已接近见底，建议优先充值或放缓请求节奏。'
-  if (days <= 7) return '按近期速度估算，余额续航已进入一周窗口，适合提前安排充值或削峰。'
-  return '当前余额对近期请求仍有缓冲，可以继续观察消耗与提醒阈值。'
+  if (days === null) return profileCopy.value.runwayText.noSampleNote
+  if (days <= 3) return profileCopy.value.runwayText.criticalNote
+  if (days <= 7) return profileCopy.value.runwayText.weekNote
+  return profileCopy.value.runwayText.calmNote
 })
 
 const balanceRunwayAction = computed(() => {
-  if (!paymentEnabled.value) return '保持提醒邮箱可用'
+  if (!paymentEnabled.value) return profileCopy.value.runwayText.keepEmail
   const days = balanceRunwayDays.value
-  if (days === null) return '先保持提醒开启，等待样本形成'
-  if (days <= 3) return '优先充值，并开启余额提醒'
-  if (days <= 7) return '校对提醒阈值，提前安排充值'
-  return '保持提醒开关和邮箱状态正常'
+  if (days === null) return profileCopy.value.runwayText.waitSample
+  if (days <= 3) return profileCopy.value.runwayText.rechargeNow
+  if (days <= 7) return profileCopy.value.runwayText.checkThreshold
+  return profileCopy.value.runwayText.keepNotify
 })
 
 const balanceNotifyFocusTitle = computed(() => {
-  if (!balanceLowNotifyEnabled.value) return '这里是余额提醒所在位置'
-  if (user.value?.balance_notify_enabled === false) return '可以先开启提醒，再设定阈值'
-  return '可以在这里核对阈值和通知邮箱'
+  if (!balanceLowNotifyEnabled.value) return profileCopy.value.focus.location
+  if (user.value?.balance_notify_enabled === false) return profileCopy.value.focus.enableFirst
+  return profileCopy.value.focus.checkSettings
 })
 const balanceNotifyFocusDetail = computed(() => {
   if (!balanceLowNotifyEnabled.value) {
-    return '当前站点尚未开放余额提醒，所以这次先把你带到最接近的账户安全位置。'
+    return profileCopy.value.focus.unavailable
   }
   if (user.value?.balance_notify_enabled === false) {
-    return '若你刚遇到额度或余额相关提示，建议先开启提醒，再补上阈值和接收邮箱，避免再次无声耗尽。'
+    return profileCopy.value.focus.enableDetail
   }
-  return '若你是从余额提示跳到这里，可直接核对阈值、邮箱列表与开关状态，确保下次临近阈值时能及时收到通知。'
+  return profileCopy.value.focus.checkDetail
 })
 
 const clearBalanceNotifyFocusTimer = () => {
@@ -284,7 +384,7 @@ onMounted(async () => {
   await Promise.all([profileRefresh, settingsLoad, dashboardStatsLoad])
 })
 
-const formatRunwayDays = (days: number) => days >= 10 ? Math.round(days) + ' 天' : days.toFixed(1) + ' 天'
+const formatRunwayDays = (days: number) => (days >= 10 ? Math.round(days) : days.toFixed(1)) + profileCopy.value.runwayText.day
 
 onBeforeUnmount(() => {
   clearBalanceNotifyFocusTimer()
@@ -431,7 +531,7 @@ onBeforeUnmount(() => {
 }
 
 .profile-fold summary::after {
-  content: '展开';
+  content: attr(data-expand);
   flex: 0 0 auto;
   border: 1px solid rgba(167, 58, 42, 0.22);
   border-radius: 999px;
@@ -442,7 +542,7 @@ onBeforeUnmount(() => {
 }
 
 .profile-fold[open] summary::after {
-  content: '收起';
+  content: attr(data-collapse);
 }
 
 .profile-fold summary span {

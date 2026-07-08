@@ -2,8 +2,8 @@
   <PublicPageLayout
     class="docs-page"
     tone="docs"
-    eyebrow="文档"
-    title="API 文档"
+    :eyebrow="t('publicDocs.eyebrow')"
+    :title="t('publicDocs.title')"
     intro=""
     description=""
     :show-cta="false"
@@ -12,8 +12,8 @@
         <aside class="self-start">
           <div class="sticky top-5 h-fit">
             <div class="mb-3 flex items-end justify-between gap-3">
-              <div class="text-xs uppercase tracking-[0.24em] text-zen-mist dark:text-zen-stone">目录</div>
-              <div class="docs-toc-caption">按常用顺序阅读</div>
+              <div class="text-xs uppercase tracking-[0.24em] text-zen-mist dark:text-zen-stone">{{ t('publicDocs.toc') }}</div>
+              <div class="docs-toc-caption">{{ t('publicDocs.tocCaption') }}</div>
             </div>
             <nav class="grid gap-1 text-sm text-zen-ink dark:text-zen-paper">
               <button
@@ -32,50 +32,50 @@
 
         <article class="docs-article rounded-[1.35rem] border border-zen-paperLine/70 bg-white/62 p-5 shadow-paper-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/76 sm:p-6 lg:p-6">
           <section v-show="activeSection === 'quickstart'" id="quickstart">
-            <div class="docs-kicker">快速开始</div>
-            <h2 class="docs-title">按 OpenAI 兼容方式配置 Key 与基础地址后，即可直接开始调用。</h2>
+            <div class="docs-kicker">{{ t('publicDocs.quickstart.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.quickstart.title') }}</h2>
             <ol class="docs-list docs-quickstart-list mt-5">
-              <li>登录控制台并创建 API Key。</li>
-              <li>把 SDK 的 <code>base_url</code> 或 <code>baseURL</code> 设置为 <code>{{ sdkBaseUrl }}</code>，并带上 <code>Authorization: Bearer YOUR_API_KEY</code>。</li>
-              <li>先调用 <code>GET /v1/models</code> 确认可用模型，再发起对话请求。</li>
+              <li>{{ t('publicDocs.quickstart.steps.login') }}</li>
+              <li>{{ t('publicDocs.quickstart.steps.configureBefore') }} <code>base_url</code> {{ t('publicDocs.quickstart.steps.or') }} <code>baseURL</code> {{ t('publicDocs.quickstart.steps.configureAfter') }} <code>{{ sdkBaseUrl }}</code>{{ t('publicDocs.quickstart.steps.authHeader') }} <code>Authorization: Bearer YOUR_API_KEY</code>.</li>
+              <li>{{ t('publicDocs.quickstart.steps.models') }}</li>
             </ol>
             <div class="docs-notice mt-6">
               <div>
-                <div class="docs-notice-title">接入提示</div>
-                <p class="docs-notice-copy">大多数客户端只需要改 <code>api_key</code> 与 <code>base_url</code>，模型名以模型列表接口返回值为准。</p>
+                <div class="docs-notice-title">{{ t('publicDocs.quickstart.noticeTitle') }}</div>
+                <p class="docs-notice-copy">{{ t('publicDocs.quickstart.noticeBefore') }} <code>api_key</code> {{ t('publicDocs.quickstart.steps.or') }} <code>base_url</code>{{ t('publicDocs.quickstart.noticeAfter') }}</p>
               </div>
             </div>
           </section>
 
           <section v-show="activeSection === 'authentication'" id="authentication">
-            <div class="docs-kicker">认证方式</div>
-            <h2 class="docs-title">所有接口请求都需要在 Header 中携带有效的 API Key。</h2>
-            <p class="docs-copy">Key 属于账户凭据，不要直接暴露在前端公开代码、客户端 App 或公开仓库中。推荐将 Key 保存在服务端环境变量中，由后端代理完成调用。</p>
+            <div class="docs-kicker">{{ t('publicDocs.authentication.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.authentication.title') }}</h2>
+            <p class="docs-copy">{{ t('publicDocs.authentication.copy') }}</p>
             <pre class="docs-code mt-5 overflow-x-auto"><code>Authorization: Bearer YOUR_API_KEY</code></pre>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
               <article class="docs-card">
-                <div class="docs-card-title">推荐做法</div>
-                <p class="docs-card-copy">把 Key 放在服务端环境变量中，例如 <code>SST_API_KEY</code>，并由后端统一拼接鉴权头。</p>
+                <div class="docs-card-title">{{ t('publicDocs.authentication.recommendedTitle') }}</div>
+                <p class="docs-card-copy">{{ t('publicDocs.authentication.recommendedBefore') }} <code>SST_API_KEY</code>{{ t('publicDocs.authentication.recommendedAfter') }}</p>
               </article>
               <article class="docs-card">
-                <div class="docs-card-title">常见失败</div>
-                <p class="docs-card-copy"><code>Bearer</code> 前缀缺失、Key 前后多出空格、使用了已停用 Key，都可能返回 401。</p>
+                <div class="docs-card-title">{{ t('publicDocs.authentication.failureTitle') }}</div>
+                <p class="docs-card-copy"><code>Bearer</code> {{ t('publicDocs.authentication.failureCopy') }}</p>
               </article>
             </div>
           </section>
 
           <section v-show="activeSection === 'models'" id="models">
-            <div class="docs-kicker">模型查询</div>
-            <h2 class="docs-title">接入前先查询模型列表，可以避免模型名错误或权限未开通。</h2>
-            <p class="docs-copy">不同账户、分组、渠道或权限范围返回的模型可能不同。返回结果中的 <code>id</code>，通常就是后续请求 <code>chat/completions</code> 时应填写的 <code>model</code> 值。</p>
+            <div class="docs-kicker">{{ t('publicDocs.models.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.models.title') }}</h2>
+            <p class="docs-copy">{{ t('publicDocs.models.copyBefore') }} <code>id</code>{{ t('publicDocs.models.copyMiddle') }} <code>chat/completions</code>{{ t('publicDocs.models.copyAfter') }} <code>model</code> {{ t('publicDocs.models.copyEnd') }}</p>
             <pre class="docs-code mt-5 overflow-x-auto"><code>{{ modelsExample }}</code></pre>
           </section>
 
           <section v-show="activeSection === 'examples'" id="examples">
             <div class="flex flex-wrap items-end justify-between gap-4">
               <div>
-                <div class="docs-kicker">请求示例</div>
-                <h2 class="docs-title">下面提供最常用的三种调用方式，可直接按需替换模型与消息内容。</h2>
+                <div class="docs-kicker">{{ t('publicDocs.examples.kicker') }}</div>
+                <h2 class="docs-title">{{ t('publicDocs.examples.title') }}</h2>
               </div>
               <div class="docs-example-tabs flex flex-wrap gap-2">
                 <button
@@ -94,20 +94,20 @@
           </section>
 
           <section v-show="activeSection === 'streaming'" id="streaming">
-            <div class="docs-kicker">流式输出</div>
-            <h2 class="docs-title">需要边生成边展示时，将 <code>stream</code> 设置为 <code>true</code>。</h2>
-            <p class="docs-copy">兼容客户端会按 SSE 事件逐段返回内容。适合聊天窗口、逐字展示或需要更快首字响应的场景。</p>
+            <div class="docs-kicker">{{ t('publicDocs.streaming.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.streaming.titleBefore') }} <code>stream</code> {{ t('publicDocs.streaming.titleAfter') }} <code>true</code>.</h2>
+            <p class="docs-copy">{{ t('publicDocs.streaming.copy') }}</p>
             <pre class="docs-code mt-5 overflow-x-auto"><code>{{ streamExample }}</code></pre>
           </section>
 
           <section v-show="activeSection === 'parameters'" id="parameters">
-            <div class="docs-kicker">常用参数</div>
-            <h2 class="docs-title">以下参数是最常见的请求字段，具体支持情况以模型与上游能力为准。</h2>
+            <div class="docs-kicker">{{ t('publicDocs.parameters.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.parameters.title') }}</h2>
             <div class="docs-table mt-5 overflow-hidden rounded-[1rem] border border-zen-paperLine/70 dark:border-zen-nightLine">
               <div class="docs-table-head grid grid-cols-[11rem_7rem_minmax(0,1fr)]">
-                <span class="px-4 py-3">参数</span>
-                <span class="px-4 py-3">类型</span>
-                <span class="px-4 py-3">说明</span>
+                <span class="px-4 py-3">{{ t('publicDocs.parameters.table.name') }}</span>
+                <span class="px-4 py-3">{{ t('publicDocs.parameters.table.type') }}</span>
+                <span class="px-4 py-3">{{ t('publicDocs.parameters.table.description') }}</span>
               </div>
               <div v-for="item in parameters" :key="item.name" class="docs-table-row grid grid-cols-[11rem_7rem_minmax(0,1fr)] border-t border-zen-paperLine/60 bg-white/26 text-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/45">
                 <code class="px-4 py-4 text-zen-ink dark:text-zen-paper">{{ item.name }}</code>
@@ -118,8 +118,8 @@
           </section>
 
           <section v-show="activeSection === 'errors'" id="errors">
-            <div class="docs-kicker">响应说明</div>
-            <h2 class="docs-title">当接口返回异常状态时，通常可以先从以下几类原因排查。</h2>
+            <div class="docs-kicker">{{ t('publicDocs.errors.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.errors.title') }}</h2>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
               <article v-for="item in errors" :key="item.title" class="docs-card">
                 <div class="docs-card-title">{{ item.title }}</div>
@@ -129,8 +129,8 @@
           </section>
 
           <section v-show="activeSection === 'notes'" id="notes">
-            <div class="docs-kicker">注意事项</div>
-            <h2 class="docs-title">排查问题时，优先保留模型名、时间、错误码与请求上下文。</h2>
+            <div class="docs-kicker">{{ t('publicDocs.notes.kicker') }}</div>
+            <h2 class="docs-title">{{ t('publicDocs.notes.title') }}</h2>
             <ul class="docs-list mt-5">
               <li v-for="item in notes" :key="item.title"><strong>{{ item.title }}：</strong>{{ item.copy }}</li>
             </ul>
@@ -156,27 +156,23 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 import { useAppStore } from '@/stores'
 
 const appStore = useAppStore()
+const { t, tm } = useI18n()
 
 
 const apiBaseUrl = computed(() => (appStore.cachedPublicSettings?.api_base_url || window.location.origin).replace(/\/$/, ''))
 const sdkBaseUrl = computed(() => `${apiBaseUrl.value}/v1`)
 
-const sections = [
-  { id: 'quickstart', label: '快速开始' },
-  { id: 'authentication', label: '认证方式' },
-  { id: 'models', label: '获取模型列表' },
-  { id: 'examples', label: '请求示例' },
-  { id: 'streaming', label: '流式输出' },
-  { id: 'parameters', label: '常用参数' },
-  { id: 'errors', label: '常见响应说明' },
-  { id: 'notes', label: '注意事项' },
-] as const
+const sections = computed(() => tm('publicDocs.sections') as unknown as Array<{
+  id: 'quickstart' | 'authentication' | 'models' | 'examples' | 'streaming' | 'parameters' | 'errors' | 'notes'
+  label: string
+}>)
 
-type SectionId = (typeof sections)[number]['id']
+type SectionId = 'quickstart' | 'authentication' | 'models' | 'examples' | 'streaming' | 'parameters' | 'errors' | 'notes'
 
 const exampleTabs = [
   { key: 'curl', label: 'cURL' },
@@ -244,69 +240,10 @@ const activeExampleCode = computed(() => {
   }
 })
 
-const parameters = [
-  { name: 'model', type: 'string', copy: '要调用的模型名称，建议先通过模型列表接口确认具体值。' },
-  { name: 'messages', type: 'array', copy: '对话消息数组，按 OpenAI Chat Completions 标准结构传入。' },
-  { name: 'temperature', type: 'number', copy: '可选参数，用于控制生成随机性。' },
-  { name: 'stream', type: 'boolean', copy: '可选参数，设为 true 时返回流式输出。' },
-  { name: 'max_tokens', type: 'number', copy: '可选参数，用于限制本次生成的最大 token 数。' },
-  { name: 'top_p', type: 'number', copy: '可选参数，用于控制采样范围，通常不建议和 temperature 同时大幅调整。' },
-] as const
-
-const errors = [
-  { title: '401 Unauthorized', copy: 'API Key 缺失、无效、被停用，或请求头没有使用 Bearer 格式。' },
-  { title: '403 Forbidden', copy: '当前账号、分组或渠道没有权限调用该模型。' },
-  { title: '404 Model Not Found', copy: '模型名不存在，或没有先按模型列表接口返回的 id 填写。' },
-  { title: '429 Rate Limited', copy: '请求过于频繁、额度不足，或上游限流。稍后重试或切换可用模型。' },
-  { title: '400 Bad Request', copy: '请求体字段格式不正确，常见于 messages 结构、stream 类型或 JSON 格式错误。' },
-  { title: '5xx Upstream Error', copy: '通常表示上游服务异常或网络波动，可以稍后重试并保留请求时间用于排查。' },
-] as const
-
-const notes = [
-  { title: '先查模型', copy: '不同账户、分组或渠道的可用模型可能不同，接入前先调用模型列表接口。' },
-  { title: '服务端保存 Key', copy: '不要把 API Key 暴露在浏览器、移动端客户端或公开仓库中。' },
-  { title: '地址使用 /v1', copy: 'OpenAI SDK 的 base_url 或 baseURL 通常填写到 /v1 这一层。' },
-  { title: '记录请求信息', copy: '排查问题时保留时间、模型名、错误码和 request id，有助于定位上游或权限问题。' },
-] as const
-
-const topicLinks = [
-  {
-    to: '/docs/openai-compatible-api',
-    kicker: 'OpenAI API',
-    title: 'OpenAI 兼容 API 接入',
-    copy: '用现有 SDK 替换 base_url 与 API Key 后接入统一入口。',
-  },
-  {
-    to: '/docs/base-url',
-    kicker: 'Base URL',
-    title: 'base_url 配置',
-    copy: '确认 /v1 基础地址、endpoint 拼接和生产域名边界。',
-  },
-  {
-    to: '/docs/api-key',
-    kicker: 'API Key',
-    title: 'API Key 使用',
-    copy: '创建、保存、鉴权和轮换 Key，避免凭据泄露。',
-  },
-  {
-    to: '/docs/streaming',
-    kicker: 'Streaming',
-    title: '流式输出',
-    copy: '用 stream=true 和 SSE 方式处理逐段响应。',
-  },
-  {
-    to: '/docs/codex',
-    kicker: 'Codex',
-    title: 'Codex 客户端接入',
-    copy: '配置 Codex 类客户端的入口、模型和账册核对。',
-  },
-  {
-    to: '/docs/claude-code',
-    kicker: 'Claude Code',
-    title: 'Claude Code 接入',
-    copy: '统一管理 Claude Code 类客户端的 Key、权限和计量。',
-  },
-] as const
+const parameters = computed(() => tm('publicDocs.parameters.items') as unknown as Array<{ name: string, type: string, copy: string }>)
+const errors = computed(() => tm('publicDocs.errors.items') as unknown as Array<{ title: string, copy: string }>)
+const notes = computed(() => tm('publicDocs.notes.items') as unknown as Array<{ title: string, copy: string }>)
+const topicLinks = computed(() => tm('publicDocs.topicLinks') as unknown as Array<{ to: string, kicker: string, title: string, copy: string }>)
 
 onMounted(() => {
   if (!appStore.publicSettingsLoaded) {

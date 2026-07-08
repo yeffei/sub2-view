@@ -287,11 +287,11 @@ function buildSelfNavItems(withDashboard: boolean): NavItem[] {
   }
   items.push(
     { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
-    { path: '/usage', label: '用量账册', icon: 'chart', hideInSimpleMode: true },
-    { path: '/monitor', label: '服务状态', icon: 'signal', featureFlag: flagChannelMonitor },
-    { path: '/purchase', label: '充值与兑换', icon: 'wallet', hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/orders', label: '往来订单', icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
-    { path: '/affiliate', label: '团队引荐', icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
+    { path: '/usage', label: t('nav.usageLedger'), icon: 'chart', hideInSimpleMode: true },
+    { path: '/monitor', label: t('nav.serviceStatus'), icon: 'signal', featureFlag: flagChannelMonitor },
+    { path: '/purchase', label: t('nav.rechargeRedeem'), icon: 'wallet', hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/orders', label: t('nav.transactionOrders'), icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
+    { path: '/affiliate', label: t('nav.teamReferrals'), icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
     { path: '/profile', label: t('nav.profile'), icon: 'user' },
     ...customMenuItemsForUser.value.map((item): NavItem => ({
       path: `/custom/${item.id}`,
@@ -332,37 +332,37 @@ const userNavSections = computed((): NavSection[] => {
 
   return [
     {
-      title: '庭中概览',
+      title: t('nav.sections.overview'),
       items: finalizeSectionItems([
-        { path: '/dashboard', label: '今日概览', icon: 'grid' },
+        { path: '/dashboard', label: t('nav.todayOverview'), icon: 'grid' },
       ]),
     },
     {
-      title: '密钥与调用',
+      title: t('nav.sections.keysCalls'),
       items: finalizeSectionItems([
         { path: '/keys', label: t('nav.apiKeys'), icon: 'key' },
       ]),
     },
     {
-      title: '用量与账册',
+      title: t('nav.sections.usageLedger'),
       items: finalizeSectionItems([
-        { path: '/usage', label: '用量账册', icon: 'chart', hideInSimpleMode: true },
-        { path: '/purchase', label: '充值与兑换', icon: 'wallet', hideInSimpleMode: true, featureFlag: flagPayment },
-        { path: '/orders', label: '往来订单', icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
+        { path: '/usage', label: t('nav.usageLedger'), icon: 'chart', hideInSimpleMode: true },
+        { path: '/purchase', label: t('nav.rechargeRedeem'), icon: 'wallet', hideInSimpleMode: true, featureFlag: flagPayment },
+        { path: '/orders', label: t('nav.transactionOrders'), icon: 'document', hideInSimpleMode: true, featureFlag: flagPayment },
       ]),
     },
     {
-      title: '能力与状态',
+      title: t('nav.sections.capabilitiesStatus'),
       items: finalizeSectionItems([
-        ...(imageWorkshopItem ? [{ path: `/custom/${IMAGE_WORKSHOP_MENU_ID}`, label: '图像工坊', icon: 'image' as const }] : []),
-        { path: '/monitor', label: '服务状态', icon: 'signal', featureFlag: flagChannelMonitor },
+        ...(imageWorkshopItem ? [{ path: `/custom/${IMAGE_WORKSHOP_MENU_ID}`, label: t('nav.imageWorkshop'), icon: 'image' as const }] : []),
+        { path: '/monitor', label: t('nav.serviceStatus'), icon: 'signal', featureFlag: flagChannelMonitor },
       ]),
     },
     {
-      title: '账户与规则',
+      title: t('nav.sections.accountRules'),
       items: finalizeSectionItems([
         { path: '/profile', label: t('nav.profile'), icon: 'user' },
-        { path: '/affiliate', label: '团队引荐', icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
+        { path: '/affiliate', label: t('nav.teamReferrals'), icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
         ...customItems,
       ]),
     },

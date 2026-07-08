@@ -2,14 +2,14 @@
   <PublicPageLayout
     class="pricing-page"
     tone="pricing"
-    eyebrow="价目"
-    title="模型价格"
+    :eyebrow="t('publicPricing.eyebrow')"
+    :title="t('publicPricing.title')"
     intro=""
     description=""
-    authenticated-action-label="入庭"
+    :authenticated-action-label="t('publicSite.enter')"
   >
     <div class="space-y-4">
-      <div class="pricing-platform-tabs" role="tablist" aria-label="平台切换">
+      <div class="pricing-platform-tabs" role="tablist" :aria-label="t('publicPricing.platformSwitch')">
         <button
           v-for="platform in platforms"
           :key="platform.key"
@@ -48,7 +48,7 @@
           </template>
 
           <section v-else class="pricing-empty-card">
-            暂无可用模型。
+            {{ t('publicPricing.empty') }}
           </section>
         </div>
 
@@ -60,52 +60,52 @@
             <table class="pricing-table w-full">
               <thead>
                 <tr>
-                  <th>模型 ID</th>
-                  <th>输入价格</th>
-                  <th>输出价格</th>
-                  <th v-if="activePlatform === 'claude'">缓存写入</th>
-                  <th>缓存读取</th>
+                  <th>{{ t('publicPricing.table.modelId') }}</th>
+                  <th>{{ t('publicPricing.table.input') }}</th>
+                  <th>{{ t('publicPricing.table.output') }}</th>
+                  <th v-if="activePlatform === 'claude'">{{ t('publicPricing.table.cacheWrite') }}</th>
+                  <th>{{ t('publicPricing.table.cacheRead') }}</th>
                 </tr>
               </thead>
               <tbody v-show="activePlatform === 'codex'">
                 <tr v-for="item in activeModels" :key="item.name">
-                  <td data-label="模型">
+                  <td :data-label="t('publicPricing.table.model')">
                     <div class="pricing-model-cell">
                       <div class="pricing-model-name-row">
                         <span class="pricing-model-name-text">{{ item.name }}</span>
                       </div>
                     </div>
                   </td>
-                  <td class="pricing-value-cell" data-label="输入价格">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.input')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.inputPrice, activeGroup.multiplier)) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
-                  <td class="pricing-value-cell" data-label="输出价格">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.output')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.outputPrice, activeGroup.multiplier)) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
-                  <td class="pricing-value-cell" data-label="缓存读取">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.cacheRead')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.cacheReadPrice, activeGroup.multiplier)) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
                 </tr>
               </tbody>
               <tbody v-show="activePlatform === 'claude'">
                 <tr v-for="item in claudeCodeModels" :key="item.name">
-                  <td data-label="模型">
+                  <td :data-label="t('publicPricing.table.model')">
                     <div class="pricing-model-cell">
                       <div class="pricing-model-name-row">
                         <span class="pricing-model-name-text">{{ item.name }}</span>
                       </div>
                     </div>
                   </td>
-                  <td class="pricing-value-cell" data-label="输入价格">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.input')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.inputPrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
-                  <td class="pricing-value-cell" data-label="输出价格">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.output')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.outputPrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
-                  <td class="pricing-value-cell" data-label="缓存写入">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.cacheWrite')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.cacheWritePrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
-                  <td class="pricing-value-cell" data-label="缓存读取">
+                  <td class="pricing-value-cell" :data-label="t('publicPricing.table.cacheRead')">
                     <div class="pricing-price-main text-zen-seal dark:text-[#f0a25f]">{{ formatUsdPrice(scalePrice(item.cacheReadPrice, activeGroup.multiplier), 2) }} <span class="pricing-price-unit dark:text-[#8f8572]">/ 1M tokens</span></div>
                   </td>
                 </tr>
@@ -116,16 +116,16 @@
       </article>
 
       <div v-if="publicContact" class="pricing-contact-note">
-        <span>开通前需核对模型或账册，可</span>
+        <span>{{ t('publicPricing.contactPrefix') }}</span>
         <a
           v-if="publicContact.href"
           :href="publicContact.href"
           :target="publicContact.external ? '_blank' : undefined"
           :rel="publicContact.external ? 'noopener noreferrer' : undefined"
         >
-          联系庭务
+          {{ t('publicPricing.contactAction') }}
         </a>
-        <strong v-else>联系庭务：{{ publicContact.label }}</strong>
+        <strong v-else>{{ t('publicPricing.contactAction') }}: {{ publicContact.label }}</strong>
       </div>
     </div>
   </PublicPageLayout>
@@ -133,6 +133,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 import { useAppStore } from '@/stores'
 import { resolvePublicContact } from '@/utils/contact'
@@ -158,6 +159,7 @@ const activePlatform = ref<PlatformKey>('codex')
 const activeGroupKey = ref('codex-plus')
 const perMillionScale = 1_000_000
 const appStore = useAppStore()
+const { t } = useI18n()
 
 const platforms = [
   { key: 'claude', label: 'Claude Code', icon: '✳' },

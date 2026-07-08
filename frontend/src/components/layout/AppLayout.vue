@@ -18,10 +18,10 @@
         <section v-if="userWorkbenchShell" class="sst-user-workbench">
           <div class="sst-user-frame">
             <header class="sst-user-head">
-              <router-link to="/home" class="sst-brand-lockup" aria-label="返回首页">
+              <router-link to="/home" class="sst-brand-lockup" :aria-label="t('userShell.backHomeAria')">
                 <span class="sst-seal" aria-hidden="true"><img src="/logo.png" alt="" /></span>
                 <span class="sst-brand-copy">
-                  <small>山枢庭</small>
+                  <small>{{ t('brand.defaultName') }}</small>
                   <strong>{{ currentPageTitle }}</strong>
                 </span>
               </router-link>
@@ -33,23 +33,23 @@
               >
                 <div>
                   <span>{{ currentDateLabel }}</span>
-                  <strong>{{ authStore.user?.email || '山枢庭账户' }}</strong>
-                  <small>统一入口，安静流转。</small>
+                  <strong>{{ authStore.user?.email || t('userShell.defaultAccount') }}</strong>
+                  <small>{{ t('publicSite.tagline') }}</small>
                 </div>
                 <button
                   type="button"
                   class="sst-account-trigger"
-                  aria-label="账户菜单"
+                  :aria-label="t('userShell.accountMenu')"
                   aria-haspopup="menu"
                   :aria-expanded="isAccountMenuOpen ? 'true' : 'false'"
                   @click="toggleAccountMenu"
                 >
-                  身
+                  {{ t('userShell.accountMark') }}
                 </button>
                 <div class="sst-account-dropdown">
-                  <router-link to="/profile" @click="closeAccountMenu">身份文书</router-link>
-                  <div class="sst-account-theme" aria-label="外观设置">
-                    <span>外观设置</span>
+                  <router-link to="/profile" @click="closeAccountMenu">{{ t('userShell.profileDocument') }}</router-link>
+                  <div class="sst-account-theme" :aria-label="t('userShell.themeSettings')">
+                    <span>{{ t('userShell.themeSettings') }}</span>
                     <div class="sst-account-theme-options">
                       <button
                         v-for="option in themeOptions"
@@ -62,13 +62,13 @@
                       </button>
                     </div>
                   </div>
-                  <router-link to="/dashboard" @click="closeAccountMenu">返回庭院</router-link>
-                  <button type="button" @click="handleLogout">退出登录</button>
+                  <router-link to="/dashboard" @click="closeAccountMenu">{{ t('userShell.backDashboard') }}</router-link>
+                  <button type="button" @click="handleLogout">{{ t('nav.logout') }}</button>
                 </div>
               </div>
             </header>
 
-            <nav class="sst-user-nav" aria-label="用户功能导航">
+            <nav class="sst-user-nav" :aria-label="t('userShell.navAria')">
               <template v-for="item in userNavItems" :key="item.path">
                 <router-link
                   v-if="!isNavActive(item.path)"
@@ -111,17 +111,19 @@
 import '@/styles/onboarding.css'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useOnboardingTour } from '@/composables/useOnboardingTour'
 import { useOnboardingStore } from '@/stores/onboarding'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
-import { setThemePreference, themePreferenceLabels, useThemePreference, type ThemePreference } from '@/utils/theme'
+import { setThemePreference, useThemePreference, type ThemePreference } from '@/utils/theme'
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
 
 const appStore = useAppStore()
 const authStore = useAuthStore()
+const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const isAccountMenuOpen = ref(false)
@@ -167,19 +169,19 @@ interface UserShellNavItem {
 const userNavItems = computed(() => {
   const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
   const items: UserShellNavItem[] = [
-    { path: '/dashboard', label: '今日概览', mark: '庭' },
-    { path: '/keys', label: 'API 密钥', mark: '钥' },
-    { path: '/usage', label: '用量账册', mark: '账', hideInSimpleMode: true },
-    { path: '/monitor', label: '服务状态', mark: '候', visible: isFeatureFlagEnabled(FeatureFlags.channelMonitor) },
-    { path: '/purchase', label: '充值与兑换', mark: '财', hideInSimpleMode: true, visible: paymentEnabled || !authStore.isSimpleMode },
-    { path: '/affiliate', label: '团队引荐', mark: '荐', hideInSimpleMode: true, visible: isFeatureFlagEnabled(FeatureFlags.affiliate) },
-    { path: '/profile', label: '账户安全', mark: '身' },
+    { path: '/dashboard', label: t('userShell.nav.dashboard'), mark: t('userShell.marks.dashboard') },
+    { path: '/keys', label: t('userShell.nav.keys'), mark: t('userShell.marks.keys') },
+    { path: '/usage', label: t('userShell.nav.usage'), mark: t('userShell.marks.usage'), hideInSimpleMode: true },
+    { path: '/monitor', label: t('userShell.nav.monitor'), mark: t('userShell.marks.monitor'), visible: isFeatureFlagEnabled(FeatureFlags.channelMonitor) },
+    { path: '/purchase', label: t('userShell.nav.purchase'), mark: t('userShell.marks.purchase'), hideInSimpleMode: true, visible: paymentEnabled || !authStore.isSimpleMode },
+    { path: '/affiliate', label: t('userShell.nav.affiliate'), mark: t('userShell.marks.affiliate'), hideInSimpleMode: true, visible: isFeatureFlagEnabled(FeatureFlags.affiliate) },
+    { path: '/profile', label: t('userShell.nav.profile'), mark: t('userShell.marks.profile') },
   ]
 
   const customItems = (appStore.cachedPublicSettings?.custom_menu_items ?? [])
     .filter(item => item.visibility === 'user')
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map((item): UserShellNavItem => ({ path: `/custom/${item.id}`, label: item.label, mark: '册' }))
+    .map((item): UserShellNavItem => ({ path: `/custom/${item.id}`, label: item.label, mark: t('userShell.marks.custom') }))
 
   return [...items, ...customItems]
     .filter(item => item.visible !== false)
@@ -188,17 +190,17 @@ const userNavItems = computed(() => {
 
 const billingRoutePaths = ['/purchase', '/orders', '/redeem']
 const themeOptions: Array<{ value: ThemePreference, label: string }> = [
-  { value: 'system', label: themePreferenceLabels.system },
-  { value: 'light', label: themePreferenceLabels.light },
-  { value: 'dark', label: themePreferenceLabels.dark },
+  { value: 'system', label: t('userShell.theme.system') },
+  { value: 'light', label: t('userShell.theme.light') },
+  { value: 'dark', label: t('userShell.theme.dark') },
 ]
 
 const currentPageTitle = computed(() => {
   if (route.path === '/profile') {
-    return '账户安全'
+    return t('userShell.nav.profile')
   }
   const matched = userNavItems.value.find(item => isNavActive(item.path))
-  return matched?.label || '用户后台'
+  return matched?.label || t('userShell.fallbackTitle')
 })
 
 function isNavActive(path: string) {

@@ -13,7 +13,7 @@
           </div>
           <div class="payment-shop-actions">
             <button class="btn btn-secondary" @click="router.push('/orders')">
-              查看订单
+              {{ t('payment.viewOrders') }}
             </button>
             <button class="btn btn-primary" @click="openExternalPurchase">
               {{ t('payment.externalPurchaseAction') }}
@@ -54,10 +54,10 @@
             <div>
               <strong>{{ errorMessage }}</strong>
               <p v-if="errorHintMessage">{{ errorHintMessage }}</p>
-              <p v-else>可重新选择支付方式后再试，或先查看往来订单确认是否已生成待支付记录。</p>
+              <p v-else>{{ t('payment.retryOrCheckOrders') }}</p>
             </div>
             <button class="btn btn-secondary" @click="router.push('/orders')">
-              查看订单
+              {{ t('payment.viewOrders') }}
             </button>
           </div>
 
@@ -218,8 +218,8 @@
           >
             <div class="payment-redeem-heading">
               <div>
-                <span>兑换入账</span>
-                <h3>兑换码入账</h3>
+                <span>{{ t('redeem.panelKicker') }}</span>
+                <h3>{{ t('redeem.redeemCodeDeposit') }}</h3>
               </div>
             </div>
             <RedeemPanel :embedded="true" :show-intro="false" />

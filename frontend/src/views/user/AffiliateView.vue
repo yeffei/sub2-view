@@ -14,7 +14,7 @@
             <div>
               <div class="mb-4 flex items-center gap-4">
                 <span class="h-px w-14 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-                <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">团队引荐</span>
+                <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">{{ affiliateCopy.kicker }}</span>
               </div>
               <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div class="max-w-2xl">
@@ -36,7 +36,7 @@
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)]">
               <div class="affiliate-share-block">
                 <div class="affiliate-share-copy">
-                  <span>引荐凭引</span>
+                  <span>{{ affiliateCopy.codeKicker }}</span>
                   <strong>{{ t('affiliate.yourCode') }}</strong>
                 </div>
                 <div class="affiliate-share-row">
@@ -50,7 +50,7 @@
 
               <div class="affiliate-share-block affiliate-share-block-link">
                 <div class="affiliate-share-copy">
-                  <span>入庭路径</span>
+                  <span>{{ affiliateCopy.linkKicker }}</span>
                   <strong>{{ t('affiliate.inviteLink') }}</strong>
                 </div>
                 <div class="affiliate-share-row affiliate-share-row-link">
@@ -65,7 +65,7 @@
 
             <div class="affiliate-rules">
               <div class="affiliate-rules-head">
-                <span class="affiliate-rules-mark">则</span>
+                <span class="affiliate-rules-mark">{{ affiliateCopy.rulesMark }}</span>
                 <div>
                   <p class="text-sm font-medium text-zen-ink dark:text-zen-paper">{{ t('affiliate.tips.title') }}</p>
                 </div>
@@ -83,7 +83,7 @@
             <div class="affiliate-summary-shell">
               <div class="affiliate-summary-lead">
                 <div class="affiliate-summary-card affiliate-summary-card-primary">
-                  <span class="affiliate-summary-label">当前可转</span>
+                  <span class="affiliate-summary-label">{{ affiliateCopy.availableKicker }}</span>
                   <strong>{{ formatCurrency(detail.aff_quota) }}</strong>
                   <p>
                     {{ detail.aff_quota > 0 ? t('affiliate.transfer.description') : t('affiliate.transfer.empty') }}
@@ -105,12 +105,12 @@
                 <div class="affiliate-summary-metric">
                   <span class="affiliate-summary-label">{{ t('affiliate.stats.invitedUsers') }}</span>
                   <strong>{{ formatCount(detail.aff_count) }}</strong>
-                  <p>已完成绑定邀请码并注册的用户数量。</p>
+                  <p>{{ affiliateCopy.invitedUsersHint }}</p>
                 </div>
                 <div class="affiliate-summary-metric">
                   <span class="affiliate-summary-label">{{ t('affiliate.stats.totalQuota') }}</span>
                   <strong>{{ formatCurrency(detail.aff_history_quota) }}</strong>
-                  <p>截至目前累计形成的全部返利额度。</p>
+                  <p>{{ affiliateCopy.totalQuotaHint }}</p>
                 </div>
                 <div class="affiliate-summary-metric" :class="{ 'affiliate-summary-metric-accent': detail.aff_frozen_quota > 0 }">
                   <span class="affiliate-summary-label">{{ t('affiliate.stats.frozenQuota') }}</span>
@@ -127,10 +127,10 @@
 
       <section v-else class="affiliate-empty-state card p-7 text-center sm:p-8">
         <div class="mx-auto flex max-w-md flex-col items-center gap-3">
-          <span class="affiliate-empty-kicker">团队引荐</span>
-          <h2 class="font-serif text-2xl font-semibold text-zen-ink dark:text-zen-paper">邀请返利暂未载入</h2>
+          <span class="affiliate-empty-kicker">{{ affiliateCopy.kicker }}</span>
+          <h2 class="font-serif text-2xl font-semibold text-zen-ink dark:text-zen-paper">{{ affiliateCopy.emptyTitle }}</h2>
           <p class="text-sm leading-7 text-zen-mist dark:text-zen-stone">
-            这次没有拿到返利信息。你可以重新加载页面；如果问题持续，再检查接口或登录状态。
+            {{ affiliateCopy.emptyCopy }}
           </p>
           <button class="btn btn-secondary" @click="reloadAffiliateDetail">
             <Icon name="refresh" size="sm" />
@@ -156,7 +156,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import { formatCurrency } from '@/utils/format'
 import { extractApiErrorMessage } from '@/utils/apiError'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const appStore = useAppStore()
 const authStore = useAuthStore()
 const { copyToClipboard } = useClipboard()
@@ -164,6 +164,32 @@ const { copyToClipboard } = useClipboard()
 const loading = ref(true)
 const transferring = ref(false)
 const detail = ref<UserAffiliateDetail | null>(null)
+
+const zhAffiliateCopy = {
+  kicker: '团队引荐',
+  codeKicker: '引荐凭引',
+  linkKicker: '入庭路径',
+  rulesMark: '则',
+  availableKicker: '当前可转',
+  invitedUsersHint: '已完成绑定邀请码并注册的用户数量。',
+  totalQuotaHint: '截至目前累计形成的全部返利额度。',
+  emptyTitle: '邀请返利暂未载入',
+  emptyCopy: '这次没有拿到返利信息。你可以重新加载页面；如果问题持续，再检查接口或登录状态。'
+}
+
+const enAffiliateCopy = {
+  kicker: 'Team referrals',
+  codeKicker: 'Referral code',
+  linkKicker: 'Invite path',
+  rulesMark: 'Rule',
+  availableKicker: 'Available',
+  invitedUsersHint: 'Users who registered with your invitation code.',
+  totalQuotaHint: 'Total rebate quota accumulated so far.',
+  emptyTitle: 'Affiliate rebates are not loaded',
+  emptyCopy: 'Affiliate data could not be loaded this time. Refresh the page, or check the API and login state if it continues.'
+}
+
+const affiliateCopy = computed(() => locale.value === 'zh' ? zhAffiliateCopy : enAffiliateCopy)
 
 const inviteLink = computed(() => {
   if (!detail.value) return ''

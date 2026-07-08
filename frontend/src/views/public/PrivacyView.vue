@@ -2,15 +2,15 @@
   <PublicPageLayout
     class="privacy-page"
     tone="legal"
-    eyebrow="隐私"
-    title="隐私政策"
+    :eyebrow="privacyContent.eyebrow"
+    :title="privacyContent.title"
     intro=""
     :show-cta="false"
   >
       <section class="privacy-main-grid mt-10 grid gap-8 lg:gap-8">
         <aside class="self-start">
           <div class="sticky top-5 h-fit">
-            <div class="mb-4 text-xs uppercase tracking-[0.24em] text-zen-mist dark:text-zen-stone">目录</div>
+            <div class="mb-4 text-xs uppercase tracking-[0.24em] text-zen-mist dark:text-zen-stone">{{ privacyContent.toc }}</div>
             <nav class="grid gap-1 text-sm text-zen-ink dark:text-zen-paper">
               <button
                 v-for="item in sections"
@@ -28,23 +28,23 @@
 
         <article class="privacy-article rounded-[1.35rem] border border-zen-paperLine/70 bg-white/62 p-5 shadow-paper-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/76 sm:p-6 lg:p-6">
           <section v-if="activeSection === 'overview'" id="overview">
-            <div class="privacy-kicker">总则</div>
-            <h2 class="privacy-title">本政策适用于站点公开页面、账户体系与控制台服务。</h2>
+            <div class="privacy-kicker">{{ privacyContent.overview.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.overview.title }}</h2>
             <p class="privacy-copy">
-              当你浏览首页、登录、注册、购买、创建 Key、查看用量或联系管理员时，系统会处理提供服务所必需的账户、账册、请求与安全信息。除法律法规另有要求外，我们遵循最少收集、目的明确、期限合理与按需可见的处理原则。
+              {{ privacyContent.overview.copy }}
             </p>
             <div class="privacy-notice mt-5">
               <Icon name="shield" size="md" class="mt-0.5 text-zen-seal" />
               <div>
-                <div class="privacy-notice-title">第三方边界</div>
-                <p class="privacy-notice-copy">如果你通过本服务访问第三方模型、支付渠道或其他外部服务，相关第三方仍将按照其自身规则处理必要数据；本政策不替代第三方的隐私条款。</p>
+                <div class="privacy-notice-title">{{ privacyContent.overview.noticeTitle }}</div>
+                <p class="privacy-notice-copy">{{ privacyContent.overview.noticeCopy }}</p>
               </div>
             </div>
           </section>
 
           <section v-else-if="activeSection === 'region'" id="region">
-            <div class="privacy-kicker">适用地域与数据位置</div>
-            <h2 class="privacy-title">本服务的适用用户范围、服务器位置与数据处理边界如下。</h2>
+            <div class="privacy-kicker">{{ privacyContent.region.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.region.title }}</h2>
             <div class="mt-6 space-y-4">
               <article v-for="item in regionItems" :key="item.title" class="privacy-card">
                 <div class="privacy-card-title">{{ item.title }}</div>
@@ -54,8 +54,8 @@
           </section>
 
           <section v-else-if="activeSection === 'collect'" id="collect">
-            <div class="privacy-kicker">收集范围</div>
-            <h2 class="privacy-title">我们可能收集的主要信息类型如下。</h2>
+            <div class="privacy-kicker">{{ privacyContent.collect.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.collect.title }}</h2>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
               <article v-for="item in collectItems" :key="item.title" class="privacy-card">
                 <div class="flex items-start gap-3">
@@ -70,12 +70,12 @@
           </section>
 
           <section v-else-if="activeSection === 'usage'" id="usage">
-            <div class="privacy-kicker">使用目的</div>
-            <h2 class="privacy-title">收集到的信息仅用于与服务运行相关的明确目的。</h2>
+            <div class="privacy-kicker">{{ privacyContent.usage.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.usage.title }}</h2>
             <div class="privacy-table mt-5 overflow-hidden rounded-[1rem] border border-zen-paperLine/70 dark:border-zen-nightLine">
               <div class="grid grid-cols-[12rem_minmax(0,1fr)] bg-white/32 text-xs uppercase tracking-[0.12em] text-zen-mist dark:bg-zen-nightPanel/55 dark:text-zen-stone">
-                <span class="px-4 py-3">用途</span>
-                <span class="px-4 py-3">说明</span>
+                <span class="px-4 py-3">{{ privacyContent.usage.tablePurpose }}</span>
+                <span class="px-4 py-3">{{ privacyContent.usage.tableDescription }}</span>
               </div>
               <div v-for="item in usageItems" :key="item.title" class="privacy-table-row grid grid-cols-[12rem_minmax(0,1fr)] border-t border-zen-paperLine/60 bg-white/26 text-sm dark:border-zen-nightLine dark:bg-zen-nightPanel/45">
                 <div class="px-4 py-4 font-medium text-zen-ink dark:text-zen-paper">{{ item.title }}</div>
@@ -85,8 +85,8 @@
           </section>
 
           <section v-else-if="activeSection === 'sharing'" id="sharing">
-            <div class="privacy-kicker">共享与外部处理</div>
-            <h2 class="privacy-title">我们仅在提供服务、履行义务或处理争议所必需时对外提供信息。</h2>
+            <div class="privacy-kicker">{{ privacyContent.sharing.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.sharing.title }}</h2>
             <div class="mt-6 space-y-4">
               <article v-for="item in sharingItems" :key="item.title" class="privacy-card">
                 <div class="privacy-card-title">{{ item.title }}</div>
@@ -96,16 +96,16 @@
           </section>
 
           <section v-else-if="activeSection === 'retention'" id="retention">
-            <div class="privacy-kicker">保存期限</div>
-            <h2 class="privacy-title">不同类型的信息会按照其处理目的保留至合理期限届满。</h2>
+            <div class="privacy-kicker">{{ privacyContent.retention.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.retention.title }}</h2>
             <ul class="mt-5 grid gap-3 text-sm leading-8 text-zen-mist dark:text-zen-stone sm:text-base">
-              <li v-for="item in retentionItems" :key="item.title"><strong class="text-zen-ink dark:text-zen-paper">{{ item.title }}：</strong>{{ item.copy }}</li>
+              <li v-for="item in retentionItems" :key="item.title"><strong class="text-zen-ink dark:text-zen-paper">{{ item.title }}{{ privacyContent.colon }}</strong>{{ item.copy }}</li>
             </ul>
           </section>
 
           <section v-else-if="activeSection === 'rights'" id="rights">
-            <div class="privacy-kicker">你的选择</div>
-            <h2 class="privacy-title">在适用法律允许的范围内，你可以申请访问、更正、删除或限制处理。</h2>
+            <div class="privacy-kicker">{{ privacyContent.rights.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.rights.title }}</h2>
             <div class="mt-6 grid gap-4 md:grid-cols-2">
               <article v-for="item in rightsItems" :key="item.title" class="privacy-card">
                 <div class="privacy-card-title">{{ item.title }}</div>
@@ -115,23 +115,23 @@
             <div class="privacy-notice mt-6">
               <Icon name="mail" size="md" class="mt-0.5 text-zen-seal" />
               <div>
-                <div class="privacy-notice-title">请求方式</div>
-                <p class="privacy-notice-copy">如需提交隐私请求，请通过 {{ contactInfoLabel }} 联系我们。为保护账户安全，我们可能会在处理删除、导出或修正请求前要求完成身份核验。</p>
+                <div class="privacy-notice-title">{{ privacyContent.rights.noticeTitle }}</div>
+                <p class="privacy-notice-copy">{{ privacyContent.rights.noticeBefore }} {{ contactInfoLabel }} {{ privacyContent.rights.noticeAfter }}</p>
               </div>
             </div>
           </section>
 
           <section v-else id="updates">
-            <div class="privacy-kicker">更新与未成年人</div>
-            <h2 class="privacy-title">当政策内容发生实质变化时，我们会更新本页；未成年人不应独立使用本服务。</h2>
+            <div class="privacy-kicker">{{ privacyContent.updates.kicker }}</div>
+            <h2 class="privacy-title">{{ privacyContent.updates.title }}</h2>
             <div class="mt-5 space-y-4">
               <article class="privacy-card">
-                <div class="privacy-card-title">政策更新</div>
-                <p class="privacy-card-copy">当收集范围、处理目的、共享方式或你的权利发生实质变化时，我们会更新本页，并同步更新页面顶端日期。更新后的政策自公布之日起生效。</p>
+                <div class="privacy-card-title">{{ privacyContent.updates.policyTitle }}</div>
+                <p class="privacy-card-copy">{{ privacyContent.updates.policyCopy }}</p>
               </article>
               <article class="privacy-card">
-                <div class="privacy-card-title">未成年人</div>
-                <p class="privacy-card-copy">若你未达到所在地法律要求的使用年龄，请不要独立注册、购买或提交个人信息；如确需使用，应在监护人同意与监督下进行。</p>
+                <div class="privacy-card-title">{{ privacyContent.updates.minorsTitle }}</div>
+                <p class="privacy-card-copy">{{ privacyContent.updates.minorsCopy }}</p>
               </article>
             </div>
           </section>
@@ -142,14 +142,90 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores'
 
+type PrivacySectionId = 'overview' | 'region' | 'collect' | 'usage' | 'sharing' | 'retention' | 'rights' | 'updates'
+type IconName = InstanceType<typeof Icon>['$props']['name']
+type SectionItem = { id: PrivacySectionId; label: string }
+type IconCardItem = { title: string; copy: string; icon: IconName }
+
 const appStore = useAppStore()
+const { locale } = useI18n()
 
+const zhPrivacyContent = {
+  eyebrow: '隐私',
+  title: '隐私政策',
+  toc: '目录',
+  colon: '：',
+  overview: {
+    kicker: '总则',
+    title: '本政策适用于站点公开页面、账户体系与控制台服务。',
+    copy: '当你浏览首页、登录、注册、购买、创建 Key、查看用量或联系管理员时，系统会处理提供服务所必需的账户、账册、请求与安全信息。除法律法规另有要求外，我们遵循最少收集、目的明确、期限合理与按需可见的处理原则。',
+    noticeTitle: '第三方边界',
+    noticeCopy: '如果你通过本服务访问第三方模型、支付渠道或其他外部服务，相关第三方仍将按照其自身规则处理必要数据；本政策不替代第三方的隐私条款。',
+  },
+  region: { kicker: '适用地域与数据位置', title: '本服务的适用用户范围、服务器位置与数据处理边界如下。' },
+  collect: { kicker: '收集范围', title: '我们可能收集的主要信息类型如下。' },
+  usage: { kicker: '使用目的', title: '收集到的信息仅用于与服务运行相关的明确目的。', tablePurpose: '用途', tableDescription: '说明' },
+  sharing: { kicker: '共享与外部处理', title: '我们仅在提供服务、履行义务或处理争议所必需时对外提供信息。' },
+  retention: { kicker: '保存期限', title: '不同类型的信息会按照其处理目的保留至合理期限届满。' },
+  rights: {
+    kicker: '你的选择',
+    title: '在适用法律允许的范围内，你可以申请访问、更正、删除或限制处理。',
+    noticeTitle: '请求方式',
+    noticeBefore: '如需提交隐私请求，请通过',
+    noticeAfter: '联系我们。为保护账户安全，我们可能会在处理删除、导出或修正请求前要求完成身份核验。',
+  },
+  updates: {
+    kicker: '更新与未成年人',
+    title: '当政策内容发生实质变化时，我们会更新本页；未成年人不应独立使用本服务。',
+    policyTitle: '政策更新',
+    policyCopy: '当收集范围、处理目的、共享方式或你的权利发生实质变化时，我们会更新本页，并同步更新页面顶端日期。更新后的政策自公布之日起生效。',
+    minorsTitle: '未成年人',
+    minorsCopy: '若你未达到所在地法律要求的使用年龄，请不要独立注册、购买或提交个人信息；如确需使用，应在监护人同意与监督下进行。',
+  },
+} as const
 
-const sections = [
+const enPrivacyContent = {
+  eyebrow: 'Privacy',
+  title: 'Privacy Policy',
+  toc: 'Contents',
+  colon: ': ',
+  overview: {
+    kicker: 'Overview',
+    title: 'This policy applies to the public site, account system, and console services.',
+    copy: 'When you browse public pages, sign in, register, purchase, create Keys, review usage, or contact support, the system processes account, ledger, request, and security information needed to provide the service. Unless applicable law requires otherwise, we follow principles of minimal collection, clear purpose, reasonable retention, and need-to-know access.',
+    noticeTitle: 'Third-party boundary',
+    noticeCopy: 'If you use this service to access third-party models, payment channels, or other external services, those third parties process necessary data under their own rules. This policy does not replace third-party privacy terms.',
+  },
+  region: { kicker: 'Region and data location', title: 'The eligible user scope, server location, and processing boundaries are as follows.' },
+  collect: { kicker: 'Information collected', title: 'The main categories of information we may collect are listed below.' },
+  usage: { kicker: 'Use purposes', title: 'Collected information is used only for clear purposes related to service operation.', tablePurpose: 'Purpose', tableDescription: 'Description' },
+  sharing: { kicker: 'Sharing and external processing', title: 'We provide information externally only when necessary to deliver service, meet obligations, or handle disputes.' },
+  retention: { kicker: 'Retention', title: 'Different information types are retained for reasonable periods according to their processing purpose.' },
+  rights: {
+    kicker: 'Your choices',
+    title: 'Where applicable law allows, you may request access, correction, deletion, or processing restrictions.',
+    noticeTitle: 'Request method',
+    noticeBefore: 'To submit a privacy request, contact us through',
+    noticeAfter: 'We may require identity verification before processing deletion, export, or correction requests to protect account security.',
+  },
+  updates: {
+    kicker: 'Updates and minors',
+    title: 'We update this page when material policy changes occur; minors should not use the service independently.',
+    policyTitle: 'Policy updates',
+    policyCopy: 'When collection scope, processing purposes, sharing methods, or your rights materially change, we will update this page and the date at the top. Updated policies take effect when published.',
+    minorsTitle: 'Minors',
+    minorsCopy: 'If you have not reached the legal age required in your location, do not register, purchase, or submit personal information independently. If use is necessary, it should occur with guardian consent and supervision.',
+  },
+} as const
+
+const privacyContent = computed(() => locale.value.startsWith('zh') ? zhPrivacyContent : enPrivacyContent)
+
+const zhSections: SectionItem[] = [
   { id: 'overview', label: '总述' },
   { id: 'region', label: '适用地域' },
   { id: 'collect', label: '收集范围' },
@@ -160,13 +236,26 @@ const sections = [
   { id: 'updates', label: '更新与未成年人' },
 ] as const
 
-type SectionId = (typeof sections)[number]['id']
+const enSections: SectionItem[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'region', label: 'Regions' },
+  { id: 'collect', label: 'Collection' },
+  { id: 'usage', label: 'Use purposes' },
+  { id: 'sharing', label: 'Sharing' },
+  { id: 'retention', label: 'Retention' },
+  { id: 'rights', label: 'Your choices' },
+  { id: 'updates', label: 'Updates and minors' },
+]
+
+const sections = computed(() => locale.value.startsWith('zh') ? zhSections : enSections)
+
+type SectionId = PrivacySectionId
 
 const activeSection = ref<SectionId>('overview')
 
-const contactInfoLabel = computed(() => appStore.cachedPublicSettings?.contact_info?.trim() || '站点管理员联系入口')
+const contactInfoLabel = computed(() => appStore.cachedPublicSettings?.contact_info?.trim() || (locale.value.startsWith('zh') ? '站点管理员联系入口' : 'site administrator contact channel'))
 
-const regionItems = [
+const zhRegionItems = [
   {
     title: '适用用户范围',
     copy: '本服务目前仅面向中国大陆以外的地区和用户提供。中国大陆用户不得注册、购买或使用本服务；若你的访问、注册、购买或使用行为受中国大陆相关限制，请不要继续使用。',
@@ -181,7 +270,14 @@ const regionItems = [
   },
 ] as const
 
-const collectItems = [
+const enRegionItems = [
+  { title: 'Eligible user scope', copy: 'This service is currently provided only to regions and users outside mainland China. Mainland China users must not register, purchase, or use this service. If your access, registration, purchase, or use is subject to mainland China restrictions, do not continue.' },
+  { title: 'Server and data center location', copy: 'The service servers and primary data processing facilities are not located in mainland China. By accessing the service and submitting information, you understand that information may be stored, transmitted, and processed outside mainland China.' },
+  { title: 'Operations and processing', copy: 'Business operations, technical support, accounting, log analysis, and security monitoring related to the service are performed outside mainland China. Third-party model, payment, or infrastructure providers may also process related data under their own rules.' },
+]
+const regionItems = computed(() => locale.value.startsWith('zh') ? zhRegionItems : enRegionItems)
+
+const zhCollectItems: IconCardItem[] = [
   {
     title: '账户与身份信息',
     copy: '当你注册、登录、绑定第三方身份或找回账号时，系统会处理邮箱、用户名、身份来源及必要的验证状态。',
@@ -214,7 +310,17 @@ const collectItems = [
   },
 ] as const
 
-const usageItems = [
+const enCollectItems: IconCardItem[] = [
+  { title: 'Account and identity information', copy: 'When you register, sign in, bind third-party identities, or recover an account, the system processes email, username, identity source, and necessary verification status.', icon: 'userCircle' },
+  { title: 'Ledger and order information', copy: 'When you purchase, recharge, request invoices, or view bills, the system processes order numbers, payment results, amounts, subscriptions, or entitlement status.', icon: 'creditCard' },
+  { title: 'Keys and call records', copy: 'When you create API Keys, call APIs, or review usage, the system processes Key identifiers, request time, model, consumption, error status, and similar operational data.', icon: 'key' },
+  { title: 'Device and log information', copy: 'The site records basic access logs, IP address, browser information, referrer, and error logs for security, troubleshooting, and performance stability.', icon: 'server' },
+  { title: 'Contact and feedback information', copy: 'When you contact administrators, submit tickets, or report issues, we process the contact details and issue descriptions you provide.', icon: 'mail' },
+  { title: 'Content you submit', copy: 'Content you enter in forms, notes, tickets, attachments, or visual documents may contain personal information. Submit only what is needed.', icon: 'document' },
+]
+const collectItems = computed(() => locale.value.startsWith('zh') ? zhCollectItems : enCollectItems)
+
+const zhUsageItems = [
   {
     title: '提供服务',
     copy: '用于完成注册、登录、支付、创建 Key、展示可用模型、记录用量、返回接口结果以及维护账户状态。',
@@ -237,7 +343,16 @@ const usageItems = [
   },
 ] as const
 
-const sharingItems = [
+const enUsageItems = [
+  { title: 'Providing service', copy: 'Used to complete registration, sign-in, payment, Key creation, model availability display, usage records, API responses, and account status maintenance.' },
+  { title: 'Risk control and security', copy: 'Used to identify abnormal sign-ins, abusive calls, payment disputes, malicious traffic, credential leakage risk, and violations of site rules.' },
+  { title: 'Operations and troubleshooting', copy: 'Used to locate errors, review link status, recover abnormal orders, and analyze API availability, capacity pressure, and service stability.' },
+  { title: 'Ledger and notifications', copy: 'Used to send payment results, balance reminders, quota reminders, account verification, and other necessary notices directly related to service continuity.' },
+  { title: 'Compliance and records', copy: 'Used to retain necessary records, support audits, handle appeals, and meet legal obligations when required by law, regulation, or dispute handling.' },
+]
+const usageItems = computed(() => locale.value.startsWith('zh') ? zhUsageItems : enUsageItems)
+
+const zhSharingItems = [
   {
     title: 'Token 与密钥数据',
     copy: '本服务不会以出售、交易或向无关第三方提供的方式处理用户的 Token、API Key 或同类凭证数据。相关数据仅在完成鉴权校验、请求转发、计费统计、安全审计与必要排障的范围内按需处理。',
@@ -260,7 +375,16 @@ const sharingItems = [
   },
 ] as const
 
-const retentionItems = [
+const enSharingItems = [
+  { title: 'Tokens and credential data', copy: 'This service does not sell, trade, or provide user Tokens, API Keys, or similar credentials to unrelated third parties. Such data is processed only as needed for authentication, forwarding, metering, security audit, and necessary troubleshooting.' },
+  { title: 'Upstream models and channels', copy: 'When you send a model request, request content, model identifiers, and related technical metadata may be passed to the corresponding upstream service or channel provider to complete inference.' },
+  { title: 'Payment and accounting services', copy: 'When you pay, request refunds, or handle accounting disputes, necessary order and payment information is provided to payment providers or accounting processors.' },
+  { title: 'Infrastructure and security services', copy: 'The site may use cloud hosting, object storage, email delivery, captcha, risk control, or logging services. These services may process only the data necessary for their assigned responsibilities.' },
+  { title: 'Legal or dispute handling', copy: 'When legally required or necessary for regulatory inquiries, security incidents, law-enforcement assistance, or transaction disputes, we may disclose relevant information according to law.' },
+]
+const sharingItems = computed(() => locale.value.startsWith('zh') ? zhSharingItems : enSharingItems)
+
+const zhRetentionItems = [
   {
     title: '账户信息',
     copy: '在账号持续有效期间保留；注销后，将在完成安全核验、争议处理、审计要求与法定义务后按需删除、去标识化或匿名化。',
@@ -279,7 +403,15 @@ const retentionItems = [
   },
 ] as const
 
-const rightsItems = [
+const enRetentionItems = [
+  { title: 'Account information', copy: 'Retained while the account remains active. After cancellation, it may be deleted, de-identified, or anonymized after security verification, dispute handling, audit needs, and legal obligations are completed.' },
+  { title: 'Orders and accounting records', copy: 'Retained for reasonable periods required by finance, tax, payment settlement, and dispute handling, and will not disappear immediately because a page is deleted or an account signs out.' },
+  { title: 'Access and error logs', copy: 'Usually retained only as needed for operations, security, risk control, and audit. Data beyond the necessary period is cleaned or overwritten according to rotation policies.' },
+  { title: 'Request content', copy: 'Whether and how long request content is retained depends on the feature, upstream service, troubleshooting state, and site configuration. In principle, it is processed only as needed for service delivery, troubleshooting, security, and dispute handling.' },
+]
+const retentionItems = computed(() => locale.value.startsWith('zh') ? zhRetentionItems : enRetentionItems)
+
+const zhRightsItems = [
   {
     title: '查看与更正',
     copy: '你可以要求查看我们持有的与你账户相关的信息，并对其中明显错误、过期或不完整的部分提出修正请求。',
@@ -297,6 +429,14 @@ const rightsItems = [
     copy: '你始终可以选择不在输入内容、备注、工单或附件中提交与服务无关的敏感个人信息。',
   },
 ] as const
+
+const enRightsItems = [
+  { title: 'Access and correction', copy: 'You may request access to information related to your account and ask us to correct parts that are clearly wrong, outdated, or incomplete.' },
+  { title: 'Deletion and account cancellation', copy: 'Where legal obligations, financial records, security investigations, audit requirements, or dispute needs do not prevent it, you may request deletion of your account and related data.' },
+  { title: 'Stop marketing notices', copy: 'If non-essential notices exist in the future, you may opt out. Notices directly related to security, payment, account verification, entitlement changes, and service status usually cannot be fully disabled.' },
+  { title: 'Reduce sensitive submissions', copy: 'You can always choose not to submit sensitive personal information unrelated to the service in prompts, notes, tickets, or attachments.' },
+]
+const rightsItems = computed(() => locale.value.startsWith('zh') ? zhRightsItems : enRightsItems)
 
 onMounted(() => {
   if (!appStore.publicSettingsLoaded) {

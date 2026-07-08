@@ -62,9 +62,9 @@
           <div class="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div class="max-w-2xl">
               <div class="text-xs uppercase tracking-[0.32em] text-zen-mist dark:text-zen-stone">SST</div>
-              <h2 class="mt-3 font-serif text-3xl leading-tight text-zen-ink dark:text-zen-paper">若已看清路径，就直接入庭。</h2>
+              <h2 class="mt-3 font-serif text-3xl leading-tight text-zen-ink dark:text-zen-paper">{{ t('publicSite.cta.title') }}</h2>
               <p class="mt-3 text-sm leading-7 text-zen-mist dark:text-zen-stone sm:text-base">
-                Key、用量、订单与账册都在同一入口。
+                {{ t('publicSite.cta.description') }}
               </p>
             </div>
             <div class="flex flex-col gap-3 sm:flex-row">
@@ -72,7 +72,7 @@
                 :to="isAuthenticated ? dashboardPath : '/login'"
                 class="inline-flex items-center justify-center rounded-zen bg-zen-ink px-6 py-3 text-sm font-medium text-zen-paper shadow-seal transition hover:bg-zen-seal dark:bg-zen-paper dark:text-zen-night dark:hover:bg-zen-seal dark:hover:text-white"
               >
-                {{ isAuthenticated ? authenticatedActionLabel : '前往开通' }}
+                {{ isAuthenticated ? authenticatedActionLabel : t('publicSite.cta.open') }}
               </RouterLink>
               <RouterLink
                 :to="secondaryAction.to"
@@ -93,6 +93,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PublicSiteFooter from '@/components/layout/PublicSiteFooter.vue'
 import PublicSiteHeader from '@/components/layout/PublicSiteHeader.vue'
 import { useAppStore, useAuthStore } from '@/stores'
@@ -113,11 +114,12 @@ const props = withDefaults(defineProps<{
   description: '',
   highlights: () => [],
   tone: 'default',
-  authenticatedActionLabel: '进入控制台',
+  authenticatedActionLabel: '',
   showCta: true,
 })
 
 const route = useRoute()
+const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const isDark = useThemeState()
@@ -131,16 +133,17 @@ const backgroundStyle = computed(() => ({
 }))
 const secondaryAction = computed(() => {
   if (route.path === '/pricing') {
-    return { to: '/home', label: '返回首页' }
+    return { to: '/home', label: t('publicSite.cta.backHome') }
   }
 
-  return { to: '/pricing', label: '查看价目' }
+  return { to: '/pricing', label: t('publicSite.cta.viewPricing') }
 })
 
-const publicNavItems = [
-  { to: '/pricing', label: '价目' },
-  { to: '/docs', label: '文档' },
-]
+const authenticatedActionLabel = computed(() => props.authenticatedActionLabel || t('publicSite.cta.dashboard'))
+const publicNavItems = computed(() => [
+  { to: '/pricing', label: t('publicSite.nav.pricing') },
+  { to: '/docs', label: t('publicSite.nav.docs') },
+])
 
 onMounted(() => {
   authStore.checkAuth()

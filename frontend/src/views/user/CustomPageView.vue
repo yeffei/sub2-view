@@ -35,7 +35,7 @@
             class="toc-sidebar"
           >
             <div class="toc-header">
-              <span class="toc-title">目录</span>
+              <span class="toc-title">{{ customPageCopy.toc }}</span>
               <button class="toc-close-btn" @click="tocVisible = false">
                 <Icon name="chevronLeft" size="sm" :stroke-width="2" />
               </button>
@@ -64,7 +64,7 @@
             @click="tocVisible = true"
           >
             <Icon name="menu" size="sm" :stroke-width="2" />
-            <span class="ml-1 text-xs">目录</span>
+            <span class="ml-1 text-xs">{{ customPageCopy.toc }}</span>
           </button>
 
           <!-- Content -->
@@ -148,6 +148,11 @@ const tocItems = ref<TocItem[]>([])
 const tocVisible = ref(typeof window !== 'undefined' ? window.innerWidth > 768 : true)
 const activeHeadingId = ref('')
 let themeObserver: MutationObserver | null = null
+
+const customPageCopy = computed(() => locale.value.startsWith('zh')
+  ? { toc: '目录', copy: '复制', copied: '已复制', failed: '失败' }
+  : { toc: 'Contents', copy: 'Copy', copied: 'Copied', failed: 'Failed' }
+)
 
 const menuItemId = computed(() => route.params.id as string)
 
@@ -316,16 +321,16 @@ function injectCopyButtons() {
     if (pre.querySelector('.copy-btn')) return
     const btn = document.createElement('button')
     btn.className = 'copy-btn'
-    btn.textContent = '复制'
+    btn.textContent = customPageCopy.value.copy
     btn.addEventListener('click', async () => {
       const code = pre.querySelector('code')?.textContent ?? pre.textContent ?? ''
       try {
         await navigator.clipboard.writeText(code)
-        btn.textContent = '已复制 ✓'
-        setTimeout(() => { btn.textContent = '复制' }, 2000)
+        btn.textContent = `${customPageCopy.value.copied} ✓`
+        setTimeout(() => { btn.textContent = customPageCopy.value.copy }, 2000)
       } catch {
-        btn.textContent = '失败'
-        setTimeout(() => { btn.textContent = '复制' }, 2000)
+        btn.textContent = customPageCopy.value.failed
+        setTimeout(() => { btn.textContent = customPageCopy.value.copy }, 2000)
       }
     })
     pre.style.position = 'relative'

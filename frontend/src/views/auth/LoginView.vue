@@ -4,10 +4,10 @@
       <!-- Title -->
       <div class="auth-form-header text-center">
         <h2 class="auth-form-title font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper">
-          确认身份
+          {{ t('authBrand.loginTitle') }}
         </h2>
         <p class="auth-form-subtitle mt-2 text-sm leading-6 text-zen-mist dark:text-zen-stone">
-          以邮箱进入你的账户、账册与调用入口。
+          {{ t('authBrand.loginSubtitle') }}
         </p>
       </div>
       <!-- Login Form -->
@@ -403,7 +403,7 @@ function rejectLoginAgreement(): void {
   localStorage.removeItem(LOGIN_AGREEMENT_STORAGE_KEY)
   agreementAccepted.value = false
   showAgreementModal.value = false
-  appStore.showWarning('未同意最新条款前，无法输入账号密码或使用快捷登录。')
+  appStore.showWarning(t('authBrand.loginAgreementRejectWarning'))
 }
 
 // ==================== Turnstile Handlers ====================
@@ -434,7 +434,7 @@ function validateForm(): boolean {
   let isValid = true
 
   if (agreementGateActive.value) {
-    appStore.showWarning('请先阅读并同意最新条款后再登录。')
+    appStore.showWarning(t('authBrand.loginAgreementRequiredWarning'))
     if (loginAgreementMode.value !== 'checkbox') {
       showAgreementModal.value = true
     }

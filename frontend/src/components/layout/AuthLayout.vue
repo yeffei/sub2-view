@@ -39,17 +39,17 @@
           {{ siteName }}
         </h1>
         <p class="auth-hero-lead mt-7 max-w-xl font-serif text-4xl leading-tight text-zen-inkSoft dark:text-zen-paper">
-          统一入口，安静流转。
+          {{ t('publicSite.tagline') }}
         </p>
         <p class="auth-hero-copy mt-5 max-w-md text-sm leading-7 text-zen-mist dark:text-zen-stone">
           {{ siteSubtitle }}
         </p>
         <div class="auth-hero-marks mt-14 flex items-center gap-6 text-sm text-zen-mist dark:text-zen-stone">
-          <span>稳态供给</span>
+          <span>{{ t('authBrand.marks.stable') }}</span>
           <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-          <span>清晰账册</span>
+          <span>{{ t('authBrand.marks.ledger') }}</span>
           <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-          <span>审慎准入</span>
+          <span>{{ t('authBrand.marks.access') }}</span>
         </div>
       </section>
 
@@ -58,10 +58,10 @@
           <div class="auth-card-head mb-7 flex items-start justify-between gap-6">
             <div>
               <div class="auth-card-kicker text-xs uppercase tracking-[0.36em] text-zen-mist dark:text-zen-stone">
-                入庭校验
+                {{ t('authBrand.cardKicker') }}
               </div>
               <div class="auth-card-title mt-2 font-serif text-2xl font-semibold text-zen-ink dark:text-zen-paper">
-                入庭凭记
+                {{ t('authBrand.cardTitle') }}
               </div>
             </div>
             <span class="auth-card-mark" aria-hidden="true">
@@ -76,7 +76,7 @@
         </div>
 
         <div class="auth-shell-copyright mt-8 text-center text-xs text-zen-mist dark:text-zen-stone">
-          &copy; {{ currentYear }} {{ siteName }} · 庭中诸务，各归其位。
+          &copy; {{ currentYear }} {{ siteName }} · {{ t('authBrand.copyright') }}
         </div>
       </section>
     </div>
@@ -85,12 +85,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { useThemeState } from '@/utils/theme'
 import { sanitizeUrl } from '@/utils/url'
 import paperInkBg from '@/assets/brand/sst-paper-ink-bg.png'
 
 const appStore = useAppStore()
+const { t, locale } = useI18n()
 const isDark = useThemeState()
 
 const rawName = computed(() => appStore.siteName || '山枢庭')
@@ -98,9 +100,18 @@ const siteName = computed(() => rawName.value === 'Sub2API' ? '山枢庭' : rawN
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '/logo.png', { allowRelative: true, allowDataUrl: true }))
 const siteSubtitle = computed(() => {
   const subtitle = appStore.cachedPublicSettings?.site_subtitle
-  return subtitle && subtitle !== 'Subscription to API Conversion Platform'
+  const legacySubtitles = new Set([
+    'Subscription to API Conversion Platform',
+    '统一入口，安静流转。',
+  ])
+
+  if (locale.value.startsWith('en') && subtitle === '统一入口，安静流转。') {
+    return t('authBrand.defaultSubtitle')
+  }
+
+  return subtitle && !legacySubtitles.has(subtitle)
     ? subtitle
-    : '为长期使用者保留秩序、稳定与清晰计量。'
+    : t('authBrand.defaultSubtitle')
 })
 const currentYear = computed(() => new Date().getFullYear())
 const authBackgroundStyle = computed(() => ({

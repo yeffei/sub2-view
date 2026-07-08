@@ -1,24 +1,24 @@
 <template>
   <AppLayout>
-    <div class="sst-dashboard">
+    <div class="sst-dashboard" :class="{ 'sst-dashboard-en': isEnglishDashboard }">
       <AnnouncementBell buttonless />
       <div v-if="loading" class="home-state" :class="isDark ? 'is-night' : 'is-paper'">
         <div class="seal-mark"><img src="/logo.png" alt="" aria-hidden="true" /></div>
         <LoadingSpinner />
         <div>
-          <h1>正在整理今日账册</h1>
-          <p>余额、调用、配额与近时段流转正在收束。</p>
+          <h1>{{ dashboardCopy.loadingTitle }}</h1>
+          <p>{{ dashboardCopy.loadingCopy }}</p>
         </div>
       </div>
 
       <template v-else-if="stats">
-        <section class="courtyard-console" aria-label="山枢庭用户后台首页">
+        <section class="courtyard-console" :aria-label="dashboardCopy.consoleAria">
           <header class="console-head">
-            <router-link to="/home" class="brand-lockup" aria-label="返回首页">
+            <router-link to="/home" class="brand-lockup" :aria-label="t('userShell.backHomeAria')">
               <span class="seal-mark" aria-hidden="true"><img src="/logo.png" alt="" /></span>
               <div class="brand-copy">
-                <span>山枢庭</span>
-                <h1>统一入口，安静流转。</h1>
+                <span>{{ t('brand.defaultName') }}</span>
+                <h1>{{ t('publicSite.tagline') }}</h1>
               </div>
             </router-link>
             <div
@@ -28,23 +28,23 @@
             >
               <div>
                 <span>{{ currentDateLabel }}</span>
-                <strong>{{ user?.email || '山枢庭账户' }}</strong>
+                <strong>{{ user?.email || t('userShell.defaultAccount') }}</strong>
                 <small>{{ healthLabel }} · {{ todayRequestLabel }}</small>
               </div>
               <button
                 type="button"
                 class="account-menu-trigger"
-                aria-label="账户菜单"
+                :aria-label="t('userShell.accountMenu')"
                 aria-haspopup="menu"
                 :aria-expanded="isAccountMenuOpen ? 'true' : 'false'"
                 @click="toggleAccountMenu"
               >
-                身
+                {{ t('userShell.accountMark') }}
               </button>
               <div class="account-menu-dropdown">
-                <router-link to="/profile" @click="closeAccountMenu">身份文书</router-link>
-                <div class="account-theme" aria-label="外观设置">
-                  <span>外观设置</span>
+                <router-link to="/profile" @click="closeAccountMenu">{{ t('userShell.profileDocument') }}</router-link>
+                <div class="account-theme" :aria-label="t('userShell.themeSettings')">
+                  <span>{{ t('userShell.themeSettings') }}</span>
                   <div class="account-theme-options">
                     <button
                       v-for="option in themeOptions"
@@ -57,13 +57,13 @@
                     </button>
                   </div>
                 </div>
-                <router-link to="/dashboard" @click="closeAccountMenu">返回庭院</router-link>
-                <button type="button" @click="handleLogout">退出登录</button>
+                <router-link to="/dashboard" @click="closeAccountMenu">{{ t('userShell.backDashboard') }}</router-link>
+                <button type="button" @click="handleLogout">{{ t('nav.logout') }}</button>
               </div>
             </div>
           </header>
 
-          <section class="courtyard-stage" aria-label="用户值守台">
+          <section class="courtyard-stage" :aria-label="dashboardCopy.stageAria">
             <div class="courtyard-map watch-desk">
               <div class="ink-wash ink-wash-map" aria-hidden="true"></div>
 
@@ -76,13 +76,13 @@
                   </div>
 
                   <div class="watch-copy">
-                    <span>值守状态</span>
+                    <span>{{ dashboardCopy.watchStatus }}</span>
                     <h2>{{ statusTitle }}</h2>
                     <p>{{ statusSummary }}</p>
                   </div>
                 </div>
 
-                <nav class="gate-grid" aria-label="常用入口">
+                <nav class="gate-grid" :aria-label="dashboardCopy.gateAria">
                   <router-link
                     v-for="gate in courtyardGates"
                     :key="gate.to"
@@ -98,9 +98,9 @@
 
               </div>
 
-              <div class="watch-reasons" aria-label="值守判断">
+              <div class="watch-reasons" :aria-label="dashboardCopy.reasonsAria">
                 <div class="watch-advice" v-if="watchAdvices.length">
-                  <span>下一步</span>
+                  <span>{{ dashboardCopy.nextStep }}</span>
                   <router-link
                     v-for="advice in watchAdvices"
                     :key="advice.title"
@@ -128,17 +128,17 @@
                 <div v-if="!statusReasons.length" class="reason-item tone-calm">
                   <Icon name="chart" size="sm" />
                   <span>
-                    <strong>今日值守稳定</strong>
-                    <small>密钥、余额与响应均未触发异常。</small>
+                    <strong>{{ dashboardCopy.stableReasonTitle }}</strong>
+                    <small>{{ dashboardCopy.stableReasonDetail }}</small>
                   </span>
-                  <em>安稳</em>
+                  <em>{{ dashboardCopy.calmAction }}</em>
                 </div>
               </div>
 
-              <section class="health-check-sheet watch-health-sheet" aria-label="接入体检单">
+              <section class="health-check-sheet watch-health-sheet" :aria-label="dashboardCopy.healthAria">
                 <div class="section-mark">
-                  <span>接入体验</span>
-                  <router-link to="/keys?panel=connection-test">完整体检</router-link>
+                  <span>{{ dashboardCopy.healthTitle }}</span>
+                  <router-link to="/keys?panel=connection-test">{{ dashboardCopy.fullCheck }}</router-link>
                 </div>
                 <div class="health-check-grid">
                   <article
@@ -158,9 +158,9 @@
               </section>
             </div>
 
-            <aside class="ledger-slips" aria-label="值守案牍">
+            <aside class="ledger-slips" :aria-label="dashboardCopy.ledgerAria">
               <div class="slips-head">
-                <span>值守案牍</span>
+                <span>{{ dashboardCopy.ledgerTitle }}</span>
                 <small>{{ ledgerSummary }}</small>
               </div>
               <router-link
@@ -186,34 +186,34 @@
             ref="requestsFocusRef"
             class="water-ledger"
             :class="{ 'focus-requests': isRequestsFocusActive }"
-            aria-label="水文账册"
+            :aria-label="dashboardCopy.waterLedgerAria"
           >
             <div class="usage-scroll" :class="{ 'focus-surface': isRequestsFocusActive }">
               <div class="section-mark">
-                <span>调用</span>
-                <router-link to="/usage">全部用量</router-link>
+                <span>{{ dashboardCopy.callsTitle }}</span>
+                <router-link to="/usage">{{ dashboardCopy.allUsage }}</router-link>
               </div>
               <div v-if="requestsFocusEnabled" class="focus-note" role="status">
                 <div>
-                  <span>请求聚焦</span>
+                  <span>{{ dashboardCopy.requestFocus }}</span>
                   <strong>{{ requestsFocusTitle }}</strong>
                   <p>{{ requestsFocusDetail }}</p>
                 </div>
                 <div class="focus-note-actions">
-                  <router-link to="/usage?tab=errors&category=rate_limit">只看限流错误</router-link>
+                  <router-link to="/usage?tab=errors&category=rate_limit">{{ dashboardCopy.rateLimitOnly }}</router-link>
                   <router-link :to="recentUsage.length ? '/usage' : '/keys?panel=connection-test'">
-                    {{ recentUsage.length ? '回看全部账册' : '做一次接入体检' }}
+                    {{ recentUsage.length ? dashboardCopy.reviewAllLedger : dashboardCopy.doConnectionCheck }}
                   </router-link>
                 </div>
               </div>
-              <div v-if="loadingUsage" class="mini-state">正在归拢调用记录…</div>
+              <div v-if="loadingUsage" class="mini-state">{{ dashboardCopy.loadingUsage }}</div>
               <div v-else-if="!recentUsage.length" class="empty-note">
-                <strong>暂无最近调用</strong>
-                <span>新的请求会在这里形成最近账册。可以先检查密钥、服务状态或充值与兑换。</span>
+                <strong>{{ dashboardCopy.noRecentUsageTitle }}</strong>
+                <span>{{ dashboardCopy.noRecentUsageCopy }}</span>
                 <div class="empty-actions">
-                  <router-link to="/keys">管理 API 密钥</router-link>
-                  <router-link to="/monitor">检查服务状态</router-link>
-                  <router-link to="/usage">查看用量账册</router-link>
+                  <router-link to="/keys">{{ dashboardCopy.manageKeys }}</router-link>
+                  <router-link to="/monitor">{{ dashboardCopy.checkService }}</router-link>
+                  <router-link to="/usage">{{ dashboardCopy.viewLedger }}</router-link>
                 </div>
               </div>
               <ol v-else class="call-list">
@@ -230,11 +230,11 @@
               </ol>
               <div v-if="recentUsage.length" class="call-list-footer">
                 <div>
-                  <small>今日共 {{ formatNumber(stats?.today_requests || 0) }} 次请求，近列成功入账 {{ recentSuccessCount }} 条。</small>
+                  <small>{{ recentUsageFooter }}</small>
                 </div>
                 <div class="call-list-footer-actions">
-                  <router-link to="/usage">完整账册</router-link>
-                  <router-link to="/usage?tab=errors">错误账册</router-link>
+                  <router-link to="/usage">{{ dashboardCopy.fullLedger }}</router-link>
+                  <router-link to="/usage?tab=errors">{{ dashboardCopy.errorLedger }}</router-link>
                 </div>
               </div>
             </div>
@@ -243,26 +243,26 @@
               <button
                 type="button"
                 class="notice-strip"
-                aria-label="打开庭讯列表"
+                :aria-label="dashboardCopy.openAnnouncements"
                 @click="openAnnouncementCenter"
               >
                 <div class="notice-strip-copy">
-                  <span>庭讯</span>
+                  <span>{{ dashboardCopy.announcements }}</span>
                   <strong>{{ announcementSummary.title }}</strong>
                   <small>{{ announcementSummary.note }}</small>
                 </div>
                 <div class="notice-strip-meta">
                   <em>{{ announcementSummary.badge }}</em>
-                  <small>点击查看全部庭讯</small>
+                  <small>{{ dashboardCopy.viewAllAnnouncements }}</small>
                 </div>
               </button>
 
               <div class="folio flow-folio">
                 <div class="section-mark">
-                  <span>近七日</span>
+                  <span>{{ dashboardCopy.lastSevenDays }}</span>
                   <strong>{{ trendPeakLabel }}</strong>
                 </div>
-                <div class="waterline" aria-label="近七日 token 趋势">
+                <div class="waterline" :aria-label="dashboardCopy.tokenTrendAria">
                   <span
                     v-for="point in trendBars"
                     :key="point.date"
@@ -278,8 +278,8 @@
 
               <div class="folio quota-folio">
                 <div class="section-mark">
-                  <span>窗口</span>
-                  <span>账户概览</span>
+                  <span>{{ dashboardCopy.window }}</span>
+                  <span>{{ dashboardCopy.accountOverview }}</span>
                 </div>
                 <div class="quota-list">
                   <div
@@ -296,11 +296,11 @@
 
               <div class="folio models-folio">
                 <div class="section-mark">
-                  <span>模型</span>
-                  <router-link to="/monitor">通道状态</router-link>
+                  <span>{{ dashboardCopy.models }}</span>
+                  <router-link to="/monitor">{{ dashboardCopy.channelStatus }}</router-link>
                 </div>
-                <div v-if="loadingCharts" class="mini-state">正在校准模型流向…</div>
-                <div v-else-if="!modelPreview.length" class="mini-state">暂无模型分布</div>
+                <div v-if="loadingCharts" class="mini-state">{{ dashboardCopy.loadingModels }}</div>
+                <div v-else-if="!modelPreview.length" class="mini-state">{{ dashboardCopy.noModelDistribution }}</div>
                 <div v-else class="model-river">
                   <div v-for="model in modelPreview" :key="model.model">
                     <span>{{ model.model }}</span>
@@ -312,15 +312,15 @@
 
               <div class="folio platforms-folio">
                 <div class="section-mark">
-                  <span>平台</span>
-                  <router-link to="/monitor">状态</router-link>
+                  <span>{{ dashboardCopy.platforms }}</span>
+                  <router-link to="/monitor">{{ dashboardCopy.status }}</router-link>
                 </div>
-                <div v-if="!platformPreview.length" class="mini-state">暂无平台记录</div>
+                <div v-if="!platformPreview.length" class="mini-state">{{ dashboardCopy.noPlatformRecords }}</div>
                 <div v-else class="platform-list">
                   <div v-for="platform in platformPreview" :key="platform.platform">
                     <span>{{ platformLabel(platform.platform) }}</span>
                     <strong>${{ formatCost(platform.total_actual_cost) }}</strong>
-                    <small>{{ formatNumber(platform.total_requests) }} 请求 · {{ formatTokens(platform.total_tokens) }}</small>
+                    <small>{{ platformUsageLabel(platform.total_requests, platform.total_tokens) }}</small>
                   </div>
                 </div>
               </div>
@@ -331,9 +331,9 @@
 
       <div v-else class="home-state home-state-error" :class="isDark ? 'is-night' : 'is-paper'">
         <div class="seal-mark"><img src="/logo.png" alt="" aria-hidden="true" /></div>
-        <h1>暂未取到账册</h1>
-        <p>{{ errorMessage || '当前无法读取概览数据，请稍后刷新或检查服务连接。' }}</p>
-        <button type="button" class="btn btn-primary" @click="refreshAll">重新整理</button>
+        <h1>{{ dashboardCopy.errorTitle }}</h1>
+        <p>{{ errorMessage || dashboardCopy.errorCopy }}</p>
+        <button type="button" class="btn btn-primary" @click="refreshAll">{{ dashboardCopy.retry }}</button>
       </div>
     </div>
   </AppLayout>
@@ -345,6 +345,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useAnnouncementStore } from '@/stores/announcements'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { keysAPI } from '@/api'
 import { usageAPI, type ApiKeyWorkbenchSummary, type UserDashboardStats as UserStatsType } from '@/api/usage'
 import { getMyPlatformQuotas } from '@/api/user'
@@ -356,7 +357,7 @@ import { formatDateTime } from '@/utils/format'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem } from '@/utils/imageWorkshop'
 import { buildWorkbenchModelInsight } from '@/utils/apiKeyWorkbench'
-import { setThemePreference, themePreferenceLabels, useThemePreference, useThemeState, type ThemePreference } from '@/utils/theme'
+import { setThemePreference, useThemePreference, useThemeState, type ThemePreference } from '@/utils/theme'
 import type { ApiKey, ModelStat, PlatformQuotaItem, TrendDataPoint, UsageLog } from '@/types'
 
 const authStore = useAuthStore()
@@ -365,6 +366,7 @@ const announcementStore = useAnnouncementStore()
 const OPEN_ANNOUNCEMENT_CENTER_EVENT = 'sst-open-announcement-center'
 const route = useRoute()
 const router = useRouter()
+const { t, locale } = useI18n()
 const isAccountMenuOpen = ref(false)
 const accountMenuRef = ref<HTMLElement | null>(null)
 const requestsFocusRef = ref<HTMLElement | null>(null)
@@ -387,14 +389,386 @@ let requestsFocusTimer: ReturnType<typeof setTimeout> | null = null
 
 type IconName = 'key' | 'chart' | 'user' | 'globe' | 'dollar' | 'clock' | 'database' | 'image'
 type StatusTone = 'calm' | 'notice' | 'alert'
+type LedgerEntry = { to: string; label: string; icon: IconName; value: string; note: string; alert: boolean }
+type QuotaSummaryItem = { label: string; value: string; note: string }
 
-const themeOptions: Array<{ value: ThemePreference, label: string }> = [
-  { value: 'system', label: themePreferenceLabels.system },
-  { value: 'light', label: themePreferenceLabels.light },
-  { value: 'dark', label: themePreferenceLabels.dark },
-]
+const zhDashboardCopy = {
+  loadingTitle: '正在整理今日账册',
+  loadingCopy: '余额、调用、配额与近时段流转正在收束。',
+  consoleAria: '山枢庭用户后台首页',
+  stageAria: '用户值守台',
+  watchStatus: '值守状态',
+  gateAria: '常用入口',
+  reasonsAria: '值守判断',
+  nextStep: '下一步',
+  stableReasonTitle: '今日值守稳定',
+  stableReasonDetail: '密钥、余额与响应均未触发异常。',
+  calmAction: '安稳',
+  healthAria: '接入体检单',
+  healthTitle: '接入体验',
+  fullCheck: '完整体检',
+  ledgerAria: '值守案牍',
+  ledgerTitle: '值守案牍',
+  waterLedgerAria: '水文账册',
+  callsTitle: '调用',
+  allUsage: '全部用量',
+  requestFocus: '请求聚焦',
+  rateLimitOnly: '只看限流错误',
+  reviewAllLedger: '回看全部账册',
+  doConnectionCheck: '做一次接入体检',
+  loadingUsage: '正在归拢调用记录...',
+  noRecentUsageTitle: '暂无最近调用',
+  noRecentUsageCopy: '新的请求会在这里形成最近账册。可以先检查密钥、服务状态或充值与兑换。',
+  manageKeys: '管理 API 密钥',
+  checkService: '检查服务状态',
+  viewLedger: '查看用量账册',
+  fullLedger: '完整账册',
+  errorLedger: '错误账册',
+  openAnnouncements: '打开庭讯列表',
+  announcements: '庭讯',
+  viewAllAnnouncements: '点击查看全部庭讯',
+  lastSevenDays: '近七日',
+  tokenTrendAria: '近七日 token 趋势',
+  window: '窗口',
+  accountOverview: '账户概览',
+  models: '模型',
+  channelStatus: '通道状态',
+  loadingModels: '正在校准模型流向...',
+  noModelDistribution: '暂无模型分布',
+  platforms: '平台',
+  status: '状态',
+  noPlatformRecords: '暂无平台记录',
+  errorTitle: '暂未取到账册',
+  errorCopy: '当前无法读取概览数据，请稍后刷新或检查服务连接。',
+  retry: '重新整理',
+  health: { calm: '安稳', notice: '留意', alert: '待处理' },
+  seal: {
+    normalLabel: '今日账册',
+    alertLabel: '待处置',
+    noticeLabel: '待核项',
+    normalValue: '安',
+    normalNote: '无碍',
+    alertNote: '先处置',
+    noticeNote: '待核对',
+  },
+  reasonActions: { alert: '处置', notice: '待核', calm: '前往' },
+  statusTitles: {
+    calm: '今日值守安稳',
+    notice: '{count} 项需要核对',
+    alert: '{count} 项需要先处置',
+    summaryCalm: '账户、密钥与响应保持稳定，今日账册无明显异动。',
+  },
+  statusReasons: {
+    zeroBalance: ['账户余量为零', '充值或调整账户后再放量更稳。'],
+    noKeys: ['尚未创建密钥', '先建立 API Key，再接入调用。'],
+    noActiveKeys: ['暂无启用密钥', '已有密钥，但当前没有可用入口。'],
+    slowAlert: ['响应偏慢', '平均响应 {duration}，建议检查通道状态。'],
+    slowNotice: ['响应需留意', '平均响应 {duration}，可观察近时段波动。'],
+    noTraffic: ['今日未起流', '若已接入，请检查密钥、服务状态与调用记录。'],
+  },
+  advices: {
+    runwayCritical: ['余量即将见底', '按近期速度约可用 {days} 天，建议先充值。'],
+    runwayWeek: ['余额续航不足一周', '按当前速度预计还能运行 {days}，可提前充值或降速。'],
+    fewKeys: ['密钥启用偏少', '建议清理停用 Key，保留生产入口更清晰。'],
+    slow: ['响应需要观察', '平均响应 {duration}，可查看服务状态。'],
+    noTraffic: ['今日尚未起流', '可用接入体检确认 Key 与地址是否可用。'],
+    model: '先处理模型入口',
+    calm: ['今日无碍', '密钥、用量和响应均保持可用，可继续观察账册。'],
+  },
+  labels: {
+    requestCount: '{count} 请求',
+    noTrafficToday: '今日未起流',
+    enabled: '启用',
+    accountSettings: '账户设置',
+    imageWorkshop: '图像工坊',
+    imageWorkshopNote: '外接创作入口',
+    serviceStatus: '服务状态',
+    apiKeys: 'API 密钥',
+    usageLedger: '用量账册',
+    recharge: '充值与兑换',
+    key: '密钥',
+    noEnabled: '暂无启用',
+    todayRequests: '今日请求',
+    totalPrefix: '累计 ',
+    todayCost: '今日消耗',
+    standardPrefix: '标准 $',
+    response: '响应',
+    ledger: '账册',
+    accountBalance: '账户余量',
+    ledgerSummaryAlert: '{count} 项待核',
+    ledgerSummaryCalm: '今日账页',
+    none: '暂无',
+    noAnnouncements: '暂无庭讯',
+    noAnnouncementsNote: '庭讯通道已接入，等待后台发出庭讯。',
+    noAnnouncementsBadge: '待发庭讯',
+    read: '已读',
+    unread: '未读',
+    unreadCount: '{count} 条未读',
+    synced: '已同步',
+    simpleRunwayValue: '按当前站点模式运行',
+    simpleRunwayNote: '当前不以余额续航作为主要约束。',
+    zeroRunwayValue: '已见底',
+    zeroRunwayNote: '当前余额已经无法继续覆盖后续消耗。',
+    noSampleRunwayValue: '暂无样本',
+    noSampleRunwayNote: '近期缺少稳定消耗样本，续航会在产生真实用量后更新。',
+    aboutDays: '约 {days}',
+    callCredential: '调用凭证',
+    traffic: '起流情况',
+    modelAvailability: '模型可用性',
+    stability: '请求稳定性',
+    quota: '余额与额度',
+    pending: '待处理',
+    confirm: '待确认',
+    notice: '留意',
+    calm: '安稳',
+    platformWindow: '平台窗口',
+    open: '开放',
+    noPlatformLimit: '暂无平台配额限制',
+    windowUnused: '窗口未使用',
+    maxUsage: '最高用量 $',
+    todayToken: '今日 Token',
+    inputOutput: '输入 {input} / 输出 {output}',
+    totalCost: '累计消耗',
+    balanceRunway: '余额续航',
+  },
+  checks: {
+    noKeys: '当前还没有 API Key，外部请求还无法进入山枢庭。',
+    createKey: '去创建密钥',
+    noActiveKeys: '已有密钥但没有启用入口，建议先恢复至少一个生产 Key。',
+    enableKey: '去启用密钥',
+    partialKeys: '当前仅有 {active}/{total} 个密钥处于启用状态，建议确认生产入口是否清晰。',
+    checkKeys: '检查密钥状态',
+    keysReady: '密钥入口已就绪，当前启用中的 Key 可以直接承接请求。',
+    doCheck: '做一次接入体检',
+    noTraffic: '首页还没有近时段调用记录。若你刚完成接入，建议立即发起一次真实请求确认起流。',
+    startCheck: '开始接入体检',
+    trafficNoSuccess: '已有最近调用，但暂时没有看到明确成功账单，建议回看错误账册确认是否连续失败。',
+    viewErrors: '查看错误账册',
+    trafficReady: '近期已经有调用进入账册，可继续观察模型分布与费用变化。',
+    viewRecent: '查看最近用量',
+    slowAlert: '平均响应已超过 {duration}，更像持续拥塞而不是偶发波动。',
+    checkChannels: '检查通道状态',
+    slowNotice: '近期响应偏慢或刚经历限流，建议结合最近请求与错误账册判断是否已经恢复。',
+    reviewRecent: '回看最近请求',
+    stable: '最近响应速度和请求节奏都较平稳，可继续正常放量。',
+    viewStatus: '查看服务状态',
+    quotaZero: '账户余额已经为 0，请先充值或调整额度后再继续放量。',
+    recharge: '去充值与兑换',
+    quotaRunway: '按当前消耗速度预计还能运行 {days}，建议提前充值或先降速。',
+    runwayEstimate: '去看续航估算',
+    quotaWindow: '{platform} 窗口已使用约 {percent}%，建议提前留出缓冲。',
+    viewWindow: '查看账户窗口',
+    quotaReady: '当前账户余额和平台窗口尚可继续承接请求，没有明显逼近阈值。',
+    viewQuota: '查看额度摘要',
+  },
+  focus: {
+    noUsageTitle: '先确认请求是否已真正到达山枢庭',
+    slowTitle: '先看近时段请求与响应节奏',
+    normalTitle: '这里收拢了最近一段时间的调用账册',
+    noUsageDetail: '当前首页还没有近时段调用记录。若你刚处理过限流或失败请求，先做一次接入体检，再回到错误账册确认是否仍在发生。',
+    slowDetail: '若刚刚遇到限流或重试，这里可以先回看最近 7 笔调用，再结合错误账册判断是瞬时拥塞还是持续异常。',
+    normalDetail: '若错误详情刚引导你回到首页，这一段会优先展示最近请求，方便对照失败时间、请求密度与后续恢复情况。',
+  },
+  footerUsage: '今日共 {total} 次请求，近列成功入账 {success} 条。',
+  platformUsage: '{requests} 请求 · {tokens}',
+  days: '{days} 天',
+} as const
 
-const currentDateLabel = computed(() => new Intl.DateTimeFormat('zh-CN', {
+const enDashboardCopy = {
+  loadingTitle: 'Preparing today\'s ledger',
+  loadingCopy: 'Balance, calls, quotas, and recent flow are being gathered.',
+  consoleAria: 'SST user console home',
+  stageAria: 'User watch desk',
+  watchStatus: 'Watch status',
+  gateAria: 'Common entries',
+  reasonsAria: 'Watch reasoning',
+  nextStep: 'Next step',
+  stableReasonTitle: 'Today is stable',
+  stableReasonDetail: 'Keys, balance, and response status have not triggered issues.',
+  calmAction: 'Stable',
+  healthAria: 'Integration check sheet',
+  healthTitle: 'Integration check',
+  fullCheck: 'Full check',
+  ledgerAria: 'Watch ledger slips',
+  ledgerTitle: 'Watch ledger',
+  waterLedgerAria: 'Usage ledger',
+  callsTitle: 'Calls',
+  allUsage: 'All usage',
+  requestFocus: 'Request focus',
+  rateLimitOnly: 'Rate-limit errors only',
+  reviewAllLedger: 'Review full ledger',
+  doConnectionCheck: 'Run an integration check',
+  loadingUsage: 'Collecting call records...',
+  noRecentUsageTitle: 'No recent calls',
+  noRecentUsageCopy: 'New requests will form the recent ledger here. You can check Keys, service status, or recharge and redeem first.',
+  manageKeys: 'Manage API Keys',
+  checkService: 'Check service status',
+  viewLedger: 'View usage ledger',
+  fullLedger: 'Full ledger',
+  errorLedger: 'Error ledger',
+  openAnnouncements: 'Open announcements',
+  announcements: 'Notices',
+  viewAllAnnouncements: 'View all notices',
+  lastSevenDays: 'Last 7 days',
+  tokenTrendAria: '7-day token trend',
+  window: 'Window',
+  accountOverview: 'Account overview',
+  models: 'Models',
+  channelStatus: 'Channel status',
+  loadingModels: 'Calibrating model flow...',
+  noModelDistribution: 'No model distribution',
+  platforms: 'Platforms',
+  status: 'Status',
+  noPlatformRecords: 'No platform records',
+  errorTitle: 'Ledger unavailable',
+  errorCopy: 'Overview data cannot be read right now. Refresh later or check the service connection.',
+  retry: 'Refresh',
+  health: { calm: 'Stable', notice: 'Notice', alert: 'Needs action' },
+  seal: {
+    normalLabel: 'Today ledger',
+    alertLabel: 'Action',
+    noticeLabel: 'Review',
+    normalValue: 'OK',
+    normalNote: 'Clear',
+    alertNote: 'Act first',
+    noticeNote: 'Review',
+  },
+  reasonActions: { alert: 'Fix', notice: 'Review', calm: 'Open' },
+  statusTitles: {
+    calm: 'Today is stable',
+    notice: '{count} items need review',
+    alert: '{count} items need action',
+    summaryCalm: 'Account, Keys, and responses are stable; no obvious ledger anomalies today.',
+  },
+  statusReasons: {
+    zeroBalance: ['Account balance is zero', 'Recharge or adjust the account before increasing traffic.'],
+    noKeys: ['No Keys created', 'Create an API Key before sending calls.'],
+    noActiveKeys: ['No active Keys', 'Keys exist, but no entrance is currently usable.'],
+    slowAlert: ['Responses are slow', 'Average response is {duration}; check channel status.'],
+    slowNotice: ['Response needs attention', 'Average response is {duration}; watch recent fluctuations.'],
+    noTraffic: ['No traffic today', 'If already integrated, check Keys, service status, and call records.'],
+  },
+  advices: {
+    runwayCritical: ['Balance nearly depleted', 'At recent speed, about {days} days remain. Recharge first.'],
+    runwayWeek: ['Runway under one week', 'At current speed, about {days} remain. Recharge early or slow down.'],
+    fewKeys: ['Few active Keys', 'Clean up inactive Keys and keep the production entrance clear.'],
+    slow: ['Response needs observation', 'Average response is {duration}; check service status.'],
+    noTraffic: ['No traffic yet today', 'Use the integration check to confirm the Key and address.'],
+    model: 'Handle the model entrance first',
+    calm: ['Clear for today', 'Keys, usage, and responses are available. Continue watching the ledger.'],
+  },
+  labels: {
+    requestCount: '{count} requests',
+    noTrafficToday: 'No traffic today',
+    enabled: 'enabled',
+    accountSettings: 'Account settings',
+    imageWorkshop: 'Image Studio',
+    imageWorkshopNote: 'External creation entrance',
+    serviceStatus: 'Service status',
+    apiKeys: 'API Keys',
+    usageLedger: 'Usage ledger',
+    recharge: 'Recharge and redeem',
+    key: 'Keys',
+    noEnabled: 'None active',
+    todayRequests: 'Today requests',
+    totalPrefix: 'Total ',
+    todayCost: 'Today cost',
+    standardPrefix: 'Standard $',
+    response: 'Response',
+    ledger: 'Ledger',
+    accountBalance: 'Account balance',
+    ledgerSummaryAlert: '{count} to review',
+    ledgerSummaryCalm: 'Today ledger',
+    none: 'None',
+    noAnnouncements: 'No notices',
+    noAnnouncementsNote: 'Notice channel is connected; waiting for admin notices.',
+    noAnnouncementsBadge: 'Waiting',
+    read: 'Read',
+    unread: 'Unread',
+    unreadCount: '{count} unread',
+    synced: 'Synced',
+    simpleRunwayValue: 'Current site mode',
+    simpleRunwayNote: 'Balance runway is not the main constraint in this mode.',
+    zeroRunwayValue: 'Depleted',
+    zeroRunwayNote: 'Current balance can no longer cover future consumption.',
+    noSampleRunwayValue: 'No sample',
+    noSampleRunwayNote: 'Recent stable usage samples are missing; runway updates after real usage appears.',
+    aboutDays: 'about {days}',
+    callCredential: 'Call credentials',
+    traffic: 'Traffic',
+    modelAvailability: 'Model availability',
+    stability: 'Request stability',
+    quota: 'Balance and quota',
+    pending: 'Needs action',
+    confirm: 'To confirm',
+    notice: 'Notice',
+    calm: 'Stable',
+    platformWindow: 'Platform window',
+    open: 'Open',
+    noPlatformLimit: 'No platform quota limit',
+    windowUnused: 'Window unused',
+    maxUsage: 'Max usage $',
+    todayToken: 'Today tokens',
+    inputOutput: 'Input {input} / output {output}',
+    totalCost: 'Total cost',
+    balanceRunway: 'Balance runway',
+  },
+  checks: {
+    noKeys: 'There is no API Key yet, so external requests cannot enter SST.',
+    createKey: 'Create a Key',
+    noActiveKeys: 'Keys exist but none are active. Restore at least one production Key first.',
+    enableKey: 'Enable a Key',
+    partialKeys: 'Only {active}/{total} Keys are active. Confirm the production entrance is clear.',
+    checkKeys: 'Check Key status',
+    keysReady: 'Key entrance is ready; active Keys can receive requests.',
+    doCheck: 'Run integration check',
+    noTraffic: 'The home page has no recent call records. If you just integrated, send a real request to confirm traffic.',
+    startCheck: 'Start integration check',
+    trafficNoSuccess: 'Recent calls exist, but no clear successful ledger entry is visible. Review error records for repeated failures.',
+    viewErrors: 'View error ledger',
+    trafficReady: 'Recent calls have entered the ledger. Continue watching model distribution and cost changes.',
+    viewRecent: 'View recent usage',
+    slowAlert: 'Average response exceeds {duration}; this looks more like sustained congestion than a temporary fluctuation.',
+    checkChannels: 'Check channel status',
+    slowNotice: 'Recent responses are slow or just experienced rate limits. Compare recent requests with error records to confirm recovery.',
+    reviewRecent: 'Review recent requests',
+    stable: 'Recent response speed and request rhythm are steady. Normal traffic can continue.',
+    viewStatus: 'View service status',
+    quotaZero: 'Account balance is 0. Recharge or adjust quota before continuing traffic.',
+    recharge: 'Recharge and redeem',
+    quotaRunway: 'At current consumption speed, about {days} remain. Recharge early or slow down.',
+    runwayEstimate: 'View runway estimate',
+    quotaWindow: '{platform} window is about {percent}% used. Leave buffer in advance.',
+    viewWindow: 'View account windows',
+    quotaReady: 'Current balance and platform windows can still handle requests; no threshold pressure is visible.',
+    viewQuota: 'View quota summary',
+  },
+  focus: {
+    noUsageTitle: 'Confirm whether requests have reached SST',
+    slowTitle: 'Check recent request and response rhythm first',
+    normalTitle: 'Recent call ledger is gathered here',
+    noUsageDetail: 'There are no recent call records on the home page. If you just handled rate limits or failed requests, run an integration check first, then return to the error ledger.',
+    slowDetail: 'If you just hit rate limits or retries, review the latest 7 calls here and compare them with the error ledger to determine whether congestion is temporary or persistent.',
+    normalDetail: 'If error details brought you back home, this section highlights recent requests so you can compare failure time, request density, and later recovery.',
+  },
+  footerUsage: '{total} requests today; {success} recent entries posted successfully.',
+  platformUsage: '{requests} requests · {tokens}',
+  days: '{days} days',
+} as const
+
+const dashboardCopy = computed(() => locale.value.startsWith('zh') ? zhDashboardCopy : enDashboardCopy)
+const localeCode = computed(() => locale.value.startsWith('zh') ? 'zh-CN' : 'en-US')
+const isEnglishDashboard = computed(() => !locale.value.startsWith('zh'))
+const interpolate = (template: string, values: Record<string, string | number>) =>
+  template.replace(/\{(\w+)\}/g, (_, key) => String(values[key] ?? ''))
+
+const themeOptions = computed<Array<{ value: ThemePreference, label: string }>>(() => [
+  { value: 'system', label: t('userShell.theme.system') },
+  { value: 'light', label: t('userShell.theme.light') },
+  { value: 'dark', label: t('userShell.theme.dark') },
+])
+
+const currentDateLabel = computed(() => new Intl.DateTimeFormat(localeCode.value, {
   timeZone: 'Asia/Shanghai',
   year: 'numeric',
   month: '2-digit',
@@ -419,9 +793,9 @@ const healthScore = computed(() => {
 })
 
 const healthLabel = computed(() => {
-  if (healthScore.value >= 82) return '安稳'
-  if (healthScore.value >= 60) return '留意'
-  return '待处理'
+  if (healthScore.value >= 82) return dashboardCopy.value.health.calm
+  if (healthScore.value >= 60) return dashboardCopy.value.health.notice
+  return dashboardCopy.value.health.alert
 })
 
 const healthTone = computed<StatusTone>(() => {
@@ -433,18 +807,18 @@ const healthTone = computed<StatusTone>(() => {
 const statusIssueCount = computed(() => statusReasons.value.length)
 
 const watchSealLabel = computed(() => {
-  if (!statusIssueCount.value) return '今日账册'
-  return healthTone.value === 'alert' ? '待处置' : '待核项'
+  if (!statusIssueCount.value) return dashboardCopy.value.seal.normalLabel
+  return healthTone.value === 'alert' ? dashboardCopy.value.seal.alertLabel : dashboardCopy.value.seal.noticeLabel
 })
 
 const watchSealValue = computed(() => {
-  if (!statusIssueCount.value) return '安'
+  if (!statusIssueCount.value) return dashboardCopy.value.seal.normalValue
   return String(statusIssueCount.value).padStart(2, '0')
 })
 
 const watchSealNote = computed(() => {
-  if (!statusIssueCount.value) return '无碍'
-  return healthTone.value === 'alert' ? '先处置' : '待核对'
+  if (!statusIssueCount.value) return dashboardCopy.value.seal.normalNote
+  return healthTone.value === 'alert' ? dashboardCopy.value.seal.alertNote : dashboardCopy.value.seal.noticeNote
 })
 
 const statusReasons = computed<Array<{ label: string, detail: string, to: string, icon: IconName, tone: StatusTone }>>(() => {
@@ -455,42 +829,42 @@ const statusReasons = computed<Array<{ label: string, detail: string, to: string
   const balance = user.value?.balance ?? 0
   const duration = stats.value.average_duration_ms || 0
   const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
+  const copy = dashboardCopy.value
 
   if (!authStore.isSimpleMode && paymentEnabled && balance <= 0) {
-    reasons.push({ label: '账户余量为零', detail: '充值或调整账户后再放量更稳。', to: '/purchase', icon: 'database', tone: 'alert' })
+    reasons.push({ label: copy.statusReasons.zeroBalance[0], detail: copy.statusReasons.zeroBalance[1], to: '/purchase', icon: 'database', tone: 'alert' })
   }
   if (!totalKeys) {
-    reasons.push({ label: '尚未创建密钥', detail: '先建立 API Key，再接入调用。', to: '/keys', icon: 'key', tone: 'notice' })
+    reasons.push({ label: copy.statusReasons.noKeys[0], detail: copy.statusReasons.noKeys[1], to: '/keys', icon: 'key', tone: 'notice' })
   } else if (!activeKeys) {
-    reasons.push({ label: '暂无启用密钥', detail: '已有密钥，但当前没有可用入口。', to: '/keys', icon: 'key', tone: 'alert' })
+    reasons.push({ label: copy.statusReasons.noActiveKeys[0], detail: copy.statusReasons.noActiveKeys[1], to: '/keys', icon: 'key', tone: 'alert' })
   }
   if (duration > 6000) {
-    reasons.push({ label: '响应偏慢', detail: '平均响应 ' + formatDuration(duration) + '，建议检查通道状态。', to: '/monitor', icon: 'clock', tone: 'alert' })
+    reasons.push({ label: copy.statusReasons.slowAlert[0], detail: interpolate(copy.statusReasons.slowAlert[1], { duration: formatDuration(duration) }), to: '/monitor', icon: 'clock', tone: 'alert' })
   } else if (duration > 3000) {
-    reasons.push({ label: '响应需留意', detail: '平均响应 ' + formatDuration(duration) + '，可观察近时段波动。', to: '/usage', icon: 'clock', tone: 'notice' })
+    reasons.push({ label: copy.statusReasons.slowNotice[0], detail: interpolate(copy.statusReasons.slowNotice[1], { duration: formatDuration(duration) }), to: '/usage', icon: 'clock', tone: 'notice' })
   }
   if ((stats.value.today_requests || 0) === 0) {
-    reasons.push({ label: '今日未起流', detail: '若已接入，请检查密钥、服务状态与调用记录。', to: '/usage', icon: 'chart', tone: 'notice' })
+    reasons.push({ label: copy.statusReasons.noTraffic[0], detail: copy.statusReasons.noTraffic[1], to: '/usage', icon: 'chart', tone: 'notice' })
   }
 
   return reasons.slice(0, 3)
 })
 
 const statusTitle = computed(() => {
-  if (healthTone.value === 'calm') return '今日值守安稳'
-  if (healthTone.value === 'notice') return `${statusIssueCount.value} 项需要核对`
-  return `${statusIssueCount.value} 项需要先处置`
+  const copy = dashboardCopy.value.statusTitles
+  if (healthTone.value === 'calm') return copy.calm
+  if (healthTone.value === 'notice') return interpolate(copy.notice, { count: statusIssueCount.value })
+  return interpolate(copy.alert, { count: statusIssueCount.value })
 })
 
 const statusSummary = computed(() => {
-  if (!statusReasons.value.length) return '账户、密钥与响应保持稳定，今日账册无明显异动。'
+  if (!statusReasons.value.length) return dashboardCopy.value.statusTitles.summaryCalm
   return statusReasons.value.map((reason) => reason.label).join('、')
 })
 
 function reasonActionLabel(tone: StatusTone) {
-  if (tone === 'alert') return '处置'
-  if (tone === 'notice') return '待核'
-  return '前往'
+  return dashboardCopy.value.reasonActions[tone]
 }
 
 const dashboardModelInsight = computed(() => {
@@ -507,7 +881,7 @@ const dashboardModelInsight = computed(() => {
     .sort((a, b) => new Date(b.latestError!.created_at).getTime() - new Date(a.latestError!.created_at).getTime())
 
   for (const entry of entries) {
-    const insight = buildWorkbenchModelInsight(entry.latestError, entry.key.name)
+    const insight = buildWorkbenchModelInsight(entry.latestError, entry.key.name, locale.value)
     if (insight) return insight
   }
 
@@ -521,31 +895,32 @@ const watchAdvices = computed<Array<{ title: string, detail: string, to: string,
   const balance = user.value?.balance ?? 0
   const averageDailyCost = Math.max(stats.value.today_actual_cost || 0, (stats.value.total_actual_cost || 0) / 14)
   const balanceDays = averageDailyCost > 0 ? Math.floor(balance / averageDailyCost) : null
+  const copy = dashboardCopy.value
 
   if (!authStore.isSimpleMode && paymentEnabled && balanceDays !== null && balanceDays <= 3) {
-    advices.push({ title: '余量即将见底', detail: '按近期速度约可用 ' + Math.max(balanceDays, 0) + ' 天，建议先充值。', to: '/purchase', tone: 'alert' })
+    advices.push({ title: copy.advices.runwayCritical[0], detail: interpolate(copy.advices.runwayCritical[1], { days: Math.max(balanceDays, 0) }), to: '/purchase', tone: 'alert' })
   } else if (!authStore.isSimpleMode && paymentEnabled && balanceRunway.value.days !== null && balanceRunway.value.days <= 7) {
-    advices.push({ title: '余额续航不足一周', detail: '按当前速度预计还能运行 ' + formatRunwayDays(balanceRunway.value.days) + '，可提前充值或降速。', to: '/purchase', tone: 'notice' })
+    advices.push({ title: copy.advices.runwayWeek[0], detail: interpolate(copy.advices.runwayWeek[1], { days: formatRunwayDays(balanceRunway.value.days) }), to: '/purchase', tone: 'notice' })
   }
   if ((stats.value.total_api_keys || 0) > 0 && activeKeyRate.value < 50) {
-    advices.push({ title: '密钥启用偏少', detail: '建议清理停用 Key，保留生产入口更清晰。', to: '/keys', tone: 'notice' })
+    advices.push({ title: copy.advices.fewKeys[0], detail: copy.advices.fewKeys[1], to: '/keys', tone: 'notice' })
   }
   if ((stats.value.average_duration_ms || 0) > 3000) {
-    advices.push({ title: '响应需要观察', detail: '平均响应 ' + formatDuration(stats.value.average_duration_ms || 0) + '，可查看服务状态。', to: '/monitor', tone: healthTone.value })
+    advices.push({ title: copy.advices.slow[0], detail: interpolate(copy.advices.slow[1], { duration: formatDuration(stats.value.average_duration_ms || 0) }), to: '/monitor', tone: healthTone.value })
   }
   if ((stats.value.today_requests || 0) === 0 && (stats.value.active_api_keys || 0) > 0) {
-    advices.push({ title: '今日尚未起流', detail: '可用接入体检确认 Key 与地址是否可用。', to: '/keys?panel=connection-test', tone: 'notice' })
+    advices.push({ title: copy.advices.noTraffic[0], detail: copy.advices.noTraffic[1], to: '/keys?panel=connection-test', tone: 'notice' })
   }
   if (dashboardModelInsight.value) {
     advices.unshift({
-      title: '先处理模型入口',
+      title: copy.advices.model,
       detail: dashboardModelInsight.value.detail,
       to: dashboardModelInsight.value.to,
       tone: dashboardModelInsight.value.tone,
     })
   }
   if (!advices.length) {
-    advices.push({ title: '今日无碍', detail: '密钥、用量和响应均保持可用，可继续观察账册。', to: '/usage', tone: 'calm' })
+    advices.push({ title: copy.advices.calm[0], detail: copy.advices.calm[1], to: '/usage', tone: 'calm' })
   }
 
   return advices.slice(0, 3)
@@ -553,7 +928,7 @@ const watchAdvices = computed<Array<{ title: string, detail: string, to: string,
 
 const todayRequestLabel = computed(() => {
   const count = stats.value?.today_requests || 0
-  return count ? formatNumber(count) + ' 请求' : '今日未起流'
+  return count ? interpolate(dashboardCopy.value.labels.requestCount, { count: formatNumber(count) }) : dashboardCopy.value.labels.noTrafficToday
 })
 
 const imageWorkshopMenuItem = computed(() => findImageWorkshopMenuItem(appStore.cachedPublicSettings?.custom_menu_items))
@@ -561,29 +936,31 @@ const imageWorkshopPath = computed(() => `/custom/${IMAGE_WORKSHOP_MENU_ID}`)
 
 const courtyardGates = computed<Array<{ to: string, label: string, note: string, icon: IconName, position: string }>>(() => {
   const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
+  const copy = dashboardCopy.value.labels
   const gates: Array<{ to: string, label: string, note: string, icon: IconName, position: string }> = [
-    { to: '/keys', label: 'API 密钥', note: (stats.value?.active_api_keys || 0) + '/' + (stats.value?.total_api_keys || 0) + ' 启用', icon: 'key', position: 'gate-north' },
-    { to: '/usage', label: '用量账册', note: todayRequestLabel.value, icon: 'chart', position: 'gate-east' },
-    { to: !authStore.isSimpleMode && paymentEnabled ? '/purchase' : '/usage', label: !authStore.isSimpleMode && paymentEnabled ? '充值与兑换' : '用量账册', note: authStore.isSimpleMode || !paymentEnabled ? '账户设置' : '$' + formatMoney(user.value?.balance || 0), icon: 'user', position: 'gate-south' }
+    { to: '/keys', label: copy.apiKeys, note: `${stats.value?.active_api_keys || 0}/${stats.value?.total_api_keys || 0} ${copy.enabled}`, icon: 'key', position: 'gate-north' },
+    { to: '/usage', label: copy.usageLedger, note: todayRequestLabel.value, icon: 'chart', position: 'gate-east' },
+    { to: !authStore.isSimpleMode && paymentEnabled ? '/purchase' : '/usage', label: !authStore.isSimpleMode && paymentEnabled ? copy.recharge : copy.usageLedger, note: authStore.isSimpleMode || !paymentEnabled ? copy.accountSettings : '$' + formatMoney(user.value?.balance || 0), icon: 'user', position: 'gate-south' }
   ]
   if (imageWorkshopMenuItem.value) {
-    gates.splice(1, 0, { to: imageWorkshopPath.value, label: '图像工坊', note: '外接创作入口', icon: 'image', position: 'gate-workshop' })
+    gates.splice(1, 0, { to: imageWorkshopPath.value, label: copy.imageWorkshop, note: copy.imageWorkshopNote, icon: 'image', position: 'gate-workshop' })
   }
-  if (!authStore.isSimpleMode) gates.splice(2, 0, { to: '/monitor', label: '服务状态', note: healthLabel.value, icon: 'globe', position: 'gate-west' })
+  if (!authStore.isSimpleMode) gates.splice(2, 0, { to: '/monitor', label: copy.serviceStatus, note: healthLabel.value, icon: 'globe', position: 'gate-west' })
   return gates
 })
 
 const gardenEntries = computed(() => {
-  const entries = [
-    { to: '/keys', label: '密钥', icon: 'key' as IconName, value: (stats.value?.active_api_keys || 0) + '/' + (stats.value?.total_api_keys || 0), note: activeKeyRate.value ? activeKeyRate.value + '% 启用' : '暂无启用', alert: (stats.value?.total_api_keys || 0) === 0 || (stats.value?.active_api_keys || 0) === 0 },
-    { to: '/usage', label: '今日请求', icon: 'chart' as IconName, value: formatNumber(stats.value?.today_requests || 0), note: '累计 ' + formatNumber(stats.value?.total_requests || 0), alert: false },
-    { to: '/usage', label: '今日消耗', icon: 'dollar' as IconName, value: '$' + formatCost(stats.value?.today_actual_cost || 0), note: '标准 $' + formatCost(stats.value?.today_cost || 0), alert: false },
-    { to: '/usage', label: '响应', icon: 'clock' as IconName, value: formatDuration(stats.value?.average_duration_ms || 0), note: formatTokens(stats.value?.rpm || 0) + ' RPM', alert: (stats.value?.average_duration_ms || 0) > 3000 }
+  const copy = dashboardCopy.value.labels
+  const entries: LedgerEntry[] = [
+    { to: '/keys', label: copy.key, icon: 'key' as IconName, value: (stats.value?.active_api_keys || 0) + '/' + (stats.value?.total_api_keys || 0), note: activeKeyRate.value ? activeKeyRate.value + `% ${copy.enabled}` : copy.noEnabled, alert: (stats.value?.total_api_keys || 0) === 0 || (stats.value?.active_api_keys || 0) === 0 },
+    { to: '/usage', label: copy.todayRequests, icon: 'chart' as IconName, value: formatNumber(stats.value?.today_requests || 0), note: copy.totalPrefix + formatNumber(stats.value?.total_requests || 0), alert: false },
+    { to: '/usage', label: copy.todayCost, icon: 'dollar' as IconName, value: '$' + formatCost(stats.value?.today_actual_cost || 0), note: copy.standardPrefix + formatCost(stats.value?.today_cost || 0), alert: false },
+    { to: '/usage', label: copy.response, icon: 'clock' as IconName, value: formatDuration(stats.value?.average_duration_ms || 0), note: formatTokens(stats.value?.rpm || 0) + ' RPM', alert: (stats.value?.average_duration_ms || 0) > 3000 }
   ]
 
   if (!authStore.isSimpleMode) {
     const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
-    entries.unshift({ to: paymentEnabled ? '/purchase' : '/usage', label: '账册', icon: 'database' as IconName, value: '$' + formatMoney(user.value?.balance || 0), note: '账户余量', alert: (user.value?.balance ?? 0) <= 0 })
+    entries.unshift({ to: paymentEnabled ? '/purchase' : '/usage', label: copy.ledger, icon: 'database' as IconName, value: '$' + formatMoney(user.value?.balance || 0), note: copy.accountBalance, alert: (user.value?.balance ?? 0) <= 0 })
   }
 
   return entries
@@ -591,8 +968,8 @@ const gardenEntries = computed(() => {
 
 const ledgerSummary = computed(() => {
   const alertCount = gardenEntries.value.filter((item) => item.alert).length
-  if (alertCount > 0) return `${alertCount} 项待核`
-  return '今日账页'
+  if (alertCount > 0) return interpolate(dashboardCopy.value.labels.ledgerSummaryAlert, { count: alertCount })
+  return dashboardCopy.value.labels.ledgerSummaryCalm
 })
 
 const modelPreview = computed(() => modelStats.value.slice(0, 5))
@@ -603,7 +980,7 @@ const maxModelTokens = computed(() => Math.max(1, ...modelPreview.value.map((ite
 const modelShare = (tokens: number) => `${Math.max(8, Math.round((tokens / maxModelTokens.value) * 100))}%`
 
 const trendBars = computed(() => {
-  const weekdayFormatter = new Intl.DateTimeFormat('zh-CN', { weekday: 'short' })
+  const weekdayFormatter = new Intl.DateTimeFormat(localeCode.value, { weekday: 'short' })
   const recentDays = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(Date.now() - (6 - index) * 86400000)
     return formatLD(date)
@@ -628,9 +1005,9 @@ const trendBars = computed(() => {
 })
 
 const trendPeakLabel = computed(() => {
-  if (!trendBars.value.length) return '暂无'
+  if (!trendBars.value.length) return dashboardCopy.value.labels.none
   const peak = trendBars.value.reduce((max, point) => (point.isPeak ? point : max), trendBars.value[0])
-  if (!peak || !peak.label) return '暂无'
+  if (!peak || !peak.label) return dashboardCopy.value.labels.none
   return `${peak.date} / ${peak.label}`
 })
 
@@ -640,41 +1017,50 @@ const announcementSummary = computed(() => {
   const items = announcementStore.announcements
   const unreadCount = items.filter((item) => !item.read_at).length
   const latest = items[0]
+  const copy = dashboardCopy.value.labels
   if (!latest) {
     return {
       unreadCount: 0,
-      title: '暂无庭讯',
-      note: '庭讯通道已接入，等待后台发出庭讯。',
-      badge: '待发庭讯',
+      title: copy.noAnnouncements,
+      note: copy.noAnnouncementsNote,
+      badge: copy.noAnnouncementsBadge,
     }
   }
   return {
     unreadCount,
     title: latest.title,
-    note: latest.read_at ? `已读 · ${formatDateTime(latest.created_at)}` : `未读 · ${formatDateTime(latest.created_at)}`,
-    badge: unreadCount > 0 ? `${unreadCount} 条未读` : '已同步',
+    note: latest.read_at ? `${copy.read} · ${formatDateTime(latest.created_at)}` : `${copy.unread} · ${formatDateTime(latest.created_at)}`,
+    badge: unreadCount > 0 ? interpolate(copy.unreadCount, { count: unreadCount }) : copy.synced,
   }
 })
 
 const requestsFocusTitle = computed(() => {
-  if (!recentUsage.value.length) return '先确认请求是否已真正到达山枢庭'
-  if ((stats.value?.average_duration_ms || 0) > 3000) return '先看近时段请求与响应节奏'
-  return '这里收拢了最近一段时间的调用账册'
+  if (!recentUsage.value.length) return dashboardCopy.value.focus.noUsageTitle
+  if ((stats.value?.average_duration_ms || 0) > 3000) return dashboardCopy.value.focus.slowTitle
+  return dashboardCopy.value.focus.normalTitle
 })
 
 const requestsFocusDetail = computed(() => {
   if (!recentUsage.value.length) {
-    return '当前首页还没有近时段调用记录。若你刚处理过限流或失败请求，先做一次接入体检，再回到错误账册确认是否仍在发生。'
+    return dashboardCopy.value.focus.noUsageDetail
   }
 
   if ((stats.value?.average_duration_ms || 0) > 3000) {
-    return '若刚刚遇到限流或重试，这里可以先回看最近 7 笔调用，再结合错误账册判断是瞬时拥塞还是持续异常。'
+    return dashboardCopy.value.focus.slowDetail
   }
 
-  return '若错误详情刚引导你回到首页，这一段会优先展示最近请求，方便对照失败时间、请求密度与后续恢复情况。'
+  return dashboardCopy.value.focus.normalDetail
 })
 
 const recentSuccessCount = computed(() => recentUsage.value.filter((item) => (item.actual_cost || 0) > 0).length)
+const recentUsageFooter = computed(() => interpolate(dashboardCopy.value.footerUsage, {
+  total: formatNumber(stats.value?.today_requests || 0),
+  success: recentSuccessCount.value,
+}))
+const platformUsageLabel = (requests: number, tokens: number) => interpolate(dashboardCopy.value.platformUsage, {
+  requests: formatNumber(requests),
+  tokens: formatTokens(tokens),
+})
 const hasRecentTraffic = computed(() => recentUsage.value.length > 0 || (stats.value?.today_requests || 0) > 0)
 const balanceRunway = computed(() => {
   const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
@@ -685,8 +1071,8 @@ const balanceRunway = computed(() => {
     return {
       enabled: false,
       days: null as number | null,
-      value: '按当前站点模式运行',
-      note: '当前不以余额续航作为主要约束。',
+      value: dashboardCopy.value.labels.simpleRunwayValue,
+      note: '',
       tone: 'calm' as StatusTone,
     }
   }
@@ -695,8 +1081,8 @@ const balanceRunway = computed(() => {
     return {
       enabled: true,
       days: 0,
-      value: '已见底',
-      note: '当前余额已经无法继续覆盖后续消耗。',
+      value: dashboardCopy.value.labels.zeroRunwayValue,
+      note: dashboardCopy.value.labels.zeroRunwayNote,
       tone: 'alert' as StatusTone,
     }
   }
@@ -705,8 +1091,8 @@ const balanceRunway = computed(() => {
     return {
       enabled: true,
       days: null,
-      value: '暂无样本',
-      note: '近期缺少稳定消耗样本，续航会在产生真实用量后更新。',
+      value: dashboardCopy.value.labels.noSampleRunwayValue,
+      note: dashboardCopy.value.labels.noSampleRunwayNote,
       tone: 'notice' as StatusTone,
     }
   }
@@ -716,7 +1102,7 @@ const balanceRunway = computed(() => {
     return {
       enabled: true,
       days,
-      value: '约 ' + formatRunwayDays(days),
+      value: interpolate(dashboardCopy.value.labels.aboutDays, { days: formatRunwayDays(days) }),
       note: '',
       tone: 'alert' as StatusTone,
     }
@@ -726,7 +1112,7 @@ const balanceRunway = computed(() => {
     return {
       enabled: true,
       days,
-      value: '约 ' + formatRunwayDays(days),
+      value: interpolate(dashboardCopy.value.labels.aboutDays, { days: formatRunwayDays(days) }),
       note: '',
       tone: 'notice' as StatusTone,
     }
@@ -735,7 +1121,7 @@ const balanceRunway = computed(() => {
   return {
     enabled: true,
     days,
-    value: '约 ' + formatRunwayDays(days),
+    value: interpolate(dashboardCopy.value.labels.aboutDays, { days: formatRunwayDays(days) }),
     note: '',
     tone: 'calm' as StatusTone,
   }
@@ -762,29 +1148,31 @@ const connectionCheckItems = computed<Array<{ key: string, label: string, status
   const balance = user.value?.balance ?? 0
   const paymentEnabled = isFeatureFlagEnabled(FeatureFlags.payment)
   const topQuota = strongestQuotaUsage.value
+  const labels = dashboardCopy.value.labels
+  const checks = dashboardCopy.value.checks
 
   if (!totalKeys) {
-    items.push({ key: 'keys', label: '调用凭证', status: '待处理', detail: '当前还没有 API Key，外部请求还无法进入山枢庭。', action: '去创建密钥', to: '/keys', tone: 'alert' })
+    items.push({ key: 'keys', label: labels.callCredential, status: labels.pending, detail: checks.noKeys, action: checks.createKey, to: '/keys', tone: 'alert' })
   } else if (!activeKeys) {
-    items.push({ key: 'keys', label: '调用凭证', status: '待处理', detail: '已有密钥但没有启用入口，建议先恢复至少一个生产 Key。', action: '去启用密钥', to: '/keys', tone: 'alert' })
+    items.push({ key: 'keys', label: labels.callCredential, status: labels.pending, detail: checks.noActiveKeys, action: checks.enableKey, to: '/keys', tone: 'alert' })
   } else if (activeKeys < totalKeys) {
-    items.push({ key: 'keys', label: '调用凭证', status: '留意', detail: '当前仅有 ' + activeKeys + '/' + totalKeys + ' 个密钥处于启用状态，建议确认生产入口是否清晰。', action: '检查密钥状态', to: '/keys', tone: 'notice' })
+    items.push({ key: 'keys', label: labels.callCredential, status: labels.notice, detail: interpolate(checks.partialKeys, { active: activeKeys, total: totalKeys }), action: checks.checkKeys, to: '/keys', tone: 'notice' })
   } else {
-    items.push({ key: 'keys', label: '调用凭证', status: '安稳', detail: '密钥入口已就绪，当前启用中的 Key 可以直接承接请求。', action: '做一次接入体检', to: '/keys?panel=connection-test', tone: 'calm' })
+    items.push({ key: 'keys', label: labels.callCredential, status: labels.calm, detail: checks.keysReady, action: checks.doCheck, to: '/keys?panel=connection-test', tone: 'calm' })
   }
 
   if (!hasRecentTraffic.value) {
-    items.push({ key: 'traffic', label: '起流情况', status: '待确认', detail: '首页还没有近时段调用记录。若你刚完成接入，建议立即发起一次真实请求确认起流。', action: '开始接入体检', to: '/keys?panel=connection-test', tone: 'notice' })
+    items.push({ key: 'traffic', label: labels.traffic, status: labels.confirm, detail: checks.noTraffic, action: checks.startCheck, to: '/keys?panel=connection-test', tone: 'notice' })
   } else if (!recentSuccessCount.value && recentUsage.value.length) {
-    items.push({ key: 'traffic', label: '起流情况', status: '留意', detail: '已有最近调用，但暂时没有看到明确成功账单，建议回看错误账册确认是否连续失败。', action: '查看错误账册', to: '/usage?tab=errors', tone: 'notice' })
+    items.push({ key: 'traffic', label: labels.traffic, status: labels.notice, detail: checks.trafficNoSuccess, action: checks.viewErrors, to: '/usage?tab=errors', tone: 'notice' })
   } else {
-    items.push({ key: 'traffic', label: '起流情况', status: '安稳', detail: '近期已经有调用进入账册，可继续观察模型分布与费用变化。', action: '查看最近用量', to: '/usage', tone: 'calm' })
+    items.push({ key: 'traffic', label: labels.traffic, status: labels.calm, detail: checks.trafficReady, action: checks.viewRecent, to: '/usage', tone: 'calm' })
   }
 
   if (dashboardModelInsight.value) {
     items.push({
       key: 'models',
-      label: '模型可用性',
+      label: labels.modelAvailability,
       status: dashboardModelInsight.value.status,
       detail: dashboardModelInsight.value.detail,
       action: dashboardModelInsight.value.action,
@@ -794,40 +1182,41 @@ const connectionCheckItems = computed<Array<{ key: string, label: string, status
   }
 
   if ((stats.value?.average_duration_ms || 0) > 6000) {
-    items.push({ key: 'stability', label: '请求稳定性', status: '待处理', detail: '平均响应已超过 ' + formatDuration(stats.value?.average_duration_ms || 0) + '，更像持续拥塞而不是偶发波动。', action: '检查通道状态', to: '/monitor', tone: 'alert' })
+    items.push({ key: 'stability', label: labels.stability, status: labels.pending, detail: interpolate(checks.slowAlert, { duration: formatDuration(stats.value?.average_duration_ms || 0) }), action: checks.checkChannels, to: '/monitor', tone: 'alert' })
   } else if ((stats.value?.average_duration_ms || 0) > 3000 || requestsFocusEnabled.value) {
-    items.push({ key: 'stability', label: '请求稳定性', status: '留意', detail: '近期响应偏慢或刚经历限流，建议结合最近请求与错误账册判断是否已经恢复。', action: '回看最近请求', to: '/dashboard?focus=requests', tone: 'notice' })
+    items.push({ key: 'stability', label: labels.stability, status: labels.notice, detail: checks.slowNotice, action: checks.reviewRecent, to: '/dashboard?focus=requests', tone: 'notice' })
   } else {
-    items.push({ key: 'stability', label: '请求稳定性', status: '安稳', detail: '最近响应速度和请求节奏都较平稳，可继续正常放量。', action: '查看服务状态', to: '/monitor', tone: 'calm' })
+    items.push({ key: 'stability', label: labels.stability, status: labels.calm, detail: checks.stable, action: checks.viewStatus, to: '/monitor', tone: 'calm' })
   }
 
   if (!authStore.isSimpleMode && paymentEnabled && balance <= 0) {
-    items.push({ key: 'quota', label: '余额与额度', status: '待处理', detail: '账户余额已经为 0，请先充值或调整额度后再继续放量。', action: '去充值与兑换', to: '/purchase', tone: 'alert' })
+    items.push({ key: 'quota', label: labels.quota, status: labels.pending, detail: checks.quotaZero, action: checks.recharge, to: '/purchase', tone: 'alert' })
   } else if (!authStore.isSimpleMode && paymentEnabled && balanceRunway.value.days !== null && balanceRunway.value.days <= 7) {
-    items.push({ key: 'quota', label: '余额与额度', status: balanceRunway.value.days <= 3 ? '待处理' : '留意', detail: '按当前消耗速度预计还能运行 ' + formatRunwayDays(balanceRunway.value.days) + '，建议提前充值或先降速。', action: '去看续航估算', to: '/profile?focus=balance-notify', tone: balanceRunway.value.days <= 3 ? 'alert' : 'notice' })
+    items.push({ key: 'quota', label: labels.quota, status: balanceRunway.value.days <= 3 ? labels.pending : labels.notice, detail: interpolate(checks.quotaRunway, { days: formatRunwayDays(balanceRunway.value.days) }), action: checks.runwayEstimate, to: '/profile?focus=balance-notify', tone: balanceRunway.value.days <= 3 ? 'alert' : 'notice' })
   } else if (topQuota && topQuota.percent >= 85) {
-    items.push({ key: 'quota', label: '余额与额度', status: '留意', detail: platformLabel(topQuota.quota.platform) + ' 窗口已使用约 ' + Math.round(topQuota.percent) + '%，建议提前留出缓冲。', action: '查看账户窗口', to: '/profile', tone: 'notice' })
+    items.push({ key: 'quota', label: labels.quota, status: labels.notice, detail: interpolate(checks.quotaWindow, { platform: platformLabel(topQuota.quota.platform), percent: Math.round(topQuota.percent) }), action: checks.viewWindow, to: '/profile', tone: 'notice' })
   } else {
-    items.push({ key: 'quota', label: '余额与额度', status: '安稳', detail: '当前账户余额和平台窗口尚可继续承接请求，没有明显逼近阈值。', action: '查看额度摘要', to: '/profile', tone: 'calm' })
+    items.push({ key: 'quota', label: labels.quota, status: labels.calm, detail: checks.quotaReady, action: checks.viewQuota, to: '/profile', tone: 'calm' })
   }
 
   return items
 })
 
 const quotaSummary = computed(() => {
-  const base = [
+  const labels = dashboardCopy.value.labels
+  const base: QuotaSummaryItem[] = [
     {
-      label: '今日 Token',
+      label: labels.todayToken,
       value: formatTokens(stats.value?.today_tokens || 0),
-      note: '输入 ' + formatTokens(stats.value?.today_input_tokens || 0) + ' / 输出 ' + formatTokens(stats.value?.today_output_tokens || 0)
+      note: interpolate(labels.inputOutput, { input: formatTokens(stats.value?.today_input_tokens || 0), output: formatTokens(stats.value?.today_output_tokens || 0) })
     },
     {
-      label: '累计消耗',
+      label: labels.totalCost,
       value: '$' + formatCost(stats.value?.total_actual_cost || 0),
-      note: '标准 $' + formatCost(stats.value?.total_cost || 0)
+      note: labels.standardPrefix + formatCost(stats.value?.total_cost || 0)
     },
     {
-      label: '余额续航',
+      label: labels.balanceRunway,
       value: balanceRunway.value.value,
       note: balanceRunway.value.note
     }
@@ -841,7 +1230,7 @@ const quotaSummary = computed(() => {
       note: quotaUsageLabel(quota)
     })
   } else {
-    base.push({ label: '平台窗口', value: '开放', note: '暂无平台配额限制' })
+    base.push({ label: labels.platformWindow, value: labels.open, note: labels.noPlatformLimit })
   }
 
   return base
@@ -858,14 +1247,14 @@ const platformLabel = (platform: string) => PLATFORM_LABELS[platform] ?? platfor
 
 const quotaLimitLabel = (quota: PlatformQuotaItem) => {
   const limits = [quota.daily_limit_usd, quota.weekly_limit_usd, quota.monthly_limit_usd].filter((limit): limit is number => limit != null)
-  if (!limits.length) return '开放'
+  if (!limits.length) return dashboardCopy.value.labels.open
   return '$' + formatCost(Math.max(...limits))
 }
 
 const quotaUsageLabel = (quota: PlatformQuotaItem) => {
   const usages = [quota.daily_usage_usd, quota.weekly_usage_usd, quota.monthly_usage_usd].filter((usage): usage is number => usage != null)
-  if (!usages.length) return '窗口未使用'
-  return '最高用量 $' + formatCost(Math.max(...usages))
+  if (!usages.length) return dashboardCopy.value.labels.windowUnused
+  return dashboardCopy.value.labels.maxUsage + formatCost(Math.max(...usages))
 }
 const formatLD = (d: Date) => d.toISOString().split('T')[0]
 const startDate = ref(formatLD(new Date(Date.now() - 6 * 86400000)))
@@ -952,13 +1341,13 @@ const handleLogout = async () => {
 
 const loadStats = async () => {
   loading.value = true
-    errorMessage.value = '账册接口暂时没有回应'
+  errorMessage.value = dashboardCopy.value.errorCopy
   try {
     await authStore.refreshUser()
     stats.value = await usageAPI.getDashboardStats()
   } catch (error) {
     console.error('Failed to load dashboard stats:', error)
-    errorMessage.value = '账册接口暂时没有回应'
+    errorMessage.value = dashboardCopy.value.errorCopy
   } finally {
     loading.value = false
   }
@@ -1031,7 +1420,7 @@ const refreshAll = () => {
   loadDashboardKeyWorkbench()
 }
 
-const formatNumber = (n: number) => n.toLocaleString()
+const formatNumber = (n: number) => n.toLocaleString(localeCode.value)
 const formatMoney = (n: number) => n.toFixed(2)
 const formatCost = (n: number) => n.toFixed(4)
 const formatTokens = (t: number) => {
@@ -1040,7 +1429,9 @@ const formatTokens = (t: number) => {
   return t.toString()
 }
 const formatDuration = (ms: number) => ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${ms.toFixed(0)}ms`
-const formatRunwayDays = (days: number) => days >= 10 ? Math.round(days) + ' 天' : days.toFixed(1) + ' 天'
+const formatRunwayDays = (days: number) => interpolate(dashboardCopy.value.days, {
+  days: days >= 10 ? Math.round(days) : days.toFixed(1),
+})
 
 onMounted(() => {
   document.addEventListener('pointerdown', handleAccountPointerDown)
@@ -1257,20 +1648,36 @@ onBeforeUnmount(() => {
   align-items: start;
   justify-content: space-between;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .check-card-head span {
+  min-width: 0;
   color: #7b6a53;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.64rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .check-card-head strong {
+  min-width: 0;
   color: var(--sst-ink);
   font-size: 0.82rem;
   font-weight: 650;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.sst-dashboard-en .check-card-head span {
+  flex: 1 1 auto;
+}
+
+.sst-dashboard-en .check-card-head strong {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
@@ -1278,15 +1685,18 @@ onBeforeUnmount(() => {
   color: var(--sst-mute);
   font-size: 0.78rem;
   line-height: 1.66;
+  overflow-wrap: anywhere;
 }
 
 .check-card a {
   width: fit-content;
+  max-width: 100%;
   border-bottom: 1px solid rgba(167, 58, 42, 0.22);
   color: var(--sst-seal);
   font-size: 0.76rem;
   font-weight: 650;
   padding-bottom: 0.14rem;
+  overflow-wrap: anywhere;
 }
 
 .check-card.tone-calm {
@@ -1698,6 +2108,7 @@ onBeforeUnmount(() => {
 .watch-advice strong,
 .watch-advice small {
   display: block;
+  overflow-wrap: anywhere;
 }
 
 .watch-advice strong {
@@ -1799,6 +2210,8 @@ onBeforeUnmount(() => {
 .reason-item strong,
 .reason-item small {
   display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .reason-item strong {
@@ -1820,7 +2233,8 @@ onBeforeUnmount(() => {
   font-size: 0.74rem;
   font-style: normal;
   font-weight: 650;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .tone-calm em,
@@ -1901,12 +2315,11 @@ onBeforeUnmount(() => {
 
 .gate-link small {
   grid-column: 2;
-  overflow: hidden;
   color: var(--sst-mute);
   font-size: 0.69rem;
   font-weight: 400;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.34;
+  overflow-wrap: anywhere;
 }
 
 .gate-link:focus-visible,
@@ -2095,6 +2508,7 @@ onBeforeUnmount(() => {
 .water-ledger {
   display: grid;
   grid-template-columns: minmax(28rem, 1.12fr) minmax(28rem, 0.88fr);
+  align-items: start;
   gap: 0.58rem;
   padding: 0.58rem;
   padding-top: 0.52rem;
@@ -2111,6 +2525,15 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 13.2rem;
+}
+
+.sst-dashboard-en .usage-scroll {
+  align-self: start;
+  min-height: 0;
+}
+
+.sst-dashboard-en .call-list-footer {
+  margin-top: 1rem;
 }
 
 .focus-note {
@@ -2245,12 +2668,11 @@ onBeforeUnmount(() => {
 .notice-strip-copy strong {
   display: block;
   margin-top: 0.22rem;
-  overflow: hidden;
   color: var(--sst-ink);
   font-size: 0.88rem;
   font-weight: 620;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .notice-strip-copy small {
@@ -2259,6 +2681,7 @@ onBeforeUnmount(() => {
   color: var(--sst-mute);
   font-size: 0.7rem;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .notice-strip-meta {
@@ -2281,7 +2704,7 @@ onBeforeUnmount(() => {
   color: var(--sst-mute);
   font-size: 0.66rem;
   line-height: 1.4;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .folio {
@@ -2290,6 +2713,11 @@ onBeforeUnmount(() => {
     linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 26%),
     linear-gradient(90deg, rgba(99, 111, 94, 0.035), transparent 42%),
     rgba(250, 247, 239, 0.42);
+}
+
+.flow-folio {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .section-mark {
@@ -2323,7 +2751,8 @@ onBeforeUnmount(() => {
 .waterline {
   display: flex;
   align-items: end;
-  height: 9.2rem;
+  height: auto;
+  min-height: 9.2rem;
   gap: 0.34rem;
   padding: 0.24rem 0 0;
 }
@@ -2381,7 +2810,6 @@ onBeforeUnmount(() => {
 }
 
 .call-list li,
-.quota-list > div,
 .platform-list > div {
   display: flex;
   align-items: start;
@@ -2390,6 +2818,34 @@ onBeforeUnmount(() => {
   list-style: none;
   border-top: 1px solid rgba(198, 184, 157, 0.26);
   padding-top: 0.62rem;
+}
+
+.quota-list > div {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.72fr) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0.28rem 0.9rem;
+  min-width: 0;
+  list-style: none;
+  border-top: 1px solid rgba(198, 184, 157, 0.26);
+  padding-top: 0.62rem;
+}
+
+.quota-list > div > span,
+.quota-list > div > strong,
+.quota-list > div > small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quota-list > div > strong {
+  justify-self: end;
+  text-align: right;
+}
+
+.quota-list > div > small {
+  grid-column: 1 / -1;
+  line-height: 1.5;
 }
 
 .platform-list > div:first-child {
@@ -2463,7 +2919,7 @@ onBeforeUnmount(() => {
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
-  margin-top: auto;
+  margin-top: 1rem;
   border-top: 1px solid rgba(198, 184, 157, 0.26);
   padding-top: 1rem;
   color: var(--sst-mute);
@@ -2523,56 +2979,77 @@ onBeforeUnmount(() => {
 }
 
 .quota-list > div.quota-inline-row {
-  display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 0.72rem;
+  gap: 0.28rem 0.72rem;
 }
 
 .quota-list > div.quota-inline-row span,
 .quota-list > div.quota-inline-row strong,
 .quota-list > div.quota-inline-row small {
-  display: inline;
+  display: block;
+  grid-row: 1;
   margin-top: 0;
 }
 
 .quota-list > div.quota-inline-row span,
 .quota-list > div.quota-inline-row strong {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .quota-list > div.quota-inline-row small {
+  grid-column: 2;
   min-width: 0;
+  justify-self: stretch;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.quota-list > div.quota-inline-row strong {
+  grid-column: 3;
   justify-self: end;
-  text-align: right;
 }
 
 .quota-list > div:nth-child(3) {
-  display: grid;
-  gap: 0.22rem;
+  gap: 0.28rem 0.9rem;
 }
 
 .quota-list > div:nth-child(3) strong {
-  font-size: 1rem;
+  font-size: 0.82rem;
+  line-height: 1.15;
   white-space: nowrap;
 }
 
 .quota-list > div:nth-child(3) small {
-  max-width: 22ch;
+  max-width: none;
 }
 
 .quota-list > div:nth-child(3) span,
 .quota-list > div:nth-child(3) strong {
-  display: inline;
+  display: block;
 }
 
 .quota-list > div:nth-child(3) {
   align-items: baseline;
-  grid-template-columns: auto auto;
+  grid-template-columns: minmax(5.8rem, 0.5fr) minmax(0, 1fr);
 }
 
 .quota-list > div:nth-child(3) strong {
-  margin-left: 0.5rem;
+  margin-left: 0;
+}
+
+.sst-dashboard-en .quota-list > div {
+  grid-template-columns: minmax(8.3rem, 0.78fr) minmax(0, 1fr);
+}
+
+.sst-dashboard-en .quota-list > div > strong {
+  font-size: 0.82rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.sst-dashboard-en .quota-list > div:nth-child(3) strong {
+  font-size: 0.88rem;
 }
 
 .model-river > div {
@@ -3031,6 +3508,21 @@ onBeforeUnmount(() => {
   color: #9b8f79;
 }
 
+@media (min-width: 1121px) and (max-width: 1320px) {
+  .courtyard-stage,
+  .water-ledger {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-slips {
+    height: auto;
+  }
+
+  .watch-health-sheet .health-check-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1120px) {
   .courtyard-stage,
   .water-ledger,
@@ -3051,7 +3543,7 @@ onBeforeUnmount(() => {
   }
 
   .gate-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .ledger-slips {
@@ -3164,6 +3656,16 @@ onBeforeUnmount(() => {
   .quota-list > div,
   .platform-list > div {
     display: grid;
+  }
+
+  .quota-list > div {
+    grid-template-columns: 1fr;
+    gap: 0.18rem;
+  }
+
+  .quota-list > div > strong {
+    justify-self: start;
+    text-align: left;
   }
 
   .quota-list > div.quota-inline-row {

@@ -3,13 +3,13 @@
     <div class="orders-shell mx-auto max-w-[76rem] space-y-4 sm:space-y-5">
       <section class="orders-brief card p-6 lg:p-7">
         <div class="orders-brief-copy">
-          <span>往来账册</span>
-          <h2>查看充值、退款与处理记录</h2>
-          <p>站内会保留每次充值、退款与状态变动，便于你回看、核对与补记余额流转。</p>
+          <span>{{ ordersCopy.kicker }}</span>
+          <h2>{{ ordersCopy.title }}</h2>
+          <p>{{ ordersCopy.copy }}</p>
         </div>
         <button class="btn btn-primary inline-flex items-center gap-2" @click="router.push('/purchase')">
           <Icon name="wallet" size="sm" />
-          <span>充值与兑换</span>
+          <span>{{ t('payment.goToRedeem') }}</span>
         </button>
       </section>
 
@@ -17,7 +17,7 @@
       <div class="orders-filter card p-5">
         <div class="flex flex-wrap items-center gap-3">
           <div class="orders-filter-copy">
-            <span>筛选</span>
+            <span>{{ t('common.filter') }}</span>
             <strong>{{ currentFilterLabel }}</strong>
           </div>
           <Select v-model="currentFilter" :options="statusFilters" class="w-36" @change="fetchOrders" />
@@ -34,12 +34,12 @@
         <OrderTable :orders="orders" :loading="loading">
           <template #empty>
             <div class="orders-empty">
-              <span>暂无往来</span>
-              <strong>{{ currentFilter ? '当前筛选下暂无订单' : '还没有充值或退款记录' }}</strong>
-              <p>需要补充余额时，可从充值与兑换发起；待支付或已完成的记录都会在这里留痕。</p>
+              <span>{{ ordersCopy.emptyKicker }}</span>
+              <strong>{{ currentFilter ? ordersCopy.emptyFiltered : ordersCopy.emptyAll }}</strong>
+              <p>{{ ordersCopy.emptyCopy }}</p>
               <button class="btn btn-primary inline-flex items-center gap-2" @click="router.push('/purchase')">
                 <Icon name="wallet" size="sm" />
-                <span>充值与兑换</span>
+                <span>{{ t('payment.goToRedeem') }}</span>
               </button>
             </div>
           </template>
@@ -124,7 +124,7 @@ import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
 
@@ -137,6 +137,28 @@ const cancelTargetId = ref<number | null>(null)
 const refundTarget = ref<PaymentOrder | null>(null)
 const refundReason = ref('')
 const pagination = reactive({ page: 1, page_size: 20, total: 0 })
+
+const zhOrdersCopy = {
+  kicker: '往来账册',
+  title: '查看充值、退款与处理记录',
+  copy: '站内会保留每次充值、退款与状态变动，便于你回看、核对与补记余额流转。',
+  emptyKicker: '暂无往来',
+  emptyFiltered: '当前筛选下暂无订单',
+  emptyAll: '还没有充值或退款记录',
+  emptyCopy: '需要补充余额时，可从充值与兑换发起；待支付或已完成的记录都会在这里留痕。'
+}
+
+const enOrdersCopy = {
+  kicker: 'Order ledger',
+  title: 'Review top-ups, refunds, and processing records',
+  copy: 'Each recharge, refund, and status change is kept here so you can reconcile account balance movement later.',
+  emptyKicker: 'No records',
+  emptyFiltered: 'No orders match the current filter',
+  emptyAll: 'No top-up or refund records yet',
+  emptyCopy: 'Start from recharge and redeem when you need more balance. Pending and completed records will stay here.'
+}
+
+const ordersCopy = computed(() => locale.value === 'zh' ? zhOrdersCopy : enOrdersCopy)
 
 const statusFilters = computed(() => [
   { value: '', label: t('common.all') },

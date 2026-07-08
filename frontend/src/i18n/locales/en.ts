@@ -372,16 +372,256 @@ export default {
     adminCompliance: 'Deployment and Operation Compliance Commitment'
   },
 
+  brand: {
+    defaultName: 'SST'
+  },
+
+  publicSite: {
+    tagline: 'One gateway, quiet flow.',
+    enter: 'Enter',
+    nav: {
+      home: 'Home',
+      pricing: 'Pricing',
+      docs: 'Docs',
+      faq: 'FAQ',
+      contact: 'Contact',
+      terms: 'Terms',
+      privacy: 'Privacy'
+    },
+    theme: {
+      toLight: 'Switch to paper mode',
+      toDark: 'Switch to night mode',
+      lightShort: 'Paper',
+      darkShort: 'Night'
+    },
+    cta: {
+      title: 'When the path is clear, enter directly.',
+      description: 'Keys, usage, orders, and ledgers live behind one gateway.',
+      open: 'Get access',
+      dashboard: 'Dashboard',
+      backHome: 'Back home',
+      viewPricing: 'View pricing'
+    }
+  },
+
+  publicHome: {
+    heroSubtitle: 'Stable supply, clear metering, and careful access for long-term use.',
+    quietWords: ['Stable supply', 'Clear metering', 'Careful access', 'Long-term care'],
+    notice: {
+      aria: 'Front notice',
+      kicker: 'Notice',
+      listAria: 'Home capability anchors',
+      lines: [
+        'Not a shelf of parallel providers,',
+        'but access, monitoring, metering, and admission',
+        'arranged as one durable gateway.'
+      ]
+    },
+    trustAnchors: [
+      { index: 'I', title: 'Failover', copy: 'When upstreams fluctuate, switching stays inside the gateway.', copyClass: '', copyLines: [] },
+      { index: 'II', title: 'Unified ledger', copy: 'Requests, spend, balance, and groups return to one ledger.', copyClass: '', copyLines: [] },
+      { index: 'III', title: 'Layered access', copy: 'Groups, Keys, and risk boundaries stay separated.', copyClass: 'notice-copy-two-line', copyLines: ['Groups, Keys, and risk boundaries', 'stay separated.'] },
+      { index: 'IV', title: 'Transit only', copy: 'Requests are forwarded securely; Keys are not retained long term.', copyClass: 'notice-copy-two-line', copyLines: ['Requests are forwarded securely;', 'Keys are not retained long term.'] }
+    ],
+    imageWorkshop: {
+      title: 'Image Studio',
+      copy: 'Image generation is connected as a separate capability and can be reached through the same gateway.',
+      copyLines: ['Image generation is connected separately,', 'and reached through the same gateway.']
+    },
+    valueCards: [
+      { index: '01', title: 'Stable supply', copy: 'Multi-source access gathers into one durable gateway.', copyClass: 'value-copy-single-line' },
+      { index: '02', title: 'Clear checks', copy: 'Balance, usage, and call details line up for calmer daily reconciliation.', copyClass: '' },
+      { index: '03', title: 'Quiet permissions', copy: 'Permissions, channels, and risk boundaries reduce invalid or noisy calls.', copyClass: '' },
+      { index: '04', title: 'Long-term trust', copy: 'Traceable links and maintainable systems fit long-running work.', copyClass: '' }
+    ],
+    capabilityCopy: 'Load balancing, failover, and routing keep concurrency stable.',
+    providersKicker: 'Connected'
+  },
+
+  publicPricing: {
+    eyebrow: 'Pricing',
+    title: 'Model Pricing',
+    platformSwitch: 'Platform switcher',
+    empty: 'No models available.',
+    table: {
+      modelId: 'Model ID',
+      model: 'Model',
+      input: 'Input price',
+      output: 'Output price',
+      cacheWrite: 'Cache write',
+      cacheRead: 'Cache read'
+    },
+    contactPrefix: 'Need to confirm models or ledger details before access?',
+    contactAction: 'Contact support'
+  },
+
+  publicDocs: {
+    eyebrow: 'Docs',
+    title: 'API Docs',
+    toc: 'Contents',
+    tocCaption: 'Read in common order',
+    topicNavAria: 'Topic docs',
+    sections: [
+      { id: 'quickstart', label: 'Quick start' },
+      { id: 'authentication', label: 'Authentication' },
+      { id: 'models', label: 'Model list' },
+      { id: 'examples', label: 'Examples' },
+      { id: 'streaming', label: 'Streaming' },
+      { id: 'parameters', label: 'Parameters' },
+      { id: 'errors', label: 'Responses' },
+      { id: 'notes', label: 'Notes' }
+    ],
+    quickstart: {
+      kicker: 'Quick start',
+      title: 'Configure the Key and base address in an OpenAI-compatible way, then start calling.',
+      steps: {
+        login: 'Sign in to the console and create an API Key.',
+        configureBefore: 'Set the SDK',
+        or: 'or',
+        configureAfter: 'to',
+        authHeader: ', and include',
+        models: 'Call GET /v1/models first to confirm available models, then send chat requests.'
+      },
+      noticeTitle: 'Access note',
+      noticeBefore: 'Most clients only need changes to',
+      noticeAfter: '; model names should follow the model list response.'
+    },
+    authentication: {
+      kicker: 'Authentication',
+      title: 'Every API request must include a valid API Key in the Header.',
+      copy: 'Keys are account credentials. Do not expose them in public frontend code, client apps, or public repos. Store them server-side and proxy calls from your backend.',
+      recommendedTitle: 'Recommended',
+      recommendedBefore: 'Put the Key in a server environment variable such as',
+      recommendedAfter: ', then let the backend build the auth header.',
+      failureTitle: 'Common failures',
+      failureCopy: 'prefix missing, extra spaces around the Key, or disabled Keys may return 401.'
+    },
+    models: {
+      kicker: 'Model query',
+      title: 'Query the model list before integration to avoid wrong names or missing permissions.',
+      copyBefore: 'Different accounts, groups, channels, or permission scopes may return different models. The',
+      copyMiddle: 'field in the response is usually the',
+      copyAfter: 'value used in later',
+      copyEnd: 'requests.'
+    },
+    examples: {
+      kicker: 'Examples',
+      title: 'The three common call styles below can be adapted by replacing the model and message content.'
+    },
+    streaming: {
+      kicker: 'Streaming',
+      titleBefore: 'When you need partial output, set',
+      titleAfter: 'to',
+      copy: 'Compatible clients return content as SSE events. This is useful for chat windows, typewriter-style display, and faster first response.'
+    },
+    parameters: {
+      kicker: 'Common parameters',
+      title: 'These are the most common request fields. Actual support depends on the model and upstream capability.',
+      table: { name: 'Parameter', type: 'Type', description: 'Description' },
+      items: [
+        { name: 'model', type: 'string', copy: 'Model name to call. Confirm the concrete value through the model list first.' },
+        { name: 'messages', type: 'array', copy: 'Conversation messages in the OpenAI Chat Completions structure.' },
+        { name: 'temperature', type: 'number', copy: 'Optional. Controls randomness.' },
+        { name: 'stream', type: 'boolean', copy: 'Optional. Return streaming output when true.' },
+        { name: 'max_tokens', type: 'number', copy: 'Optional. Limits the maximum generated tokens for this request.' },
+        { name: 'top_p', type: 'number', copy: 'Optional. Controls sampling range; usually avoid large simultaneous changes with temperature.' }
+      ]
+    },
+    errors: {
+      kicker: 'Responses',
+      title: 'When an API returns an abnormal status, start with these common causes.',
+      items: [
+        { title: '401 Unauthorized', copy: 'API Key missing, invalid, disabled, or Header not using Bearer format.' },
+        { title: '403 Forbidden', copy: 'The account, group, or channel is not permitted to call this model.' },
+        { title: '404 Model Not Found', copy: 'The model name does not exist or does not match the model list response.' },
+        { title: '429 Rate Limited', copy: 'Requests are too frequent, quota is insufficient, or an upstream limit is active.' },
+        { title: '400 Bad Request', copy: 'Request body format is invalid, often in messages, stream type, or JSON syntax.' },
+        { title: '5xx Upstream Error', copy: 'Usually upstream service or network instability. Retry later and keep request time for debugging.' }
+      ]
+    },
+    notes: {
+      kicker: 'Notes',
+      title: 'When debugging, keep model name, time, error code, and request context first.',
+      items: [
+        { title: 'Check models first', copy: 'Available models may differ by account, group, or channel; call the model list before integration.' },
+        { title: 'Store Keys server-side', copy: 'Do not expose API Keys in browser code, mobile clients, or public repos.' },
+        { title: 'Use /v1', copy: 'OpenAI SDK base_url or baseURL usually points to the /v1 layer.' },
+        { title: 'Keep request facts', copy: 'Time, model, error code, and request id help identify upstream or permission issues.' }
+      ]
+    },
+    topicLinks: [
+      { to: '/docs/openai-compatible-api', kicker: 'OpenAI API', title: 'OpenAI Compatible API Access', copy: 'Replace base_url and API Key in existing SDKs to use the gateway.' },
+      { to: '/docs/base-url', kicker: 'Base URL', title: 'base_url Setup', copy: 'Confirm /v1, endpoint joining, and production domain boundaries.' },
+      { to: '/docs/api-key', kicker: 'API Key', title: 'API Key Usage', copy: 'Create, store, authenticate, and rotate Keys without leakage.' },
+      { to: '/docs/streaming', kicker: 'Streaming', title: 'Streaming', copy: 'Handle incremental responses with stream=true and SSE.' },
+      { to: '/docs/codex', kicker: 'Codex', title: 'Codex Client Access', copy: 'Configure endpoint, model, and ledger checks for Codex-style clients.' },
+      { to: '/docs/claude-code', kicker: 'Claude Code', title: 'Claude Code Access', copy: 'Manage Keys, permissions, and metering for Claude Code-style clients.' }
+    ]
+  },
+
+  authBrand: {
+    defaultSubtitle: 'Order, stability, and clear metering for long-term users.',
+    marks: { stable: 'Stable supply', ledger: 'Clear ledger', access: 'Careful access' },
+    cardKicker: 'Identity check',
+    cardTitle: 'Access credential',
+    copyright: 'All things in their proper place.',
+    loginTitle: 'Confirm identity',
+    loginSubtitle: 'Use email to enter your account, ledger, and gateway.',
+    registerTitle: 'Request access',
+    registerSubtitle: 'Create an identity for long-term use; future usage and Keys return to one ledger.',
+    loginAgreementRejectWarning: 'You cannot enter credentials or use quick sign-in before accepting the latest terms.',
+    loginAgreementRequiredWarning: 'Please read and accept the latest terms before signing in.',
+    registerAgreementRejectWarning: 'Please accept the latest terms before continuing registration or quick sign-in.',
+    registerAgreementRequiredWarning: 'Please read and accept the latest terms before requesting access.'
+  },
+
+  userShell: {
+    backHomeAria: 'Back to home',
+    defaultAccount: 'SST account',
+    accountMenu: 'Account menu',
+    accountMark: 'ID',
+    profileDocument: 'Identity record',
+    themeSettings: 'Appearance',
+    backDashboard: 'Back to courtyard',
+    navAria: 'User navigation',
+    fallbackTitle: 'User console',
+    theme: { system: 'System', light: 'Paper', dark: 'Night' },
+    nav: {
+      dashboard: 'Today',
+      keys: 'API Keys',
+      usage: 'Usage ledger',
+      monitor: 'Service status',
+      purchase: 'Recharge',
+      affiliate: 'Referrals',
+      profile: 'Account security'
+    },
+    marks: {
+      dashboard: 'T',
+      keys: 'K',
+      usage: 'L',
+      monitor: 'S',
+      purchase: '$',
+      affiliate: 'R',
+      profile: 'ID',
+      custom: 'P'
+    }
+  },
+
   // Navigation
   nav: {
     home: 'Home',
     pricing: 'Pricing',
     dashboard: 'Dashboard',
+    todayOverview: 'Today Overview',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
+    usageLedger: 'Usage Ledger',
     redeem: 'Redeem',
+    rechargeRedeem: 'Recharge & Redeem',
+    transactionOrders: 'Orders',
     affiliate: 'Affiliate Rebates',
+    teamReferrals: 'Referrals',
     affiliateManagement: 'Affiliate Rebates',
     affiliateInviteRecords: 'Invite Records',
     affiliateRebateRecords: 'Rebate Records',
@@ -417,7 +657,16 @@ export default {
     upstreamPools: 'Upstream Pools',
     channelMonitor: 'Line Diagnostics',
     channelStatus: 'Channel Status',
+    serviceStatus: 'Service Status',
+    imageWorkshop: 'Image Workshop',
     riskControl: 'Risk Control',
+    sections: {
+      overview: 'Overview',
+      keysCalls: 'Keys & Calls',
+      usageLedger: 'Usage & Ledger',
+      capabilitiesStatus: 'Capabilities & Status',
+      accountRules: 'Account & Rules',
+    },
   },
 
   // Auth
@@ -498,6 +747,18 @@ export default {
     invitationCodeValidating: 'Validating invitation code...',
     invitationCodeInvalidCannotRegister: 'Invalid invitation code. Please check and try again',
     oauthOrContinue: 'or continue with others',
+    loginAgreementPrompt: {
+      readAndAgree: 'I have read and agree to ',
+      needConsent: 'Please agree to the latest terms before continuing.',
+      disabledHint: 'Password sign-in and quick sign-in stay disabled until you agree.',
+      viewTerms: 'View terms',
+      updateNotice: 'Terms update notice',
+      updatedCopy: 'Our service terms were updated on {date}. Please read and agree to the following terms before continuing.',
+      recently: 'recently',
+      relatedDocs: 'Related documents',
+      reject: 'Reject',
+      accept: 'Agree and continue'
+    },
     linuxdo: {
       signIn: 'Continue with Linux.do',
       orContinue: 'or continue with email',
@@ -691,6 +952,18 @@ export default {
     startUsingApi: 'Start using the API to see your usage history here.',
     viewAllUsage: 'View all usage',
     quickActions: 'Quick Actions',
+    quickActionsCaption: 'Common entries',
+    quickKeysTitle: 'Keys and calls',
+    quickKeysDescription: 'View, create, and organize call credentials',
+    quickUsageTitle: 'Usage and ledger',
+    quickUsageDescription: 'Review requests, tokens, and cost by time range',
+    quickProfileTitle: 'Account and security',
+    quickProfileDescription: 'Review profile, bindings, alerts, and security settings',
+    quickProfileSimpleTitle: 'Account and rules',
+    quickProfileSimpleDescription: 'Review profile details and site rules',
+    recentUsageCaption: 'Recent call excerpt',
+    loadingRecentUsage: 'Collecting recent call records...',
+    loadingCharts: 'Calibrating charts...',
     createApiKey: 'Create API Key',
     generateNewKey: 'Generate a new API key',
     viewUsage: 'View Usage',
@@ -1481,6 +1754,14 @@ export default {
   redeem: {
     title: 'Redeem Code',
     description: 'Enter your redeem code to add balance or increase concurrency',
+    panelKicker: 'Redeem deposit',
+    panelTitle: 'Use a redeem code to add balance, concurrency, or account benefits',
+    redeemCodeDeposit: 'Redeem code deposit',
+    redirect: {
+      kicker: 'Redeem deposit',
+      title: 'Redirecting to Recharge & Redeem',
+      copy: 'Redeem codes now live on the unified page. You will be redirected shortly with the current redeem intent preserved.'
+    },
     currentBalance: 'Current Balance',
     concurrency: 'Concurrency',
     requests: 'requests',
@@ -1531,8 +1812,12 @@ export default {
     memberSince: 'Member Since',
     overviewTitle: 'Account Overview',
     overviewDescription: 'Check account status, profile sources, and common actions at a glance.',
+    basicsKicker: 'Profile update',
     basicsTitle: 'Profile & Avatar',
     basicsDescription: 'Keep your public profile details and avatar aligned.',
+    bindingsKicker: 'Sign-in methods',
+    bindingsHeading: 'Sign-in sources and identity credentials',
+    sourceKicker: 'Source notes',
     linkedProfileSources: 'Profile Sources',
     linkedProfileSourcesDescription: 'Some profile details may stay synced from third-party sign-in methods.',
     securityTitle: 'Security Settings',
@@ -1545,12 +1830,14 @@ export default {
     role: 'Role',
     enterUsername: 'Enter username',
     editProfile: 'Edit Profile',
+    editProfileKicker: 'Profile update',
     updateProfile: 'Update Profile',
     updating: 'Updating...',
     updateSuccess: 'Profile updated successfully',
     updateFailed: 'Failed to update profile',
     usernameRequired: 'Username is required',
     changePassword: 'Change Password',
+    passwordKicker: 'Password update',
     currentPassword: 'Current Password',
     newPassword: 'New Password',
     confirmNewPassword: 'Confirm New Password',
@@ -7656,6 +7943,9 @@ export default {
       failed: 'Payment Failed',
       backToRecharge: 'Back to Recharge',
       viewOrders: 'View Orders',
+      receiptKicker: 'Payment receipt',
+      successNote: 'The payment result has been written back to this page. You can also review settlement and payment details in Orders later.',
+      failedNote: 'This payment is not complete. Return to Recharge & Redeem to try again, or open Orders to check the current status.',
     },
     currentBalance: 'Current Balance',
     groupFallback: 'Group #{id}',
@@ -7671,8 +7961,10 @@ export default {
     externalPurchaseTitle: 'Buy in the external shop first, then come back here to redeem',
     externalPurchaseDescription: '',
     externalPurchaseAction: 'Go to shop',
+    viewOrders: 'View Orders',
     goToRedeem: 'Go to redeem',
     useRedeemCode: 'Use redeem code',
+    retryOrCheckOrders: 'Try another payment method, or open Orders first to confirm whether a pending order was created.',
     rechargeRatePreview: 'Current rate: 1 CNY = {usd} USD',
     rechargeCampaignBonus: 'Campaign Bonus',
     rechargeCampaignTotal: 'Campaign Total',

@@ -6,9 +6,9 @@
           <Icon name="wallet" size="lg" />
         </div>
         <div class="redeem-redirect-copy">
-          <span>兑换入账</span>
-          <strong>正在转往充值与兑换页</strong>
-          <p>兑换码入口已并入统一页面，稍后会自动跳转过去并保留当前入账意图。</p>
+          <span>{{ t('redeem.redirect.kicker') }}</span>
+          <strong>{{ t('redeem.redirect.title') }}</strong>
+          <p>{{ t('redeem.redirect.copy') }}</p>
         </div>
       </div>
     </div>
@@ -17,11 +17,13 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const router = useRouter()
+const { t } = useI18n()
 
 onMounted(() => {
   void router.replace({ path: '/purchase', query: { redeem: '1' } })

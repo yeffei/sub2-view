@@ -2,22 +2,22 @@
   <PublicPageLayout
     class="faq-page"
     tone="faq"
-    eyebrow="问答"
-    title="常见问题"
-    intro="入庭之前，先把边界问清楚。"
-    :highlights="['开通边界', '接入口径', '账册核对', '凭据安全']"
+    :eyebrow="pageContent.eyebrow"
+    :title="pageContent.title"
+    :intro="pageContent.intro"
+    :highlights="[...pageContent.highlights]"
   >
     <template #aside>
       <div class="faq-aside">
         <div>
-          <div class="faq-aside-kicker">SST</div>
-          <div class="faq-aside-title">统一入口，安静流转。</div>
+          <div class="faq-aside-kicker">{{ pageContent.aside.kicker }}</div>
+          <div class="faq-aside-title">{{ pageContent.aside.title }}</div>
           <p class="faq-aside-copy">
-            账户、分组、模型与额度，以控制台当前状态为准。
+            {{ pageContent.aside.copy }}
           </p>
         </div>
 
-        <div class="faq-aside-rules" aria-label="问答范围">
+        <div class="faq-aside-rules" :aria-label="pageContent.aside.rulesAria">
           <div v-for="item in asideRules" :key="item.title" class="faq-aside-rule">
             <Icon :name="item.icon" size="sm" />
             <span>{{ item.title }}</span>
@@ -39,18 +39,18 @@
             :target="publicContact.external ? '_blank' : undefined"
             :rel="publicContact.external ? 'noopener noreferrer' : undefined"
           >
-            <span>联系庭务</span>
+            <span>{{ pageContent.aside.contact }}</span>
             <strong>{{ publicContact.label }}</strong>
           </a>
           <div v-else class="faq-contact-link" role="note">
-            <span>联系庭务</span>
+            <span>{{ pageContent.aside.contact }}</span>
             <strong>{{ publicContact.label }}</strong>
           </div>
         </div>
       </div>
     </template>
 
-    <section class="faq-overview" aria-label="核心问题">
+    <section class="faq-overview" :aria-label="pageContent.overviewAria">
       <article v-for="item in overviewItems" :key="item.title" class="faq-overview-item">
         <div class="faq-overview-index">{{ item.index }}</div>
         <h2>{{ item.title }}</h2>
@@ -59,9 +59,9 @@
     </section>
 
     <section class="faq-main-grid">
-      <aside class="faq-toc" aria-label="问答目录">
+      <aside class="faq-toc" :aria-label="pageContent.tocAria">
         <div class="faq-toc-inner">
-          <div class="faq-toc-kicker">目录</div>
+          <div class="faq-toc-kicker">{{ pageContent.toc }}</div>
           <button
             v-for="group in faqGroups"
             :key="group.id"
@@ -104,27 +104,42 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 import { useAppStore } from '@/stores'
 import { resolvePublicContact } from '@/utils/contact'
 
 const appStore = useAppStore()
+const { locale } = useI18n()
 const publicContact = computed(() => resolvePublicContact(appStore.cachedPublicSettings?.contact_info || appStore.contactInfo))
 
-const asideRules = [
+const zhFaqContent = {
+  eyebrow: '问答',
+  title: '常见问题',
+  intro: '入庭之前，先把边界问清楚。',
+  highlights: ['开通边界', '接入口径', '账册核对', '凭据安全'],
+  aside: {
+    rulesAria: '问答范围',
+    kicker: 'SST',
+    title: '统一入口，安静流转。',
+    copy: '账户、分组、模型与额度，以控制台当前状态为准。',
+    contact: '联系庭务',
+  },
+  overviewAria: '核心问题',
+  tocAria: '问答目录',
+  toc: '目录',
+  asideRules: [
   { title: '价格看价目', icon: 'dollar' },
   { title: '接入看文档', icon: 'book' },
   { title: '状态看控制台', icon: 'grid' },
-] as const
-
-const quickLinks = [
+  ],
+  quickLinks: [
   { to: '/pricing', label: '查看价目' },
   { to: '/docs', label: '接入文档' },
   { to: '/login', label: '进入控制台' },
-] as const
-
-const overviewItems = [
+  ],
+  overviewItems: [
   {
     index: '甲',
     title: '开通之前',
@@ -140,9 +155,8 @@ const overviewItems = [
     title: '遇到波动',
     copy: '保留时间、模型、错误码与 request id，便于定位线路或权限问题。',
   },
-] as const
-
-const faqGroups = [
+  ],
+  faqGroups: [
   {
     id: 'entry',
     index: '一',
@@ -238,14 +252,103 @@ const faqGroups = [
       },
     ],
   },
-] as const
+  ],
+} as const
 
-type FaqGroupId = (typeof faqGroups)[number]['id']
+const enFaqContent = {
+  eyebrow: 'FAQ',
+  title: 'Frequently Asked Questions',
+  intro: 'Clarify the boundaries before you enter.',
+  highlights: ['Access scope', 'Integration rules', 'Ledger checks', 'Credential safety'],
+  aside: {
+    rulesAria: 'FAQ scope',
+    kicker: 'SST',
+    title: 'One gateway, quiet flow.',
+    copy: 'Accounts, groups, models, and quotas follow the current console state.',
+    contact: 'Contact support',
+  },
+  overviewAria: 'Core questions',
+  tocAria: 'FAQ contents',
+  toc: 'Contents',
+  asideRules: [
+    { title: 'Pricing on the pricing page', icon: 'dollar' },
+    { title: 'Integration in the docs', icon: 'book' },
+    { title: 'Status in the console', icon: 'grid' },
+  ],
+  quickLinks: [
+    { to: '/pricing', label: 'View pricing' },
+    { to: '/docs', label: 'Read docs' },
+    { to: '/login', label: 'Enter console' },
+  ],
+  overviewItems: [
+    { index: 'I', title: 'Before access', copy: 'Confirm plans, rates, models, and groups before choosing an integration path.' },
+    { index: 'II', title: 'After integration', copy: 'Keys, base_url, model lists, and usage records can be checked from one entrance.' },
+    { index: 'III', title: 'When issues occur', copy: 'Keep the time, model, error code, and request id so route or permission issues can be located.' },
+  ],
+  faqGroups: [
+    {
+      id: 'entry',
+      index: '1',
+      title: 'Access and Eligibility',
+      items: [
+        { question: 'What usage pattern is SST best for?', answer: 'SST is better suited to long-term, stable, auditable API usage, such as developer tools, automation, internal services, and call chains that need one ledger.' },
+        { question: 'Can every model be called immediately after registration?', answer: 'Not always. Available models and permissions depend on account status, groups, plans, and backend configuration. The console model list and actual API response are authoritative.' },
+        { question: 'What should I confirm first before access?', answer: 'Confirm available plans, rates, model scope, group permissions, and payment methods. For team usage, also confirm Key management, ledger reconciliation, and quota reminders.' },
+      ],
+    },
+    {
+      id: 'access',
+      index: '2',
+      title: 'Integration and Calls',
+      items: [
+        { question: 'Can an existing OpenAI SDK connect directly?', answer: 'Usually yes. Replace the SDK API Key with the Key generated in the SST console, and set base_url or baseURL to the documented /v1 address.' },
+        { question: 'Where should model names be confirmed?', answer: 'Prefer the model list API or the console model list. Do not rely on memory. Different groups, accounts, and upstream capabilities may return different model scopes.' },
+        { question: 'Is streaming supported?', answer: 'Yes. OpenAI-compatible stream calls are supported. Clients process partial output through SSE events, subject to the selected model and upstream capability.' },
+      ],
+    },
+    {
+      id: 'billing',
+      index: '3',
+      title: 'Metering and Ledger',
+      items: [
+        { question: 'Where can I view balance, usage, and orders?', answer: 'After signing in, use the console. Balance, orders, call records, and usage details are gathered in one ledger for time and model reconciliation.' },
+        { question: 'How do pricing-page rates relate to actual charges?', answer: 'The pricing page explains the public metering rules. Actual charges also depend on account group, plan, model price, and backend settings. Ledger records are authoritative.' },
+        { question: 'What if usage differs from expectations?', answer: 'First filter call records by time, Key, model, and request type. If questions remain, keep the order number, request time, and related records before contacting support.' },
+      ],
+    },
+    {
+      id: 'stability',
+      index: '4',
+      title: 'Stability and Troubleshooting',
+      items: [
+        { question: 'What happens when upstream services fluctuate?', answer: 'The system tries to preserve gateway continuity through routing, failover, and account scheduling. Third-party incidents, rate limits, or permission changes may still affect individual requests.' },
+        { question: 'What should I check first for 401, 403, or 429?', answer: 'For 401, check the Key and Bearer format. For 403, check model permission and group scope. For 429, check request rate, balance, plan limits, and upstream rate windows.' },
+        { question: 'What information helps when reporting issues?', answer: 'Provide request time, model name, error code, request id, Key prefix, and a brief usage scenario. Do not send full API Keys or sensitive request content.' },
+      ],
+    },
+    {
+      id: 'security',
+      index: '5',
+      title: 'Credentials and Boundaries',
+      items: [
+        { question: 'Where should API Keys be stored?', answer: 'Store Keys in server-side environment variables or backend configuration. Do not place them in browser code, mobile packages, public repositories, screenshots, or shareable config files.' },
+        { question: 'What should I do if a Key leaks?', answer: 'Disable or delete the old Key immediately, create a new one, and review recent call records, balance changes, and abnormal request sources.' },
+        { question: 'Is request content stored as long-term profile data?', answer: 'SST acts as a gateway for forwarding, metering, and necessary audit data. The exact retention scope follows the privacy policy, terms, and actual backend configuration.' },
+      ],
+    },
+  ],
+} as const
 
-const activeGroupId = ref<FaqGroupId>('entry')
-const activeFaqGroup = computed(() => faqGroups.find(group => group.id === activeGroupId.value) ?? faqGroups[0])
+const pageContent = computed(() => locale.value.startsWith('zh') ? zhFaqContent : enFaqContent)
+const asideRules = computed(() => pageContent.value.asideRules)
+const quickLinks = computed(() => pageContent.value.quickLinks)
+const overviewItems = computed(() => pageContent.value.overviewItems)
+const faqGroups = computed(() => pageContent.value.faqGroups)
 
-function selectGroup(id: FaqGroupId) {
+const activeGroupId = ref('entry')
+const activeFaqGroup = computed(() => faqGroups.value.find(group => group.id === activeGroupId.value) ?? faqGroups.value[0])
+
+function selectGroup(id: string) {
   activeGroupId.value = id
 }
 </script>

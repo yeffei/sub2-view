@@ -6,22 +6,22 @@
           <div>
             <div class="mb-4 flex items-center gap-4">
               <span class="h-px w-14 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-              <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">密钥庭册</span>
+              <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">{{ keysCopy.kicker }}</span>
             </div>
-            <h1 class="font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper sm:text-4xl">调用凭证</h1>
+            <h1 class="font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper sm:text-4xl">{{ keysCopy.title }}</h1>
           </div>
 
           <div class="keys-ledger grid gap-3 sm:grid-cols-3 lg:min-w-[28rem]">
             <div class="keys-ledger-item">
-              <span>当前清册</span>
+              <span>{{ keysCopy.currentList }}</span>
               <strong>{{ pagination.total.toLocaleString() }}</strong>
             </div>
             <div class="keys-ledger-item">
-              <span>本页启用</span>
+              <span>{{ keysCopy.activeOnPage }}</span>
               <strong>{{ activeKeyCount.toLocaleString() }}</strong>
             </div>
             <div class="keys-ledger-item">
-              <span>分组可用</span>
+              <span>{{ keysCopy.groupsAvailable }}</span>
               <strong>{{ groups.length.toLocaleString() }}</strong>
             </div>
           </div>
@@ -37,8 +37,8 @@
                 class="w-full"
                 :options="keyFilterOptions"
                 :searchable="true"
-                aria-label="选择密钥"
-                search-placeholder="搜索密钥名称或前缀"
+                :aria-label="keysCopy.selectKeyAria"
+                :search-placeholder="keysCopy.searchKeyPlaceholder"
                 dropdown-class="keys-filter-dropdown"
                 @update:model-value="onKeyFilterChange"
               />
@@ -49,7 +49,7 @@
                 :model-value="filterGroupId"
                 class="w-full"
                 :options="groupFilterOptions"
-                aria-label="选择分组"
+                :aria-label="keysCopy.selectGroupAria"
                 dropdown-class="keys-filter-dropdown"
                 @update:model-value="onGroupFilterChange"
               />
@@ -60,7 +60,7 @@
                 :model-value="filterStatus"
                 class="w-full"
                 :options="statusFilterOptions"
-                aria-label="选择状态"
+                :aria-label="keysCopy.selectStatusAria"
                 dropdown-class="keys-filter-dropdown"
                 @update:model-value="onStatusFilterChange"
               />
@@ -97,17 +97,17 @@
         <div class="keys-data-shell">
           <div class="keys-access-strip">
             <div class="keys-access-value">
-              <span>接入地址</span>
+              <span>{{ keysCopy.endpoint }}</span>
               <strong>{{ resolvedApiBaseUrl }}</strong>
             </div>
             <div class="keys-access-strip-actions">
               <button type="button" @click="copyEndpoint">
                 <Icon name="clipboard" size="sm" />
-                复制地址
+                {{ keysCopy.copyEndpoint }}
               </button>
               <button type="button" :disabled="apiKeys.length === 0" @click="openConnectionTestDialog">
                 <Icon name="link" size="sm" />
-                接入体检
+                {{ keysCopy.connectionCheck }}
               </button>
             </div>
           </div>
@@ -206,11 +206,11 @@
                   <strong>{{ formatUsd(workbenchStats[row.id]?.total_actual_cost, 4) }}</strong>
                 </div>
                 <div class="key-usage-stat">
-                  <span>24h 成功</span>
+                  <span>{{ keysCopy.success24h }}</span>
                   <strong>{{ (workbenchStats[row.id]?.success_requests_24h ?? 0).toLocaleString() }}</strong>
                 </div>
                 <div class="key-usage-stat">
-                  <span>24h 胜率</span>
+                  <span>{{ keysCopy.winRate24h }}</span>
                   <strong>{{ formatSuccessRate(workbenchStats[row.id]?.success_rate_24h) }}</strong>
                 </div>
               </div>
@@ -259,7 +259,7 @@
                   class="key-health-link"
                   @click="openKeyErrorLedger(row.id)"
                 >
-                  查看最近失败
+                  {{ keysCopy.viewRecentFailures }}
                 </button>
               </div>
             </div>
@@ -350,7 +350,7 @@
 
     <BaseDialog
       :show="showConnectionTestDialog"
-      title="接入配置"
+      :title="keysCopy.connectionConfig"
       width="normal"
       class="connection-test-modal"
       @close="closeConnectionTestDialog"
@@ -371,10 +371,10 @@
 
         <div class="integration-kit" v-if="selectedConnectionTestKey">
           <div class="integration-kit-actions">
-            <button type="button" @click="copyIntegrationSnippet('curl')">复制 curl</button>
-            <button type="button" @click="copyIntegrationSnippet('openai')">复制 OpenAI SDK</button>
-            <button type="button" @click="copyIntegrationSnippet('env')">复制环境变量</button>
-            <button type="button" @click="openUseKeyModalFromConnectionTest">查看全量配置</button>
+            <button type="button" @click="copyIntegrationSnippet('curl')">{{ keysCopy.copyCurl }}</button>
+            <button type="button" @click="copyIntegrationSnippet('openai')">{{ keysCopy.copyOpenAiSdk }}</button>
+            <button type="button" @click="copyIntegrationSnippet('env')">{{ keysCopy.copyEnv }}</button>
+            <button type="button" @click="openUseKeyModalFromConnectionTest">{{ keysCopy.viewFullConfig }}</button>
           </div>
         </div>
 
@@ -384,10 +384,10 @@
         >
           <div class="connection-model-brief-head">
             <div>
-              <span>近期模型提示</span>
+              <span>{{ keysCopy.recentModelHints }}</span>
               <strong>{{ selectedConnectionLatestErrorLabel }}</strong>
             </div>
-            <button type="button" @click="openKeyErrorLedger(selectedConnectionTestKey.id)">查看最近失败</button>
+            <button type="button" @click="openKeyErrorLedger(selectedConnectionTestKey.id)">{{ keysCopy.viewRecentFailures }}</button>
           </div>
           <ul v-if="selectedConnectionModelHints.length" class="connection-model-brief-list">
             <li v-for="hint in selectedConnectionModelHints" :key="hint">{{ hint }}</li>
@@ -397,22 +397,22 @@
         <div v-if="connectionTestResult" class="connection-test-report" :class="`is-${connectionTestResult.tone}`">
           <div class="connection-report-head">
             <div>
-              <span>体检记录</span>
+              <span>{{ keysCopy.checkRecord }}</span>
               <strong>{{ connectionTestResult.title }}</strong>
             </div>
-            <button type="button" @click="copyConnectionDiagnosticReport">复制报告</button>
+            <button type="button" @click="copyConnectionDiagnosticReport">{{ keysCopy.copyReport }}</button>
           </div>
           <p>{{ connectionTestResult.detail }}</p>
           <div class="connection-report-grid">
-            <div><span>接入地址</span><strong>{{ resolvedApiBaseUrl }}/v1</strong></div>
-            <div><span>密钥状态</span><strong>{{ selectedConnectionTestKey?.status || '-' }}</strong></div>
-            <div><span>模型接口</span><strong>{{ connectionTestResult.statusCode ? 'HTTP ' + connectionTestResult.statusCode : connectionTestResult.tone === 'success' ? '可访问' : '未完成' }}</strong></div>
-            <div><span>响应耗时</span><strong>{{ connectionTestResult.latencyMs !== null ? connectionTestResult.latencyMs + 'ms' : '-' }}</strong></div>
+            <div><span>{{ keysCopy.endpoint }}</span><strong>{{ resolvedApiBaseUrl }}/v1</strong></div>
+            <div><span>{{ keysCopy.keyStatus }}</span><strong>{{ selectedConnectionTestKey?.status || '-' }}</strong></div>
+            <div><span>{{ keysCopy.modelsEndpoint }}</span><strong>{{ connectionTestResult.statusCode ? 'HTTP ' + connectionTestResult.statusCode : connectionTestResult.tone === 'success' ? keysCopy.reachable : keysCopy.notFinished }}</strong></div>
+            <div><span>{{ keysCopy.responseLatency }}</span><strong>{{ connectionTestResult.latencyMs !== null ? connectionTestResult.latencyMs + 'ms' : '-' }}</strong></div>
           </div>
           <div v-if="connectionTestResult.sampleModels.length" class="connection-model-samples">
             <div class="connection-model-samples-head">
-              <span>模型可见性</span>
-              <strong>{{ connectionTestResult.availableModelCount !== null ? connectionTestResult.availableModelCount + ' 个可见模型' : '-' }}</strong>
+              <span>{{ keysCopy.modelVisibility }}</span>
+              <strong>{{ connectionTestResult.availableModelCount !== null ? keysCopy.visibleModels(connectionTestResult.availableModelCount) : '-' }}</strong>
             </div>
             <div class="connection-model-sample-list">
               <code v-for="model in visibleConnectionModels" :key="model">{{ model }}</code>
@@ -422,7 +422,7 @@
                 class="connection-model-sample-more"
                 @click="toggleConnectionModelsExpanded"
               >
-                {{ showAllConnectionModels ? '收起' : '+' + hiddenConnectionModelCount }}
+                {{ showAllConnectionModels ? t('common.collapse') : '+' + hiddenConnectionModelCount }}
               </button>
             </div>
           </div>
@@ -431,7 +431,7 @@
       </div>
       <template #footer>
         <div class="flex justify-end gap-3">
-          <button type="button" class="btn btn-secondary" @click="closeConnectionTestDialog">取消</button>
+          <button type="button" class="btn btn-secondary" @click="closeConnectionTestDialog">{{ t('common.cancel') }}</button>
           <button
             type="button"
             class="btn btn-primary"
@@ -439,7 +439,7 @@
             @click="testKeyConnection(selectedConnectionTestKey)"
           >
             <Icon name="refresh" size="sm" :class="testingKeyId !== null ? 'animate-spin' : ''" />
-            {{ testingKeyId !== null ? '体检中…' : '开始体检' }}
+            {{ testingKeyId !== null ? keysCopy.checking : keysCopy.startCheck }}
           </button>
         </div>
       </template>
@@ -553,7 +553,7 @@
             @click="advancedSettingsExpanded = !advancedSettingsExpanded"
           >
             <div class="key-advanced-copy">
-              <span>高级控制</span>
+              <span>{{ keysCopy.advancedControl }}</span>
               <strong>{{ advancedSettingsSummary }}</strong>
             </div>
             <div class="key-advanced-meta">
@@ -1121,7 +1121,7 @@
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useRoute, useRouter } from 'vue-router'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 import { keysAPI, authAPI, userGroupsAPI, usageAPI } from '@/api'
@@ -1170,13 +1170,201 @@ const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
+const zhKeysCopy = {
+  kicker: '密钥庭册',
+  title: '调用凭证',
+  currentList: '当前清册',
+  activeOnPage: '本页启用',
+  groupsAvailable: '分组可用',
+  selectKeyAria: '选择密钥',
+  searchKeyPlaceholder: '搜索密钥名称或前缀',
+  selectGroupAria: '选择分组',
+  selectStatusAria: '选择状态',
+  endpoint: '接入地址',
+  copyEndpoint: '复制地址',
+  connectionCheck: '接入体检',
+  success24h: '24h 成功',
+  winRate24h: '24h 胜率',
+  viewRecentFailures: '查看最近失败',
+  connectionConfig: '接入配置',
+  copyCurl: '复制 curl',
+  copyOpenAiSdk: '复制 OpenAI SDK',
+  copyEnv: '复制环境变量',
+  viewFullConfig: '查看全量配置',
+  recentModelHints: '近期模型提示',
+  checkRecord: '体检记录',
+  copyReport: '复制报告',
+  keyStatus: '密钥状态',
+  modelsEndpoint: '模型接口',
+  responseLatency: '响应耗时',
+  reachable: '可访问',
+  notFinished: '未完成',
+  modelVisibility: '模型可见性',
+  checking: '体检中…',
+  startCheck: '开始体检',
+  advancedControl: '高级控制',
+  ledger: '账册',
+  createdAt: '创建时间',
+  healthStatus: '健康状态',
+  allKeys: '全部密钥',
+  ungrouped: '未分组',
+  defaultLimits: '当前使用默认限制',
+  advancedEnabled: (count: number) => `已启用 ${count} 项高级设置`,
+  lastCall: (date: string) => `最近调用 ${date}`,
+  noCalls: '暂无调用',
+  requestPulse: (attempts: number, successes: number) => `24h 共 ${attempts} 次，请求成功 ${successes} 次`,
+  noRequests24h: '24h 暂无请求',
+  loadingRecent: '正在整理最近请求',
+  groupOk: '分组正常',
+  noGroup: '未绑定分组',
+  inactive: '当前已停用',
+  quotaExhausted: '当前额度已耗尽',
+  expired: '当前已过期',
+  copiedEndpoint: '接入地址已复制',
+  errorLedgerUnavailable: '错误账册暂未开放，请联系管理员开启后查看。',
+  copiedCurl: 'curl 已复制',
+  copiedSdk: 'SDK 配置已复制',
+  copiedEnv: '环境变量已复制',
+  reportCopied: '诊断报告已复制',
+  reportTitle: '山枢庭 SST 接入体检报告',
+  checkedAt: '检查时间',
+  conclusion: '结论',
+  detail: '说明',
+  visibleModelCount: '可见模型',
+  sampleModels: '示例模型',
+  suggestion: '建议',
+  visibleModels: (count: number) => `${count} 个可见模型`,
+  modelCount: (count: number) => `${count} 个`,
+  joinList: '，',
+  joinHints: '；',
+  health: {
+    disabledTitle: '密钥未启用',
+    disabledDetail: '当前密钥未处于 active 状态，建议先启用，或换一枚可用密钥后再体检。',
+    disabledAction: '先启用这枚密钥，或换一枚 active 状态的可用密钥后再检测。',
+    noModelsTitle: '模型接口已连通，但当前未返回可用模型',
+    noModelsDetail: '这把 Key 可以访问 /v1/models，但当前分组下没有返回可见模型，通常意味着模型列表未开放、线路未覆盖，或上游还没准备好。',
+    noModelsAction: '优先检查当前 Key 绑定分组的模型列表配置，以及这条线路是否真的向用户公开了目标模型。',
+    passedTitle: '接入体检通过',
+    passedDetail: '模型接口可访问，当前接入地址与密钥可用于基础调用。',
+    failedTitle: '接入体检未通过',
+    unauthorized: (status: number) => `模型接口返回 HTTP ${status}，更像密钥未通过校验，或当前分组没有查看模型列表的权限。`,
+    rateLimited: '模型接口返回 HTTP 429，当前更像线路或上游在限流窗口内。',
+    serverError: (status: number) => `模型接口返回 HTTP ${status}，当前更像线路或上游暂时不可用。`,
+    genericHttp: (status: number) => `模型接口返回 HTTP ${status}，请检查密钥权限、分组或接入地址。`,
+    returned: '接口返回：',
+    unauthorizedAction: '优先检查密钥是否启用、是否复制完整，以及分组权限是否允许访问模型列表。',
+    rateLimitAction: '先拉开重试间隔；如果最近失败里已经提示某个模型限流，优先按那个模型处理。',
+    genericAction: '建议稍后重试；若持续失败，可复制体检记录并结合最近模型提示一起排查。',
+    failedToast: (status: number) => `接入体检未通过：HTTP ${status}`,
+    unreachableTitle: '无法完成接入体检',
+    unreachableDetail: '请求未能抵达模型接口，请检查接入地址、浏览器跨域限制或当前网络。',
+    unreachableAction: '优先确认当前站点接入地址、浏览器网络和跨域限制；必要时复制体检记录给客服排查。',
+    unreachableToast: '接入体检失败，请检查接入地址、浏览器跨域限制或当前网络'
+  }
+}
+
+const enKeysCopy = {
+  kicker: 'Key ledger',
+  title: 'API credentials',
+  currentList: 'Current list',
+  activeOnPage: 'Active keys',
+  groupsAvailable: 'Groups',
+  selectKeyAria: 'Select key',
+  searchKeyPlaceholder: 'Search key name or prefix',
+  selectGroupAria: 'Select group',
+  selectStatusAria: 'Select status',
+  endpoint: 'Endpoint',
+  copyEndpoint: 'Copy endpoint',
+  connectionCheck: 'Connection check',
+  success24h: '24h success',
+  winRate24h: '24h win rate',
+  viewRecentFailures: 'View recent failures',
+  connectionConfig: 'Integration config',
+  copyCurl: 'Copy curl',
+  copyOpenAiSdk: 'Copy OpenAI SDK',
+  copyEnv: 'Copy env vars',
+  viewFullConfig: 'View full config',
+  recentModelHints: 'Recent model hints',
+  checkRecord: 'Check record',
+  copyReport: 'Copy report',
+  keyStatus: 'Key status',
+  modelsEndpoint: 'Models endpoint',
+  responseLatency: 'Response latency',
+  reachable: 'Reachable',
+  notFinished: 'Not finished',
+  modelVisibility: 'Model visibility',
+  checking: 'Checking...',
+  startCheck: 'Start check',
+  advancedControl: 'Advanced controls',
+  ledger: 'Ledger',
+  createdAt: 'Created',
+  healthStatus: 'Health',
+  allKeys: 'All keys',
+  ungrouped: 'Ungrouped',
+  defaultLimits: 'Using default limits',
+  advancedEnabled: (count: number) => `${count} advanced settings enabled`,
+  lastCall: (date: string) => `Last call ${date}`,
+  noCalls: 'No calls yet',
+  requestPulse: (attempts: number, successes: number) => `24h total ${attempts}, successful ${successes}`,
+  noRequests24h: 'No requests in 24h',
+  loadingRecent: 'Collecting recent requests',
+  groupOk: 'Group OK',
+  noGroup: 'No group bound',
+  inactive: 'Currently disabled',
+  quotaExhausted: 'Quota exhausted',
+  expired: 'Expired',
+  copiedEndpoint: 'Endpoint copied',
+  errorLedgerUnavailable: 'Error ledger is not enabled. Ask an administrator to turn it on.',
+  copiedCurl: 'curl copied',
+  copiedSdk: 'SDK config copied',
+  copiedEnv: 'Environment variables copied',
+  reportCopied: 'Diagnostic report copied',
+  reportTitle: 'SST connection check report',
+  checkedAt: 'Checked at',
+  conclusion: 'Conclusion',
+  detail: 'Details',
+  visibleModelCount: 'Visible models',
+  sampleModels: 'Sample models',
+  suggestion: 'Suggestion',
+  visibleModels: (count: number) => `${count} visible models`,
+  modelCount: (count: number) => `${count}`,
+  joinList: ', ',
+  joinHints: '; ',
+  health: {
+    disabledTitle: 'Key is not active',
+    disabledDetail: 'This key is not in active status. Enable it first, or choose another active key for the check.',
+    disabledAction: 'Enable this key, or switch to an active key and test again.',
+    noModelsTitle: 'Models endpoint is reachable, but no models were returned',
+    noModelsDetail: 'This key can access /v1/models, but the current group returned no visible models. The model list may be closed, the route may not cover it, or upstream may not be ready.',
+    noModelsAction: 'Check the model list configuration for this key group, and confirm the route is actually exposed to users.',
+    passedTitle: 'Connection check passed',
+    passedDetail: 'The models endpoint is reachable. This endpoint and key are ready for basic calls.',
+    failedTitle: 'Connection check failed',
+    unauthorized: (status: number) => `The models endpoint returned HTTP ${status}. The key likely failed validation, or this group lacks permission to view the model list.`,
+    rateLimited: 'The models endpoint returned HTTP 429. The route or upstream is likely in a rate-limit window.',
+    serverError: (status: number) => `The models endpoint returned HTTP ${status}. The route or upstream may be temporarily unavailable.`,
+    genericHttp: (status: number) => `The models endpoint returned HTTP ${status}. Check key permission, group, or endpoint configuration.`,
+    returned: 'Response: ',
+    unauthorizedAction: 'Check that the key is active, copied completely, and allowed to access the model list.',
+    rateLimitAction: 'Increase retry intervals first. If recent failures mention a specific model rate limit, start there.',
+    genericAction: 'Try again later. If it keeps failing, copy this check record and compare it with recent model hints.',
+    failedToast: (status: number) => `Connection check failed: HTTP ${status}`,
+    unreachableTitle: 'Connection check could not complete',
+    unreachableDetail: 'The request did not reach the models endpoint. Check the endpoint address, browser CORS limits, or current network.',
+    unreachableAction: 'Confirm the site endpoint, browser network, and CORS settings first. Copy the record for support if needed.',
+    unreachableToast: 'Connection check failed. Check endpoint address, CORS limits, or current network.'
+  }
+}
+
+const keysCopy = computed(() => locale.value === 'zh' ? zhKeysCopy : enKeysCopy)
+
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true, class: 'min-w-[8rem]' },
   { key: 'key', label: t('keys.apiKey'), sortable: false, class: 'min-w-[8.75rem]' },
   { key: 'group', label: t('keys.group'), sortable: false, class: 'min-w-[8rem]' },
-  { key: 'usage', label: '账册', sortable: false, class: 'min-w-[12rem]' },
-  { key: 'created_at', label: '创建时间', sortable: true, class: 'min-w-[6.25rem]' },
-  { key: 'status', label: '健康状态', sortable: true, class: 'min-w-[7.5rem]' },
+  { key: 'usage', label: keysCopy.value.ledger, sortable: false, class: 'min-w-[12rem]' },
+  { key: 'created_at', label: keysCopy.value.createdAt, sortable: true, class: 'min-w-[6.25rem]' },
+  { key: 'status', label: keysCopy.value.healthStatus, sortable: true, class: 'min-w-[7.5rem]' },
   { key: 'actions', label: t('common.actions'), sortable: false, class: 'min-w-[6rem]' }
 ])
 
@@ -1188,7 +1376,7 @@ const selectedConnectionWorkbenchSummary = computed(() => {
   if (!selectedConnectionTestKey.value) return null
   return getWorkbenchStat(selectedConnectionTestKey.value.id)
 })
-const selectedConnectionModelHints = computed(() => buildWorkbenchModelHints(selectedConnectionWorkbenchSummary.value?.latest_error))
+const selectedConnectionModelHints = computed(() => buildWorkbenchModelHints(selectedConnectionWorkbenchSummary.value?.latest_error, locale.value))
 const selectedConnectionLatestErrorLabel = computed(() => describeLatestError(selectedConnectionWorkbenchSummary.value))
 const formatDateOnly = (value: string | null | undefined) => value ? new Intl.DateTimeFormat('zh-CN', {
   timeZone: 'Asia/Shanghai',
@@ -1227,27 +1415,62 @@ const keyCategoryLabels: Record<string, string> = {
   other: '其他异常',
 }
 
+const enKeyReasonLabels: Record<string, string> = {
+  auth_key_deleted: 'Old key deleted',
+  auth_invalid_credentials: 'Credentials failed validation',
+  quota_balance_exhausted: 'Balance or quota exhausted',
+  quota_subscription_exhausted: 'Plan or subscription inactive',
+  rate_limit_window_exhausted: 'Rate-limit window exhausted',
+  request_model_not_supported: 'Model unavailable',
+  request_payload_too_large: 'Payload too large',
+  request_invalid: 'Request parameters mismatch',
+  service_model_not_available: 'Model not enabled on this route',
+  service_model_rate_limited: 'Model route is rate-limited',
+  service_no_route_available: 'No available route',
+  upstream_temporarily_unavailable: 'Upstream temporarily unavailable',
+  upstream_transport_error: 'Upstream transport error',
+  internal_gateway_error: 'Gateway internal error',
+  cyber_policy_blocked: 'Blocked by security policy',
+}
+
+const enKeyCategoryLabels: Record<string, string> = {
+  auth: 'Auth failed',
+  rate_limit: 'Rate limited',
+  quota: 'Insufficient quota',
+  invalid_request: 'Invalid request',
+  service_unavailable: 'Route unavailable',
+  upstream: 'Upstream error',
+  internal: 'Gateway error',
+  cyber: 'Security policy',
+  other: 'Other error',
+}
+
 const describeLatestError = (summary?: ApiKeyWorkbenchSummary | null) => {
-  return buildWorkbenchLatestErrorLabel(summary?.latest_error, keyReasonLabels, keyCategoryLabels)
+  return buildWorkbenchLatestErrorLabel(
+    summary?.latest_error,
+    locale.value.startsWith('zh') ? keyReasonLabels : enKeyReasonLabels,
+    locale.value.startsWith('zh') ? keyCategoryLabels : enKeyCategoryLabels,
+    locale.value,
+  )
 }
 
 const getWorkbenchStat = (keyId: number) => workbenchStats.value[keyId] || workbenchStats.value[String(keyId)] || null
 
 const getKeyHealth = (key: ApiKey) => {
   const summary = getWorkbenchStat(key.id)
-  const lastCall = key.last_used_at ? '最近调用 ' + formatDateOnly(key.last_used_at) : '暂无调用'
+  const lastCall = key.last_used_at ? keysCopy.value.lastCall(formatDateOnly(key.last_used_at)) : keysCopy.value.noCalls
   const requestPulse = summary
     ? summary.attempt_count_24h > 0
-      ? `24h 共 ${summary.attempt_count_24h} 次，请求成功 ${summary.success_requests_24h} 次`
-      : '24h 暂无请求'
-    : '正在整理最近请求'
-  const group = key.group ? '分组正常' : '未绑定分组'
+      ? keysCopy.value.requestPulse(summary.attempt_count_24h, summary.success_requests_24h)
+      : keysCopy.value.noRequests24h
+    : keysCopy.value.loadingRecent
+  const group = key.group ? keysCopy.value.groupOk : keysCopy.value.noGroup
   const statusFallback = key.status === 'inactive'
-    ? '当前已停用'
+    ? keysCopy.value.inactive
     : key.status === 'quota_exhausted'
-      ? '当前额度已耗尽'
+      ? keysCopy.value.quotaExhausted
       : key.status === 'expired'
-        ? '当前已过期'
+        ? keysCopy.value.expired
         : describeLatestError(summary)
   const summaryLine = `${group} / ${statusFallback}`
 
@@ -1255,7 +1478,7 @@ const getKeyHealth = (key: ApiKey) => {
     lastCall,
     requestPulse,
     summary: summaryLine,
-    modelHints: buildWorkbenchModelHints(summary?.latest_error),
+    modelHints: buildWorkbenchModelHints(summary?.latest_error, locale.value),
     hasAttention: !!summary?.latest_error || key.status !== 'active' || !key.group,
     canReview: !!summary?.latest_error && canViewErrorRequests.value,
   }
@@ -1443,9 +1666,9 @@ const advancedSummaryItems = computed(() => {
 
 const advancedSettingsSummary = computed(() => {
   if (advancedSummaryItems.value.length === 0) {
-    return '当前使用默认限制'
+    return keysCopy.value.defaultLimits
   }
-  return `已启用 ${advancedSummaryItems.value.length} 项高级设置`
+  return keysCopy.value.advancedEnabled(advancedSummaryItems.value.length)
 })
 
 const statusOptions = computed(() => [
@@ -1469,12 +1692,12 @@ const statusFilterOptions = computed(() => [
 ])
 
 const keyFilterOptions = computed(() => {
-  const allOption = { value: '', label: '全部密钥' }
+  const allOption = { value: '', label: keysCopy.value.allKeys }
   const source = filterKeyCatalog.value.length ? filterKeyCatalog.value : apiKeys.value
   const options = source.map((key) => ({
     value: key.id,
     label: `${key.name} · ${maskApiKey(key.key)}`,
-    description: key.group?.name || '未分组',
+    description: key.group?.name || keysCopy.value.ungrouped,
   }))
   return [allOption, ...options]
 })
@@ -1540,7 +1763,7 @@ const copyToClipboard = async (text: string, keyId: number) => {
 }
 
 const copyEndpoint = async () => {
-  await clipboardCopy(resolvedApiBaseUrl.value, '接入地址已复制')
+  await clipboardCopy(resolvedApiBaseUrl.value, keysCopy.value.copiedEndpoint)
 }
 
 const loadKeyWorkbenchStats = async (keys: ApiKey[]) => {
@@ -1629,7 +1852,7 @@ const openUseKeyModal = (key: ApiKey) => { selectedKey.value = key; showUseKeyMo
 const closeUseKeyModal = () => { showUseKeyModal.value = false; selectedKey.value = null }
 const openKeyErrorLedger = (apiKeyId: number) => {
   if (!canViewErrorRequests.value) {
-    appStore.showError('错误账册暂未开放，请联系管理员开启后查看。')
+    appStore.showError(keysCopy.value.errorLedgerUnavailable)
     return
   }
   router.push({ path: '/usage', query: { tab: 'errors', api_key_id: String(apiKeyId) } })
@@ -1811,7 +2034,7 @@ const models = await client.models.list()`
 
 const copyIntegrationSnippet = async (type: 'curl' | 'openai' | 'env') => {
   if (!selectedConnectionTestKey.value) return
-  const message = type === 'curl' ? 'curl 已复制' : type === 'openai' ? 'SDK 配置已复制' : '环境变量已复制'
+  const message = type === 'curl' ? keysCopy.value.copiedCurl : type === 'openai' ? keysCopy.value.copiedSdk : keysCopy.value.copiedEnv
   await clipboardCopy(buildIntegrationSnippet(type, selectedConnectionTestKey.value), message)
 }
 
@@ -1820,27 +2043,27 @@ const buildConnectionDiagnosticReport = () => {
   const result = connectionTestResult.value
   if (!key || !result) return ''
   const lines = [
-    '山枢庭 SST 接入体检报告',
-    '检查时间：' + new Date(result.checkedAt).toLocaleString(),
+    keysCopy.value.reportTitle,
+    keysCopy.value.checkedAt + ': ' + new Date(result.checkedAt).toLocaleString(),
     'API Key：' + key.name + ' (' + maskApiKey(key.key) + ')',
-    '接入地址：' + resolvedApiBaseUrl.value + '/v1',
-    '密钥状态：' + key.status,
-    '模型接口：' + (result.statusCode ? 'HTTP ' + result.statusCode : result.tone === 'success' ? '可访问' : '未完成'),
-    '响应耗时：' + (result.latencyMs !== null ? result.latencyMs + 'ms' : '-'),
-    '结论：' + result.title,
-    '说明：' + result.detail,
+    keysCopy.value.endpoint + ': ' + resolvedApiBaseUrl.value + '/v1',
+    keysCopy.value.keyStatus + ': ' + key.status,
+    keysCopy.value.modelsEndpoint + ': ' + (result.statusCode ? 'HTTP ' + result.statusCode : result.tone === 'success' ? keysCopy.value.reachable : keysCopy.value.notFinished),
+    keysCopy.value.responseLatency + ': ' + (result.latencyMs !== null ? result.latencyMs + 'ms' : '-'),
+    keysCopy.value.conclusion + ': ' + result.title,
+    keysCopy.value.detail + ': ' + result.detail,
   ]
   if (result.availableModelCount !== null) {
-    lines.push('可见模型：' + result.availableModelCount + ' 个')
+    lines.push(keysCopy.value.visibleModelCount + ': ' + keysCopy.value.modelCount(result.availableModelCount))
   }
   if (result.sampleModels.length > 0) {
-    lines.push('示例模型：' + result.sampleModels.join('，'))
+    lines.push(keysCopy.value.sampleModels + ': ' + result.sampleModels.join(keysCopy.value.joinList))
   }
   if (selectedConnectionModelHints.value.length > 0) {
-    lines.push('近期模型提示：' + selectedConnectionModelHints.value.join('；'))
+    lines.push(keysCopy.value.recentModelHints + ': ' + selectedConnectionModelHints.value.join(keysCopy.value.joinHints))
   }
   if (result.action) {
-    lines.push('建议：' + result.action)
+    lines.push(keysCopy.value.suggestion + ': ' + result.action)
   }
   return lines.join('\n')
 }
@@ -1848,7 +2071,7 @@ const buildConnectionDiagnosticReport = () => {
 const copyConnectionDiagnosticReport = async () => {
   const report = buildConnectionDiagnosticReport()
   if (!report) return
-  await clipboardCopy(report, '诊断报告已复制')
+  await clipboardCopy(report, keysCopy.value.reportCopied)
 }
 
 const openUseKeyModalFromConnectionTest = () => {
@@ -1868,12 +2091,12 @@ const testKeyConnection = async (key: ApiKey | null) => {
   if (key.status !== 'active') {
     connectionTestResult.value = {
       tone: 'warning',
-      title: '密钥未启用',
-      detail: '当前密钥未处于 active 状态，建议先启用，或换一枚可用密钥后再体检。',
+      title: keysCopy.value.health.disabledTitle,
+      detail: keysCopy.value.health.disabledDetail,
       latencyMs: null,
       statusCode: null,
       checkedAt: new Date().toISOString(),
-      action: '先启用这枚密钥，或换一枚 active 状态的可用密钥后再检测。',
+      action: keysCopy.value.health.disabledAction,
       availableModelCount: null,
       allModels: [],
       sampleModels: [],
@@ -1895,23 +2118,23 @@ const testKeyConnection = async (key: ApiKey | null) => {
       if (modelIds.length === 0) {
         connectionTestResult.value = {
           tone: 'warning',
-          title: '模型接口已连通，但当前未返回可用模型',
-          detail: '这把 Key 可以访问 /v1/models，但当前分组下没有返回可见模型，通常意味着模型列表未开放、线路未覆盖，或上游还没准备好。',
+          title: keysCopy.value.health.noModelsTitle,
+          detail: keysCopy.value.health.noModelsDetail,
           latencyMs,
           statusCode: response.status,
           checkedAt: new Date().toISOString(),
-          action: '优先检查当前 Key 绑定分组的模型列表配置，以及这条线路是否真的向用户公开了目标模型。',
+          action: keysCopy.value.health.noModelsAction,
           availableModelCount: 0,
           allModels: [],
           sampleModels: [],
         }
-        appStore.showError('模型接口已连通，但当前未返回可用模型')
+        appStore.showError(keysCopy.value.health.noModelsTitle)
         return
       }
       connectionTestResult.value = {
         tone: 'success',
-        title: '接入体检通过',
-        detail: '模型接口可访问，当前接入地址与密钥可用于基础调用。',
+        title: keysCopy.value.health.passedTitle,
+        detail: keysCopy.value.health.passedDetail,
         latencyMs,
         statusCode: response.status,
         checkedAt: new Date().toISOString(),
@@ -1920,48 +2143,48 @@ const testKeyConnection = async (key: ApiKey | null) => {
         allModels: modelIds,
         sampleModels: modelIds.slice(0, 5),
       }
-      appStore.showSuccess('接入体检通过')
+      appStore.showSuccess(keysCopy.value.health.passedTitle)
       return
     }
     const errorText = extractErrorTextFromPayload(payload) || rawBody.trim()
     const statusDetail = response.status === 401 || response.status === 403
-      ? '模型接口返回 HTTP ' + response.status + '，更像密钥未通过校验，或当前分组没有查看模型列表的权限。'
+      ? keysCopy.value.health.unauthorized(response.status)
       : response.status === 429
-        ? '模型接口返回 HTTP 429，当前更像线路或上游在限流窗口内。'
+        ? keysCopy.value.health.rateLimited
         : response.status >= 500
-          ? '模型接口返回 HTTP ' + response.status + '，当前更像线路或上游暂时不可用。'
-          : '模型接口返回 HTTP ' + response.status + '，请检查密钥权限、分组或接入地址。'
+          ? keysCopy.value.health.serverError(response.status)
+          : keysCopy.value.health.genericHttp(response.status)
     connectionTestResult.value = {
       tone: response.status === 401 || response.status === 403 ? 'danger' : 'warning',
-      title: '接入体检未通过',
-      detail: errorText ? `${statusDetail} 接口返回：${errorText}` : statusDetail,
+      title: keysCopy.value.health.failedTitle,
+      detail: errorText ? `${statusDetail} ${keysCopy.value.health.returned}${errorText}` : statusDetail,
       latencyMs,
       statusCode: response.status,
       checkedAt: new Date().toISOString(),
       action: response.status === 401 || response.status === 403
-        ? '优先检查密钥是否启用、是否复制完整，以及分组权限是否允许访问模型列表。'
+        ? keysCopy.value.health.unauthorizedAction
         : response.status === 429
-          ? '先拉开重试间隔；如果最近失败里已经提示某个模型限流，优先按那个模型处理。'
-          : '建议稍后重试；若持续失败，可复制体检记录并结合最近模型提示一起排查。',
+          ? keysCopy.value.health.rateLimitAction
+          : keysCopy.value.health.genericAction,
       availableModelCount: null,
       allModels: [],
       sampleModels: [],
     }
-    appStore.showError('接入体检未通过：HTTP ' + response.status)
+    appStore.showError(keysCopy.value.health.failedToast(response.status))
   } catch (error) {
     connectionTestResult.value = {
       tone: 'danger',
-      title: '无法完成接入体检',
-      detail: '请求未能抵达模型接口，请检查接入地址、浏览器跨域限制或当前网络。',
+      title: keysCopy.value.health.unreachableTitle,
+      detail: keysCopy.value.health.unreachableDetail,
       latencyMs: Math.round(performance.now() - startedAt),
       statusCode: null,
       checkedAt: new Date().toISOString(),
-      action: '优先确认当前站点接入地址、浏览器网络和跨域限制；必要时复制体检记录给客服排查。',
+      action: keysCopy.value.health.unreachableAction,
       availableModelCount: null,
       allModels: [],
       sampleModels: [],
     }
-    appStore.showError('接入体检失败，请检查接入地址、浏览器跨域限制或当前网络')
+    appStore.showError(keysCopy.value.health.unreachableToast)
   } finally {
     testingKeyId.value = null
   }

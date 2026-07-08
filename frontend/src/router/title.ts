@@ -5,6 +5,7 @@ import type { CustomMenuItem } from '@/types'
 const DEFAULT_SITE_NAME = '山枢庭'
 const LEGACY_SITE_NAMES = new Set(['Sub2API'])
 const HOME_TAGLINE_TITLE = '统一入口，安静流转。'
+const HOME_TAGLINE_TITLE_KEY = 'publicSite.tagline'
 
 export function resolveDisplaySiteName(siteName?: string): string {
   const normalizedSiteName = typeof siteName === 'string' ? siteName.trim() : ''
@@ -29,7 +30,9 @@ export function resolveDocumentTitle(routeTitle: unknown, siteName?: string, tit
 
   if (typeof routeTitle === 'string' && routeTitle.trim()) {
     if (routeTitle.trim() === HOME_TAGLINE_TITLE) {
-      return `${normalizedSiteName} - ${HOME_TAGLINE_TITLE}`
+      const translated = i18n.global.t(HOME_TAGLINE_TITLE_KEY)
+      const title = translated && translated !== HOME_TAGLINE_TITLE_KEY ? translated : HOME_TAGLINE_TITLE
+      return `${normalizedSiteName} - ${title}`
     }
 
     return `${routeTitle.trim()} - ${normalizedSiteName}`

@@ -2,8 +2,8 @@
   <div :class="['redeem-panel space-y-6', { 'redeem-panel--embedded': embedded }]">
     <section v-if="showIntro" class="redeem-brief card p-5">
       <div>
-        <span>兑换入账</span>
-        <h2>使用兑换码补充余额、并发或账户权益</h2>
+        <span>{{ t('redeem.panelKicker') }}</span>
+        <h2>{{ t('redeem.panelTitle') }}</h2>
       </div>
     </section>
 

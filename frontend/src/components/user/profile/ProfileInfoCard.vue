@@ -106,12 +106,12 @@
         >
           <div class="mb-5 flex items-start justify-between gap-4">
             <div>
-              <span class="profile-section-kicker">基础资料</span>
+              <span class="profile-section-kicker">{{ t('profile.basicsKicker') }}</span>
               <h3 class="mt-2 text-lg font-semibold text-gray-900 dark:text-white">
                 {{ t('profile.basicsTitle') }}
               </h3>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                头像、称呼与基础身份资料会在这里整理更新。
+                {{ t('profile.basicsDescription') }}
               </p>
             </div>
           </div>
@@ -138,8 +138,8 @@
           class="card border border-zen-paperLine/70 bg-white/78 p-6 dark:border-zen-nightLine dark:bg-zen-nightPanel/54"
         >
           <div class="mb-5">
-            <span class="profile-section-kicker">绑定方式</span>
-            <h3 class="mt-2 text-lg font-semibold text-zen-ink dark:text-zen-paper">登录来源与身份凭引</h3>
+            <span class="profile-section-kicker">{{ t('profile.bindingsKicker') }}</span>
+            <h3 class="mt-2 text-lg font-semibold text-zen-ink dark:text-zen-paper">{{ t('profile.bindingsHeading') }}</h3>
           </div>
           <ProfileIdentityBindingsSection
             :user="user"
@@ -161,7 +161,7 @@
           v-if="sourceHints.length"
           class="card border border-zen-paperLine/70 bg-white/78 p-6 dark:border-zen-nightLine dark:bg-zen-nightPanel/54"
         >
-          <span class="profile-section-kicker">来源说明</span>
+          <span class="profile-section-kicker">{{ t('profile.sourceKicker') }}</span>
           <h3 class="mt-2 text-lg font-semibold text-zen-ink dark:text-zen-paper">
             {{ t('profile.linkedProfileSources') }}
           </h3>

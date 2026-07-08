@@ -7,7 +7,7 @@
     :intro="topic.intro"
     :description="topic.description"
     :highlights="topic.highlights"
-    authenticated-action-label="入庭"
+    :authenticated-action-label="t('publicSite.enter')"
   >
     <template #aside>
       <div class="space-y-5">
@@ -17,7 +17,7 @@
           <p class="mt-3 text-sm leading-7 text-zen-mist dark:text-zen-stone">{{ topic.asideCopy }}</p>
         </div>
 
-        <nav class="grid gap-2" aria-label="专题文档">
+        <nav class="grid gap-2" :aria-label="t('publicDocs.topicNavAria')">
           <RouterLink
             v-for="item in topics"
             :key="item.path"
@@ -48,6 +48,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import PublicPageLayout from '@/components/layout/PublicPageLayout.vue'
 
 interface TopicSection {
@@ -71,7 +72,7 @@ interface TopicContent {
   sections: TopicSection[]
 }
 
-const topics: TopicContent[] = [
+const zhTopics: TopicContent[] = [
   {
     path: '/docs/openai-compatible-api',
     navLabel: 'OpenAI 兼容接口',
@@ -251,7 +252,110 @@ const topics: TopicContent[] = [
 ]
 
 const route = useRoute()
-const topic = computed(() => topics.find((item) => item.path === route.path) ?? topics[0])
+const { t, locale } = useI18n()
+
+const enTopics: TopicContent[] = [
+  {
+    path: '/docs/openai-compatible-api',
+    navLabel: 'OpenAI Compatible API',
+    eyebrow: 'OpenAI API',
+    title: 'OpenAI Compatible API Access',
+    intro: 'Most clients only need a new base_url and API Key.',
+    description: 'SST keeps an OpenAI-compatible calling pattern so existing SDKs, CLIs, and server apps can use one quiet gateway.',
+    highlights: ['OpenAI SDK', 'chat/completions', 'models'],
+    asideTitle: 'Migration Notes',
+    asideCopy: 'Keep your client structure, then verify base_url, Authorization, and model IDs before production calls.',
+    sections: [
+      { kicker: 'Base URL', heading: 'Point the SDK base URL to the SST /v1 endpoint.', paragraphs: ['Most OpenAI-compatible SDKs support a custom base_url or baseURL. Keep your message payloads unchanged, then replace the base URL and Key first.'], code: `base_url = "https://your-domain.example/v1"` },
+      { kicker: 'Auth', heading: 'Authenticate requests with a Bearer API Key.', paragraphs: ['API Keys are account credentials. Do not place them in public frontend code. Prefer reading them from server-side environment variables before calling SST.'], code: `Authorization: Bearer YOUR_API_KEY` },
+      { kicker: 'Check', heading: 'Query the model list before sending real requests.', paragraphs: ['Visible models may differ by group, permission, or upstream pool. Calling the model list first reduces failures caused by wrong model names or unopened permissions.'], code: `curl https://your-domain.example/v1/models \\
+  -H "Authorization: Bearer YOUR_API_KEY"` },
+    ],
+  },
+  {
+    path: '/docs/base-url',
+    navLabel: 'base_url Setup',
+    eyebrow: 'Base URL',
+    title: 'base_url and Endpoint Setup',
+    intro: 'The base address decides which unified gateway receives the request.',
+    description: 'Keep the /v1 prefix when configuring SST base_url, so business paths, gateway paths, and model paths stay separate.',
+    highlights: ['base_url', '/v1', 'endpoint'],
+    asideTitle: 'Address Rule',
+    asideCopy: 'The base address stops at /v1; SDKs and clients append concrete resource paths.',
+    sections: [
+      { kicker: 'Format', heading: 'Set base_url to /v1.', paragraphs: ['If the SDK appends chat/completions, models, or similar paths, keep base_url at the /v1 layer.'], code: `https://your-domain.example/v1` },
+      { kicker: 'Avoid', heading: 'Do not put the full business path into base_url.', paragraphs: ['Putting /v1/chat/completions into base_url can make the SDK append the path again and create an invalid URL.'], points: ['Correct: /v1', 'Wrong: /v1/chat/completions', 'Wrong: missing /v1 when the client does not add it'] },
+      { kicker: 'Runtime', heading: 'Use your own domain in production.', paragraphs: ['After launch, sitemap, canonical URLs, callbacks, and client config should point to the same public domain.'] },
+    ],
+  },
+  {
+    path: '/docs/api-key',
+    navLabel: 'API Key Usage',
+    eyebrow: 'API Key',
+    title: 'Create and Use API Keys',
+    intro: 'A Key is the account credential for the unified gateway.',
+    description: 'Learn how to create, store, call with, rotate, and bound SST API Keys without exposing credentials.',
+    highlights: ['Authorization', 'Bearer', 'Key rotation'],
+    asideTitle: 'Credential Boundary',
+    asideCopy: 'Keys are for server-side calls and should not appear in public repos, browser code, or client packages.',
+    sections: [
+      { kicker: 'Create', heading: 'Create an API Key after signing in.', paragraphs: ['Save new Keys immediately to server environment variables or a secret manager. Avoid sharing them in chats, screenshots, or public docs.'] },
+      { kicker: 'Use', heading: 'Use Authorization Bearer in request headers.', paragraphs: ['Every API request needs a valid Key. Extra spaces, missing Bearer prefix, or disabled Keys can all fail authentication.'], code: `Authorization: Bearer YOUR_API_KEY` },
+      { kicker: 'Operate', heading: 'Rotate Keys and disable unused ones regularly.', paragraphs: ['When people leave, services migrate, or leakage is suspected, create a new Key, switch server config, then disable the old one.'] },
+    ],
+  },
+  {
+    path: '/docs/streaming',
+    navLabel: 'Streaming',
+    eyebrow: 'Streaming',
+    title: 'Streaming and SSE Calls',
+    intro: 'Set stream to true when you need faster first output.',
+    description: 'SST supports OpenAI-compatible streaming for chat windows, terminal clients, and interfaces that render partial output.',
+    highlights: ['stream=true', 'SSE', 'incremental output'],
+    asideTitle: 'Streaming Fit',
+    asideCopy: 'Chat, terminal, and long-form generation usually benefit from streaming; servers should read events incrementally.',
+    sections: [
+      { kicker: 'Request', heading: 'Enable stream in the request body.', paragraphs: ['Streaming splits the response into continuous events. Keep reading until the connection completes.'], code: `"stream": true` },
+      { kicker: 'Client', heading: 'Handle responses through SSE or SDK stream APIs.', paragraphs: ['Do not parse streaming responses as one JSON object. SDK names differ, but the core behavior is incremental reading.'] },
+      { kicker: 'Fallback', heading: 'Switch to non-streaming first when debugging.', paragraphs: ['If a client cannot read the stream, turn stream off, verify model, Key, base_url, and the basic request, then restore streaming.'] },
+    ],
+  },
+  {
+    path: '/docs/codex',
+    navLabel: 'Codex Access',
+    eyebrow: 'Codex',
+    title: 'Codex Client Access',
+    intro: 'Route Codex-style clients through the SST gateway.',
+    description: 'Use SST to centralize the API endpoint, Key, model, and ledger for Codex-like clients.',
+    highlights: ['Codex', 'unified gateway', 'ledger'],
+    asideTitle: 'Setup Order',
+    asideCopy: 'Confirm custom base_url support first, then configure Key and model name, and finally review usage records.',
+    sections: [
+      { kicker: 'Config', heading: 'Point the client to the SST OpenAI-compatible endpoint.', paragraphs: ['Codex-style clients with OpenAI compatibility can usually replace base_url and API Key through environment variables or config files.'] },
+      { kicker: 'Model', heading: 'Use the model list visible to the current account.', paragraphs: ['Do not copy model names blindly from examples. Availability depends on admin config, group permissions, and upstream status.'] },
+      { kicker: 'Usage', heading: 'Check usage and ledger records after calling.', paragraphs: ['After setup, send a small request and verify request count, cost, model, and group in the console.'] },
+    ],
+  },
+  {
+    path: '/docs/claude-code',
+    navLabel: 'Claude Code Access',
+    eyebrow: 'Claude Code',
+    title: 'Claude Code Access Notes',
+    intro: 'Bring Claude Code-style calls into one gateway and ledger.',
+    description: 'SST centralizes endpoint, Key, model permission, rate, and call ledger for Claude Code-style clients.',
+    highlights: ['Claude Code', 'model permissions', 'metering'],
+    asideTitle: 'Key Setup Points',
+    asideCopy: 'Confirm the client compatibility mode, then configure endpoint, Key, model, and permission boundaries.',
+    sections: [
+      { kicker: 'Endpoint', heading: 'Use the API endpoint provided by the administrator.', paragraphs: ['Different deployments may enable different upstream pools and model mappings. Use the endpoint exposed by the current site or admin.'] },
+      { kicker: 'Auth', heading: 'Authenticate uniformly with an SST API Key.', paragraphs: ['Keys are linked to accounts, groups, concurrency, and ledgers. Do not distribute upstream account credentials to end users.'] },
+      { kicker: 'Billing', heading: 'Use the pricing page and console as the source of truth.', paragraphs: ['Public pricing explains the main metering method; actual orders, balance, and usage details are based on logged-in console records.'] },
+    ],
+  },
+]
+
+const topics = computed(() => String(locale.value).startsWith('zh') ? zhTopics : enTopics)
+const topic = computed(() => topics.value.find((item) => item.path === route.path) ?? topics.value[0])
 </script>
 
 <style scoped>

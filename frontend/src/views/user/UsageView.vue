@@ -1,27 +1,27 @@
 <template>
   <AppLayout>
-    <div class="usage-page space-y-6">
+    <div class="usage-page space-y-6" :class="{ 'usage-page-en': isEnglishUsage }">
       <section class="usage-hero overflow-hidden rounded-zen border border-zen-paperLine bg-white/45 p-6 shadow-paper dark:border-zen-nightLine dark:bg-zen-nightPanel/70 lg:p-7">
         <div class="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
           <div>
             <div class="mb-4 flex items-center gap-4">
               <span class="h-px w-14 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-              <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">用量账册</span>
+              <span class="font-mono text-xs uppercase tracking-[0.34em] text-zen-mist dark:text-zen-stone">{{ usageCopy.kicker }}</span>
             </div>
-            <h1 class="font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper sm:text-4xl">流转明细</h1>
+            <h1 class="font-serif text-3xl font-semibold text-zen-ink dark:text-zen-paper sm:text-4xl">{{ usageCopy.title }}</h1>
           </div>
 
-          <div class="usage-ledger grid gap-3 sm:grid-cols-3 lg:min-w-[30rem]">
+          <div class="usage-ledger grid gap-3 sm:grid-cols-3 lg:min-w-0 lg:max-w-[30rem]">
             <div class="usage-ledger-item">
-              <span>当前记录</span>
+              <span>{{ usageCopy.records }}</span>
               <strong>{{ pagination.total.toLocaleString() }}</strong>
             </div>
             <div class="usage-ledger-item">
-              <span>密钥范围</span>
+              <span>{{ usageCopy.keyScope }}</span>
               <strong>{{ apiKeys.length.toLocaleString() }}</strong>
             </div>
             <div class="usage-ledger-item">
-              <span>缓存命中</span>
+              <span>{{ usageCopy.cacheHit }}</span>
               <strong>{{ cacheStats.ratePercent }}</strong>
             </div>
           </div>
@@ -147,7 +147,7 @@
               <div class="usage-toolbar-actions">
                 <button @click="exportToCSV" :disabled="exporting || pagination.total === 0" class="btn btn-primary">
                   <Icon v-if="exporting" name="refresh" size="sm" class="-ml-1 mr-2 animate-spin" />
-                  {{ exporting ? t('usage.exporting') : pagination.total === 0 ? '当前范围暂无记录' : t('usage.exportCsv') }}
+                  {{ exporting ? t('usage.exporting') : pagination.total === 0 ? usageCopy.noExportRecords : t('usage.exportCsv') }}
                 </button>
                 <button @click="applyFilters" :disabled="loading" class="btn btn-secondary">
                   {{ t('common.refresh') }}
@@ -257,7 +257,7 @@
             <div class="usage-cost-cell">
               <div class="usage-cell-stack usage-cell-stack-compact">
                 <strong>${{ (row.actual_cost ?? 0).toFixed(6) }}</strong>
-                <span>标准 ${{ (row.total_cost ?? 0).toFixed(6) }}</span>
+                <span>{{ usageCopy.standardCostPrefix }} ${{ (row.total_cost ?? 0).toFixed(6) }}</span>
               </div>
               <!-- Cost Detail Tooltip -->
               <div
@@ -282,14 +282,14 @@
             <div class="usage-cell-stack usage-cell-stack-compact">
               <strong v-if="row.first_token_ms != null">{{ formatDuration(row.first_token_ms) }}</strong>
               <strong v-else>-</strong>
-              <span>{{ row.stream ? '首包耗时' : '非流式请求' }}</span>
+              <span>{{ row.stream ? usageCopy.firstTokenLatency : usageCopy.nonStreamRequest }}</span>
             </div>
           </template>
 
           <template #cell-duration="{ row }">
             <div class="usage-cell-stack usage-cell-stack-compact">
               <strong>{{ formatDuration(row.duration_ms) }}</strong>
-              <span>{{ row.stream ? '完整响应' : '单次完成' }}</span>
+              <span>{{ row.stream ? usageCopy.fullResponse : usageCopy.singleCompletion }}</span>
             </div>
           </template>
 
@@ -303,17 +303,17 @@
           <template #cell-user_agent="{ row }">
             <div v-if="row.user_agent" class="usage-cell-stack usage-cell-stack-compact usage-user-agent" :title="row.user_agent">
               <strong>{{ formatUserAgent(row.user_agent).primary }}</strong>
-              <span>{{ formatUserAgent(row.user_agent).secondary || row.api_key?.name || '客户端来源' }}</span>
+              <span>{{ formatUserAgent(row.user_agent).secondary || row.api_key?.name || usageCopy.clientSource }}</span>
             </div>
             <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
           </template>
 
           <template #empty>
             <div class="usage-empty-state">
-              <span>账册暂无记录</span>
+              <span>{{ usageCopy.emptyKicker }}</span>
               <strong>{{ t('usage.noRecords') }}</strong>
-              <p>当前筛选范围内还没有调用明细。可以切换时间范围、改看全部密钥，或重置筛选后再查看。</p>
-              <button type="button" @click="resetFilters">重置筛选</button>
+              <p>{{ usageCopy.emptyCopy }}</p>
+              <button type="button" @click="resetFilters">{{ t('common.reset') }}</button>
             </div>
           </template>
         </DataTable>
@@ -515,11 +515,64 @@ import {
   hasImageOutputCost,
 } from '@/utils/imageUsage'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const appStore = useAppStore()
 
 let abortController: AbortController | null = null
+
+const zhUsageCopy = {
+  kicker: '用量账册',
+  title: '流转明细',
+  records: '当前记录',
+  keyScope: '密钥范围',
+  cacheHit: '缓存命中',
+  noExportRecords: '当前范围暂无记录',
+  standardCostPrefix: '标准',
+  firstTokenLatency: '首包耗时',
+  nonStreamRequest: '非流式请求',
+  fullResponse: '完整响应',
+  singleCompletion: '单次完成',
+  clientSource: '客户端来源',
+  emptyKicker: '账册暂无记录',
+  emptyCopy: '当前筛选范围内还没有调用明细。可以切换时间范围、改看全部密钥，或重置筛选后再查看。',
+  clientLabels: {
+    desktop: '桌面客户端',
+    anthropic: 'Anthropic 客户端',
+    openai: 'OpenAI 客户端',
+    editor: '编辑器客户端',
+    browser: '浏览器请求',
+    source: '客户端来源'
+  }
+}
+
+const enUsageCopy = {
+  kicker: 'Usage ledger',
+  title: 'Flow details',
+  records: 'Records',
+  keyScope: 'Key scope',
+  cacheHit: 'Cache hit',
+  noExportRecords: 'No records in this range',
+  standardCostPrefix: 'Standard',
+  firstTokenLatency: 'First-token latency',
+  nonStreamRequest: 'Non-stream request',
+  fullResponse: 'Full response',
+  singleCompletion: 'Single completion',
+  clientSource: 'Client source',
+  emptyKicker: 'No ledger records',
+  emptyCopy: 'No usage details match the current filters. Try another date range, show all keys, or reset filters.',
+  clientLabels: {
+    desktop: 'Desktop client',
+    anthropic: 'Anthropic client',
+    openai: 'OpenAI client',
+    editor: 'Editor client',
+    browser: 'Browser request',
+    source: 'Client source'
+  }
+}
+
+const usageCopy = computed(() => locale.value === 'zh' ? zhUsageCopy : enUsageCopy)
+const isEnglishUsage = computed(() => !locale.value.startsWith('zh'))
 
 // Tooltip state
 const tooltipVisible = ref(false)
@@ -543,18 +596,18 @@ const cacheStats = computed(() => {
 })
 
 const columns = computed<Column[]>(() => [
-  { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false },
-  { key: 'model', label: t('usage.model'), sortable: true },
-  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
-  { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
-  { key: 'stream', label: t('usage.type'), sortable: false },
-  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
-  { key: 'tokens', label: t('usage.tokens'), sortable: false },
+  { key: 'api_key', label: t('usage.apiKeyFilter'), sortable: false, class: 'usage-col-api-key' },
+  { key: 'model', label: t('usage.model'), sortable: true, class: 'usage-col-model' },
+  { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false, class: 'usage-col-reasoning' },
+  { key: 'endpoint', label: t('usage.endpoint'), sortable: false, class: 'usage-col-endpoint' },
+  { key: 'stream', label: t('usage.type'), sortable: false, class: 'usage-col-type' },
+  { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false, class: 'usage-col-billing-mode' },
+  { key: 'tokens', label: t('usage.tokens'), sortable: false, class: 'usage-col-tokens' },
   { key: 'cost', label: t('usage.cost'), sortable: false, class: 'usage-col-cost' },
-  { key: 'first_token', label: t('usage.firstToken'), sortable: false },
-  { key: 'duration', label: t('usage.duration'), sortable: false },
+  { key: 'first_token', label: t('usage.firstToken'), sortable: false, class: 'usage-col-first-token' },
+  { key: 'duration', label: t('usage.duration'), sortable: false, class: 'usage-col-duration' },
   { key: 'created_at', label: t('usage.time'), sortable: true, class: 'usage-col-created-at' },
-  { key: 'user_agent', label: '客户端', sortable: false, class: 'usage-col-user-agent' }
+  { key: 'user_agent', label: usageCopy.value.clientSource, sortable: false, class: 'usage-col-user-agent' }
 ])
 
 const usageLogs = ref<UsageLog[]>([])
@@ -668,7 +721,7 @@ const formatUserAgent = (ua: string): FormattedUserAgent => {
   const codexMatch = normalized.match(/(Codex Desktop)\/([^\s(]+)/i)
   if (codexMatch) {
     primary = `${codexMatch[1]} ${codexMatch[2]}`
-    secondary = secondary || '桌面客户端'
+    secondary = secondary || usageCopy.value.clientLabels.desktop
     return { primary, secondary }
   }
 
@@ -677,7 +730,7 @@ const formatUserAgent = (ua: string): FormattedUserAgent => {
     primary = claudeMatch[1]
     const version = extractUaVersion(normalized)
     if (version) primary = `${primary} ${version}`
-    secondary = secondary || 'Anthropic 客户端'
+    secondary = secondary || usageCopy.value.clientLabels.anthropic
     return { primary, secondary }
   }
 
@@ -686,7 +739,7 @@ const formatUserAgent = (ua: string): FormattedUserAgent => {
     primary = openAiMatch[1]
     const version = extractUaVersion(normalized)
     if (version) primary = `${primary} ${version}`
-    secondary = secondary || 'OpenAI 客户端'
+    secondary = secondary || usageCopy.value.clientLabels.openai
     return { primary, secondary }
   }
 
@@ -695,7 +748,7 @@ const formatUserAgent = (ua: string): FormattedUserAgent => {
     primary = cursorMatch[1]
     const version = extractUaVersion(normalized)
     if (version) primary = `${primary} ${version}`
-    secondary = secondary || '编辑器客户端'
+    secondary = secondary || usageCopy.value.clientLabels.editor
     return { primary, secondary }
   }
 
@@ -703,7 +756,7 @@ const formatUserAgent = (ua: string): FormattedUserAgent => {
   if (browserMatch) {
     const browser = browserMatch[1] === 'Edg' ? 'Edge' : browserMatch[1]
     primary = `${browser} ${browserMatch[2]}`
-    secondary = secondary || '浏览器请求'
+    secondary = secondary || usageCopy.value.clientLabels.browser
     return { primary, secondary }
   }
 
@@ -719,7 +772,7 @@ const formatUserAgent = (ua: string): FormattedUserAgent => {
 
   return {
     primary,
-    secondary: secondary || '客户端来源'
+    secondary: secondary || usageCopy.value.clientLabels.source
   }
 }
 
@@ -1124,6 +1177,7 @@ onMounted(() => {
   display: block;
   font-size: 0.74rem;
   color: #59645a;
+  overflow-wrap: anywhere;
 }
 
 .usage-ledger-item strong {
@@ -1168,7 +1222,7 @@ onMounted(() => {
 
 .usage-toolbar-grid {
   display: grid;
-  grid-template-columns: minmax(14rem, 19.5rem) minmax(13rem, max-content) auto minmax(0, 1fr);
+  grid-template-columns: minmax(12rem, 18rem) minmax(12rem, max-content) auto minmax(14rem, 1fr);
   align-items: center;
   gap: 0.65rem;
   min-width: 0;
@@ -1234,7 +1288,10 @@ onMounted(() => {
 }
 
 .usage-toolbar-actions .btn {
-  min-width: 7rem;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.2;
+  white-space: normal;
 }
 
 .usage-data-shell {
@@ -1526,6 +1583,7 @@ onMounted(() => {
   display: grid;
   gap: 0.18rem;
   min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .usage-summary-detail {
@@ -1533,6 +1591,24 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 0.12rem 0.35rem;
   line-height: 1.55;
+}
+
+.usage-page-en .usage-summary-detail {
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0.24rem;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.usage-page-en .usage-summary-detail span {
+  flex: 0 0 auto;
+}
+
+.usage-page-en .usage-summary-detail span:nth-child(n + 5) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .usage-summary-card-primary {
@@ -1584,6 +1660,12 @@ onMounted(() => {
   word-break: break-all;
 }
 
+.usage-page-en .usage-cell-break strong,
+.usage-page-en .usage-cell-break span {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
 .usage-user-agent {
   max-width: 15rem;
 }
@@ -1617,6 +1699,10 @@ onMounted(() => {
   min-width: 0;
 }
 
+.usage-page-en .usage-token-cell {
+  gap: 0.3rem;
+}
+
 .usage-token-cell-image {
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -1629,7 +1715,7 @@ onMounted(() => {
 }
 
 .usage-token-ledger-compact {
-  gap: 0.9rem;
+  gap: 0.62rem;
 }
 
 .usage-token-stat {
@@ -1659,6 +1745,10 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 0.28rem;
+}
+
+.usage-page-en .usage-token-meta {
+  gap: 0.22rem;
 }
 
 .usage-meta-chip {
@@ -1708,6 +1798,7 @@ onMounted(() => {
   font-size: 0.82rem;
   font-weight: 650;
   line-height: 1.1;
+  white-space: normal;
   transition:
     border-color 160ms ease,
     background-color 160ms ease,
@@ -1762,6 +1853,55 @@ onMounted(() => {
   border-spacing: 0;
   background: transparent;
   table-layout: auto;
+}
+
+.usage-page-en :deep(table) {
+  min-width: 104rem;
+  table-layout: fixed;
+}
+
+.usage-page-en :deep(.usage-col-api-key) {
+  width: 5.4rem;
+  min-width: 5.4rem;
+  max-width: 5.4rem;
+}
+
+.usage-page-en :deep(.usage-col-model) {
+  width: 8.8rem;
+  min-width: 8.8rem;
+  max-width: 8.8rem;
+}
+
+.usage-page-en :deep(.usage-col-reasoning) {
+  width: 8.2rem;
+  min-width: 8.2rem;
+  max-width: 8.2rem;
+}
+
+.usage-page-en :deep(.usage-col-endpoint) {
+  width: 9.2rem;
+  min-width: 9.2rem;
+  max-width: 9.2rem;
+}
+
+.usage-page-en :deep(.usage-col-type),
+.usage-page-en :deep(.usage-col-billing-mode) {
+  width: 6.2rem;
+  min-width: 6.2rem;
+  max-width: 6.2rem;
+}
+
+.usage-page-en :deep(.usage-col-tokens) {
+  width: 10.6rem;
+  min-width: 10.6rem;
+  max-width: 10.6rem;
+}
+
+.usage-page-en :deep(.usage-col-first-token),
+.usage-page-en :deep(.usage-col-duration) {
+  width: 7.4rem;
+  min-width: 7.4rem;
+  max-width: 7.4rem;
 }
 
 .usage-page :deep(.usage-col-user-agent) {
@@ -2267,6 +2407,22 @@ onMounted(() => {
   border-color: rgba(184, 156, 116, 0.34);
   background: rgba(184, 156, 116, 0.1);
   color: #f4efe4;
+}
+
+@media (max-width: 1180px) {
+  .usage-toolbar-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .usage-tab-strip,
+  .usage-toolbar-actions {
+    justify-self: stretch;
+  }
+
+  .usage-toolbar-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 768px) {
