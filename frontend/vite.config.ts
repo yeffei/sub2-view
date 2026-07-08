@@ -25,6 +25,7 @@ function injectPublicSettings(backendUrl: string): Plugin {
             }
           }
         } catch (e) {
+          void e
         }
         return html
       }
