@@ -93,6 +93,11 @@ type Config struct {
 	Gemini                  GeminiConfig                  `mapstructure:"gemini"`
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
+	Bot                     BotConfig                     `mapstructure:"bot"`
+}
+
+type BotConfig struct {
+	ServiceToken string `mapstructure:"service_token"`
 }
 
 type LogConfig struct {
@@ -1816,6 +1821,9 @@ func setDefaults() {
 	viper.SetDefault("idempotency.max_stored_response_len", 64*1024)
 	viper.SetDefault("idempotency.cleanup_interval_seconds", 60)
 	viper.SetDefault("idempotency.cleanup_batch_size", 500)
+
+	// Bot service token for read-only service integrations.
+	viper.SetDefault("bot.service_token", "")
 
 	// Gateway
 	viper.SetDefault("gateway.response_header_timeout", 600) // 600秒(10分钟)等待上游响应头，LLM高负载时可能排队较久

@@ -11,6 +11,9 @@ type JWTAuthMiddleware gin.HandlerFunc
 // AdminAuthMiddleware 管理员认证中间件类型
 type AdminAuthMiddleware gin.HandlerFunc
 
+// BotServiceAuthMiddleware Bot 服务令牌认证中间件类型
+type BotServiceAuthMiddleware gin.HandlerFunc
+
 // APIKeyAuthMiddleware API Key 认证中间件类型
 type APIKeyAuthMiddleware gin.HandlerFunc
 
@@ -18,5 +21,6 @@ type APIKeyAuthMiddleware gin.HandlerFunc
 var ProviderSet = wire.NewSet(
 	NewJWTAuthMiddleware,
 	NewAdminAuthMiddleware,
+	NewBotServiceAuthMiddleware,
 	NewAPIKeyAuthMiddleware,
 )

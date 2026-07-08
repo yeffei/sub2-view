@@ -103,6 +103,7 @@ services:
       # with 2FA).
       # Generate a secure key: openssl rand -hex 32
       - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
+      - BOT_SERVICE_TOKEN=${BOT_SERVICE_TOKEN:-}
 
       # =======================================================================
       # Timezone Configuration

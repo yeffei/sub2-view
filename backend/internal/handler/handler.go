@@ -51,6 +51,7 @@ type Handlers struct {
 	Announcement       *AnnouncementHandler
 	ChannelMonitor     *ChannelMonitorUserHandler
 	UpstreamPoolHealth *UpstreamPoolHealthUserHandler
+	Bot                *BotHandler
 	Admin              *AdminHandlers
 	Gateway            *GatewayHandler
 	OpenAIGateway      *OpenAIGatewayHandler
