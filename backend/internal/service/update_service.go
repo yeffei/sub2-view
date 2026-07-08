@@ -22,14 +22,14 @@ import (
 )
 
 var (
-	ErrNoUpdateAvailable    = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
+	ErrNoUpdateAvailable     = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
 	ErrUpdatePreflightFailed = infraerrors.BadRequest("UPDATE_PREFLIGHT_FAILED", "update preflight failed")
 )
 
 const (
-	updateCacheKey = "update_check_cache"
-	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "Wei-Shaw/sub2api"
+	updateCacheKey     = "update_check_cache"
+	updateCacheTTL     = 1200 // 20 minutes
+	defaultReleaseRepo = "Wei-Shaw/sub2api"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
@@ -58,15 +58,17 @@ type UpdateService struct {
 	githubClient   GitHubReleaseClient
 	currentVersion string
 	buildType      string // "source" for manual builds, "release" for CI builds
+	releaseRepo    string
 }
 
 // NewUpdateService creates a new UpdateService
-func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, version, buildType string) *UpdateService {
+func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, version, buildType, releaseRepo string) *UpdateService {
 	return &UpdateService{
 		cache:          cache,
 		githubClient:   githubClient,
 		currentVersion: version,
 		buildType:      buildType,
+		releaseRepo:    normalizeReleaseRepo(releaseRepo),
 	}
 }
 
@@ -79,23 +81,25 @@ type UpdateInfo struct {
 	Cached         bool         `json:"cached"`
 	Warning        string       `json:"warning,omitempty"`
 	BuildType      string       `json:"build_type"` // "source" or "release"
+	ReleaseRepo    string       `json:"release_repo"`
 }
 
 // UpdatePreflightInfo contains safety checks that must pass before an in-place update.
 type UpdatePreflightInfo struct {
-	CurrentVersion string                 `json:"current_version"`
-	LatestVersion  string                 `json:"latest_version"`
-	HasUpdate      bool                   `json:"has_update"`
-	CanUpdate      bool                   `json:"can_update"`
-	BuildType      string                 `json:"build_type"`
-	ArchiveName    string                 `json:"archive_name"`
-	DownloadAsset  *Asset                 `json:"download_asset,omitempty"`
-	ChecksumAsset  *Asset                 `json:"checksum_asset,omitempty"`
-	ExecutablePath string                 `json:"executable_path,omitempty"`
-	BackupPath     string                 `json:"backup_path,omitempty"`
-	Checks         []UpdatePreflightCheck `json:"checks"`
-	BlockingReasons []string              `json:"blocking_reasons,omitempty"`
-	Warnings       []string               `json:"warnings,omitempty"`
+	CurrentVersion  string                 `json:"current_version"`
+	LatestVersion   string                 `json:"latest_version"`
+	HasUpdate       bool                   `json:"has_update"`
+	CanUpdate       bool                   `json:"can_update"`
+	BuildType       string                 `json:"build_type"`
+	ReleaseRepo     string                 `json:"release_repo"`
+	ArchiveName     string                 `json:"archive_name"`
+	DownloadAsset   *Asset                 `json:"download_asset,omitempty"`
+	ChecksumAsset   *Asset                 `json:"checksum_asset,omitempty"`
+	ExecutablePath  string                 `json:"executable_path,omitempty"`
+	BackupPath      string                 `json:"backup_path,omitempty"`
+	Checks          []UpdatePreflightCheck `json:"checks"`
+	BlockingReasons []string               `json:"blocking_reasons,omitempty"`
+	Warnings        []string               `json:"warnings,omitempty"`
 }
 
 type UpdatePreflightCheck struct {
@@ -160,6 +164,7 @@ func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInf
 			HasUpdate:      false,
 			Warning:        err.Error(),
 			BuildType:      s.buildType,
+			ReleaseRepo:    s.releaseRepo,
 		}, nil
 	}
 
@@ -300,6 +305,7 @@ func (s *UpdateService) buildPreflightInfo(info *UpdateInfo) *UpdatePreflightInf
 		LatestVersion:  info.LatestVersion,
 		HasUpdate:      info.HasUpdate,
 		BuildType:      s.buildType,
+		ReleaseRepo:    s.releaseRepo,
 		ArchiveName:    s.getArchiveName(),
 	}
 
@@ -435,7 +441,7 @@ func (s *UpdateService) Rollback() error {
 }
 
 func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, error) {
-	release, err := s.githubClient.FetchLatestRelease(ctx, githubRepo)
+	release, err := s.githubClient.FetchLatestRelease(ctx, s.releaseRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -462,8 +468,9 @@ func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, er
 			HTMLURL:     release.HTMLURL,
 			Assets:      assets,
 		},
-		Cached:    false,
-		BuildType: s.buildType,
+		Cached:      false,
+		BuildType:   s.buildType,
+		ReleaseRepo: s.releaseRepo,
 	}, nil
 }
 
@@ -637,6 +644,7 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 	var cached struct {
 		Latest      string       `json:"latest"`
 		ReleaseInfo *ReleaseInfo `json:"release_info"`
+		ReleaseRepo string       `json:"release_repo"`
 		Timestamp   int64        `json:"timestamp"`
 	}
 	if err := json.Unmarshal([]byte(data), &cached); err != nil {
@@ -646,6 +654,9 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 	if time.Now().Unix()-cached.Timestamp > updateCacheTTL {
 		return nil, fmt.Errorf("cache expired")
 	}
+	if normalizeReleaseRepo(cached.ReleaseRepo) != s.releaseRepo {
+		return nil, fmt.Errorf("cache release repo mismatch")
+	}
 
 	return &UpdateInfo{
 		CurrentVersion: s.currentVersion,
@@ -654,6 +665,7 @@ func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
 		ReleaseInfo:    cached.ReleaseInfo,
 		Cached:         true,
 		BuildType:      s.buildType,
+		ReleaseRepo:    s.releaseRepo,
 	}, nil
 }
 
@@ -661,10 +673,12 @@ func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {
 	cacheData := struct {
 		Latest      string       `json:"latest"`
 		ReleaseInfo *ReleaseInfo `json:"release_info"`
+		ReleaseRepo string       `json:"release_repo"`
 		Timestamp   int64        `json:"timestamp"`
 	}{
 		Latest:      info.LatestVersion,
 		ReleaseInfo: info.ReleaseInfo,
+		ReleaseRepo: info.ReleaseRepo,
 		Timestamp:   time.Now().Unix(),
 	}
 
@@ -698,4 +712,12 @@ func parseVersion(v string) [3]int {
 		}
 	}
 	return result
+}
+
+func normalizeReleaseRepo(repo string) string {
+	repo = strings.TrimSpace(repo)
+	if repo == "" {
+		return defaultReleaseRepo
+	}
+	return repo
 }

@@ -19,6 +19,7 @@ export interface VersionInfo {
   cached: boolean
   warning?: string
   build_type: string // "source" for manual builds, "release" for CI builds
+  release_repo: string
 }
 
 export type UpdatePreflightStatus = 'pass' | 'warn' | 'fail'
@@ -36,6 +37,7 @@ export interface UpdatePreflightInfo {
   has_update: boolean
   can_update: boolean
   build_type: string
+  release_repo: string
   archive_name: string
   download_asset?: {
     name: string

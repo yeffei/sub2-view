@@ -30,9 +30,11 @@ func (s *updateServiceCacheStub) SetUpdateInfo(_ context.Context, data string, _
 
 type updateServiceGitHubClientStub struct {
 	release *GitHubRelease
+	repo    string
 }
 
-func (s *updateServiceGitHubClientStub) FetchLatestRelease(context.Context, string) (*GitHubRelease, error) {
+func (s *updateServiceGitHubClientStub) FetchLatestRelease(_ context.Context, repo string) (*GitHubRelease, error) {
+	s.repo = repo
 	return s.release, nil
 }
 
@@ -55,6 +57,7 @@ func TestUpdateServicePerformUpdateNoUpdateReturnsSentinel(t *testing.T) {
 		},
 		"0.1.132",
 		"release",
+		"",
 	)
 
 	err := svc.PerformUpdate(context.Background())
@@ -88,6 +91,7 @@ func TestUpdateServicePreflightBlocksSourceBuild(t *testing.T) {
 		},
 		"0.1.137",
 		"source",
+		"",
 	)
 
 	info, err := svc.CheckUpdatePreflight(context.Background(), true)
@@ -96,4 +100,26 @@ func TestUpdateServicePreflightBlocksSourceBuild(t *testing.T) {
 	require.True(t, info.HasUpdate)
 	require.False(t, info.CanUpdate)
 	require.Contains(t, info.BlockingReasons, "source build must be upgraded with git/worktree workflow")
+}
+
+func TestUpdateServiceUsesConfiguredReleaseRepo(t *testing.T) {
+	githubClient := &updateServiceGitHubClientStub{
+		release: &GitHubRelease{
+			TagName: "v0.1.143",
+			Name:    "v0.1.143",
+		},
+	}
+	svc := NewUpdateService(
+		&updateServiceCacheStub{},
+		githubClient,
+		"0.1.137",
+		"release",
+		"yeffei/sub2-view",
+	)
+
+	info, err := svc.CheckUpdate(context.Background(), true)
+
+	require.NoError(t, err)
+	require.Equal(t, "yeffei/sub2-view", githubClient.repo)
+	require.Equal(t, "yeffei/sub2-view", info.ReleaseRepo)
 }

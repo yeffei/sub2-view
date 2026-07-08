@@ -7767,6 +7767,7 @@ export default {
   version: {
     currentVersion: '当前版本',
     latestVersion: '最新版本',
+    releaseSource: '更新源',
     upToDate: '已是最新版本',
     updateAvailable: '有新版本可用！',
     releaseNotes: '更新日志',

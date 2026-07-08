@@ -14,6 +14,7 @@ const {
     currentVersion: '0.1.137',
     latestVersion: '0.1.143',
     hasUpdate: true,
+    releaseRepo: 'yeffei/sub2-view',
     releaseInfo: { name: 'v0.1.143', body: '', published_at: '', html_url: 'https://github.com/Wei-Shaw/sub2api/releases/tag/v0.1.143' },
     buildType: 'release',
     fetchVersion: vi.fn(),
@@ -58,6 +59,7 @@ function resetStore() {
   appStore.currentVersion = '0.1.137'
   appStore.latestVersion = '0.1.143'
   appStore.hasUpdate = true
+  appStore.releaseRepo = 'yeffei/sub2-view'
   appStore.releaseInfo = {
     name: 'v0.1.143',
     body: '',
@@ -115,6 +117,7 @@ describe('VersionBadge release update flow', () => {
     expect(checkUpdatePreflight).toHaveBeenCalledWith(true)
     expect(performUpdate).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('source build must be upgraded with git/worktree workflow')
+    expect(wrapper.text()).toContain('yeffei/sub2-view')
   })
 
   it('runs update only after preflight passes', async () => {

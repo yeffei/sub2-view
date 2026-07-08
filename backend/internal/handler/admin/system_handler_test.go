@@ -103,6 +103,7 @@ func TestSystemHandlerPerformUpdateAlreadyUpToDateReturnsOK(t *testing.T) {
 			CurrentVersion: "0.1.132",
 			LatestVersion:  "0.1.132",
 			HasUpdate:      false,
+			ReleaseRepo:    "yeffei/sub2-view",
 		},
 	}
 	repo := newMemoryIdempotencyRepoStub()
@@ -160,6 +161,7 @@ func TestSystemHandlerCheckUpdatePreflightReturnsInfo(t *testing.T) {
 			HasUpdate:      true,
 			CanUpdate:      true,
 			BuildType:      "release",
+			ReleaseRepo:    "yeffei/sub2-view",
 			ArchiveName:    "linux_amd64",
 			Checks: []service.UpdatePreflightCheck{
 				{Key: "build_type", Label: "Release build", Status: "pass", Message: "release build supports in-place update"},
@@ -177,12 +179,13 @@ func TestSystemHandlerCheckUpdatePreflightReturnsInfo(t *testing.T) {
 	require.Equal(t, []bool{true}, updateSvc.preflightForces)
 
 	var body struct {
-		Code int `json:"code"`
+		Code int                         `json:"code"`
 		Data service.UpdatePreflightInfo `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.Equal(t, 0, body.Code)
 	require.True(t, body.Data.CanUpdate)
 	require.Equal(t, "0.1.143", body.Data.LatestVersion)
+	require.Equal(t, "yeffei/sub2-view", body.Data.ReleaseRepo)
 	require.Len(t, body.Data.Checks, 1)
 }

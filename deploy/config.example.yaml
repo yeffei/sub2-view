@@ -1113,6 +1113,17 @@ gemini:
 # Update Configuration (在线更新配置)
 # =============================================================================
 update:
+  # GitHub release repository used by the admin update button
+  # 管理后台升级按钮使用的 GitHub Release 仓库
+  # Format: owner/repo
+  # For SST branded deployments, point this to your own fork release repository
+  # SST 品牌化部署请改为你自己的 fork release 仓库
+  release_repo: "yeffei/sub2-view"
+
+  # Optional GitHub token for private release repositories
+  # 私有 GitHub release 仓库可配置访问令牌；公开仓库可留空
+  github_token: ""
+
   # Proxy URL for accessing GitHub (used for online updates and pricing data)
   # 用于访问 GitHub 的代理地址（用于在线更新和定价数据获取）
   # Supports: http, https, socks5, socks5h

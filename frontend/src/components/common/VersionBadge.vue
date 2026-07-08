@@ -111,6 +111,9 @@
                       : t('version.upToDate')
                   }}
                 </p>
+                <p v-if="releaseRepo" class="mt-1 text-[11px] text-gray-400 dark:text-dark-500">
+                  {{ t('version.releaseSource') }}: {{ releaseRepo }}
+                </p>
               </div>
 
               <!-- Priority 1: Update error (must check before hasUpdate) -->
@@ -453,6 +456,7 @@ const loading = computed(() => appStore.versionLoading)
 const currentVersion = computed(() => appStore.currentVersion || props.version || '')
 const latestVersion = computed(() => appStore.latestVersion)
 const hasUpdate = computed(() => appStore.hasUpdate)
+const releaseRepo = computed(() => appStore.releaseRepo)
 const releaseInfo = computed(() => appStore.releaseInfo)
 const buildType = computed(() => appStore.buildType)
 

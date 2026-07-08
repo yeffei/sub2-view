@@ -7613,6 +7613,7 @@ export default {
   version: {
     currentVersion: 'Current Version',
     latestVersion: 'Latest Version',
+    releaseSource: 'Release Source',
     upToDate: "You're running the latest version.",
     updateAvailable: 'A new version is available!',
     releaseNotes: 'Release Notes',

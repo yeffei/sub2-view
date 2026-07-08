@@ -159,6 +159,10 @@ type UpdateConfig struct {
 	// 支持 http/https/socks5/socks5h 协议
 	// 例如: "http://127.0.0.1:7890", "socks5://127.0.0.1:1080"
 	ProxyURL string `mapstructure:"proxy_url"`
+	// ReleaseRepo 指定在线升级使用的 GitHub Release 仓库，格式 owner/repo
+	ReleaseRepo string `mapstructure:"release_repo"`
+	// GitHubToken 用于访问私有 GitHub Release 的可选令牌
+	GitHubToken string `mapstructure:"github_token"`
 }
 
 type IdempotencyConfig struct {

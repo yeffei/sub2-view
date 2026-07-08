@@ -140,6 +140,7 @@ func (s *GitHubReleaseServiceSuite) TestDownloadFile_404() {
 
 func (s *GitHubReleaseServiceSuite) TestFetchChecksumFile_Success() {
 	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Empty(s.T(), r.Header.Get("Authorization"))
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("sum"))
 	}))
@@ -224,6 +225,7 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Success() {
 		require.Equal(s.T(), "/repos/test/repo/releases/latest", r.URL.Path)
 		require.Equal(s.T(), "application/vnd.github.v3+json", r.Header.Get("Accept"))
 		require.Equal(s.T(), "Sub2API-Updater", r.Header.Get("User-Agent"))
+		require.Equal(s.T(), "Bearer ghp_test_token", r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(releaseJSON))
@@ -235,6 +237,7 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Success() {
 			Transport: &testTransport{testServerURL: s.srv.URL},
 		},
 		downloadHTTPClient: &http.Client{},
+		githubToken:        "ghp_test_token",
 	}
 
 	release, err := s.client.FetchLatestRelease(context.Background(), "test/repo")
@@ -260,6 +263,46 @@ func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_Non200() {
 	_, err := s.client.FetchLatestRelease(context.Background(), "test/repo")
 	require.Error(s.T(), err)
 	require.Contains(s.T(), err.Error(), "404")
+}
+
+func (s *GitHubReleaseServiceSuite) TestDownloadFile_SendsAuthorizationHeaderWhenConfigured() {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(s.T(), "Bearer ghp_test_token", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("content"))
+	}))
+
+	s.client = &githubReleaseClient{
+		httpClient: &http.Client{},
+		downloadHTTPClient: &http.Client{
+			Transport: &testTransport{testServerURL: s.srv.URL},
+		},
+		githubToken: "ghp_test_token",
+	}
+
+	dest := filepath.Join(s.tempDir, "auth-file.bin")
+	err := s.client.DownloadFile(context.Background(), "https://github.com/test/repo/releases/download/v1.0.0/file.bin", dest, 100)
+	require.NoError(s.T(), err)
+}
+
+func (s *GitHubReleaseServiceSuite) TestFetchChecksumFile_SendsAuthorizationHeaderWhenConfigured() {
+	s.srv = newLocalTestServer(s.T(), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(s.T(), "Bearer ghp_test_token", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("sum"))
+	}))
+
+	s.client = &githubReleaseClient{
+		httpClient: &http.Client{
+			Transport: &testTransport{testServerURL: s.srv.URL},
+		},
+		downloadHTTPClient: &http.Client{},
+		githubToken:        "ghp_test_token",
+	}
+
+	body, err := s.client.FetchChecksumFile(context.Background(), "https://github.com/test/repo/releases/download/v1.0.0/checksums.txt")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), "sum", string(body))
 }
 
 func (s *GitHubReleaseServiceSuite) TestFetchLatestRelease_InvalidJSON() {

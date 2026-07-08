@@ -145,6 +145,10 @@ services:
       # =======================================================================
       # Update Configuration (在线更新配置)
       # =======================================================================
+      # GitHub release repository for admin in-place updates
+      - UPDATE_RELEASE_REPO=${UPDATE_RELEASE_REPO:-}
+      # Optional GitHub token for private release repositories
+      - UPDATE_GITHUB_TOKEN=${UPDATE_GITHUB_TOKEN:-}
       # Proxy for accessing GitHub (online updates + pricing data)
       # Examples: http://host:port, socks5://host:port
       - UPDATE_PROXY_URL=${UPDATE_PROXY_URL:-}
