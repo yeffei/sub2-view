@@ -398,6 +398,34 @@ describe('AccountUsageCell', () => {
 	expect(wrapper.text()).toContain('7d|0|27700')
   })
 
+  it('OpenAI OAuth 在 compact 模式下仍显示查询、次数、重置按钮', async () => {
+    getUsage.mockResolvedValue({})
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 20021,
+          platform: 'openai',
+          type: 'oauth',
+          extra: {}
+        }),
+        compact: true
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: true,
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.activeQuery')
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.count')
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.reset')
+  })
+
   it('OpenAI OAuth 在行数据刷新但仍无 codex 快照时会重新拉取 usage', async () => {
 	getUsage
 	  .mockResolvedValueOnce({
