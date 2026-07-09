@@ -291,7 +291,7 @@ import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
-import registerHeroArtwork from '@/assets/brand/sst-register-hero.svg'
+import registerHeroArtwork from '@/assets/brand/sst-register-hero-ai.png'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
   getPublicSettings,
