@@ -1,33 +1,11 @@
 <template>
   <AuthLayout>
-    <template #hero="{ siteName: heroSiteName, siteSubtitle: heroSiteSubtitle }">
-      <div class="register-hero">
-        <div class="register-hero-art">
-          <img :src="registerHeroArtwork" alt="" class="register-hero-image" />
-        </div>
-        <div class="register-hero-copy">
-          <div class="register-hero-heading">
-            <span class="register-hero-rule" aria-hidden="true"></span>
-            <span class="register-hero-kicker">SST</span>
-          </div>
-          <h1 class="register-hero-title font-serif">
-            {{ heroSiteName }}
-          </h1>
-          <p class="register-hero-tagline font-serif">
-            {{ t('publicSite.tagline') }}
-          </p>
-          <p class="register-hero-subtitle">
-            {{ heroSiteSubtitle }}
-          </p>
-          <div class="register-hero-marks">
-            <span>{{ t('authBrand.marks.stable') }}</span>
-            <span class="register-hero-divider" aria-hidden="true"></span>
-            <span>{{ t('authBrand.marks.ledger') }}</span>
-            <span class="register-hero-divider" aria-hidden="true"></span>
-            <span>{{ t('authBrand.marks.access') }}</span>
-          </div>
-        </div>
-      </div>
+    <template #hero>
+      <AuthArtworkHero
+        :src="registerHeroArtwork"
+        variant="register"
+        object-position="center center"
+      />
     </template>
 
     <div class="space-y-6">
@@ -287,11 +265,12 @@ import { AuthLayout } from '@/components/layout'
 import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
 import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
+import AuthArtworkHero from '@/components/auth/AuthArtworkHero.vue'
 import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
-import registerHeroArtwork from '@/assets/brand/sst-register-hero-ai.png'
+import registerHeroArtwork from '@/assets/brand/sst-register-hero-ai-compact.webp'
 import { useAuthStore, useAppStore } from '@/stores'
 import {
   getPublicSettings,
@@ -785,154 +764,6 @@ async function handleRegister(): Promise<void> {
 </script>
 
 <style scoped>
-.register-hero {
-  display: flex;
-  max-width: 38rem;
-  flex-direction: column;
-  gap: 1.9rem;
-}
-
-.register-hero-art {
-  position: relative;
-  overflow: hidden;
-  border: 1px solid rgba(176, 158, 131, 0.4);
-  border-radius: 2rem 0.95rem 2rem 0.95rem;
-  background:
-    linear-gradient(180deg, rgba(255, 252, 246, 0.84), rgba(243, 234, 220, 0.76)),
-    rgba(247, 240, 228, 0.82);
-  box-shadow:
-    0 28px 72px -44px rgba(42, 34, 24, 0.48),
-    0 1px 0 rgba(255, 255, 255, 0.62) inset;
-}
-
-.register-hero-art::before {
-  content: '';
-  position: absolute;
-  inset: 1rem;
-  z-index: 1;
-  border: 1px solid rgba(255, 249, 240, 0.56);
-  border-radius: 1.45rem 0.65rem 1.45rem 0.65rem;
-  pointer-events: none;
-}
-
-.register-hero-art::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 20%),
-    radial-gradient(circle at 84% 18%, rgba(168, 69, 53, 0.1), transparent 18%);
-  pointer-events: none;
-}
-
-.register-hero-image {
-  display: block;
-  width: 100%;
-  aspect-ratio: 6 / 7.3;
-  object-fit: cover;
-}
-
-.register-hero-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-}
-
-.register-hero-heading {
-  display: flex;
-  align-items: center;
-  gap: 0.95rem;
-}
-
-.register-hero-rule {
-  width: 4.25rem;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(117, 109, 97, 0.12), rgba(117, 109, 97, 0.58), rgba(117, 109, 97, 0.12));
-}
-
-.register-hero-kicker {
-  font-size: 0.72rem;
-  letter-spacing: 0.42em;
-  text-transform: uppercase;
-  color: #8f7e67;
-}
-
-.register-hero-title {
-  font-size: clamp(3rem, 4.6vw, 4.5rem);
-  line-height: 0.98;
-  font-weight: 600;
-  color: #232723;
-}
-
-.register-hero-tagline {
-  max-width: 22rem;
-  font-size: 1.85rem;
-  line-height: 1.35;
-  color: #4c4c43;
-}
-
-.register-hero-subtitle {
-  max-width: 27rem;
-  font-size: 0.96rem;
-  line-height: 1.9;
-  color: #7c6f5f;
-}
-
-.register-hero-marks {
-  margin-top: 0.6rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-  color: #7e7465;
-  font-size: 0.9rem;
-}
-
-.register-hero-divider {
-  width: 3.25rem;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(176, 158, 131, 0.1), rgba(176, 158, 131, 0.58), rgba(176, 158, 131, 0.1));
-}
-
-:global(html.dark) .register-hero-art {
-  border-color: rgba(191, 161, 118, 0.24);
-  background:
-    linear-gradient(180deg, rgba(28, 25, 21, 0.86), rgba(20, 18, 16, 0.92)),
-    rgba(22, 18, 16, 0.82);
-  box-shadow:
-    inset 0 1px 0 rgba(248, 231, 200, 0.05),
-    0 28px 84px -46px rgba(0, 0, 0, 0.58);
-}
-
-:global(html.dark) .register-hero-art::before {
-  border-color: rgba(248, 231, 200, 0.08);
-}
-
-:global(html.dark) .register-hero-art::after {
-  background:
-    linear-gradient(180deg, rgba(255, 248, 235, 0.05), transparent 22%),
-    radial-gradient(circle at 84% 18%, rgba(194, 129, 61, 0.12), transparent 18%);
-}
-
-:global(html.dark) .register-hero-kicker,
-:global(html.dark) .register-hero-subtitle,
-:global(html.dark) .register-hero-marks {
-  color: #c6b598;
-}
-
-:global(html.dark) .register-hero-rule,
-:global(html.dark) .register-hero-divider {
-  background: linear-gradient(90deg, rgba(194, 165, 117, 0.08), rgba(194, 165, 117, 0.56), rgba(194, 165, 117, 0.08));
-}
-
-:global(html.dark) .register-hero-title {
-  color: #f3e7d5;
-}
-
-:global(html.dark) .register-hero-tagline {
-  color: #d6c3a5;
-}
-
 .fade-enter-active,
 .fade-leave-active {
   transition: all 0.3s ease;

@@ -29,8 +29,8 @@
       </div>
     </header>
 
-    <div class="relative z-10 mx-auto grid min-h-[calc(100vh-116px)] w-full max-w-7xl px-5 pb-10 pt-24 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-12">
-      <section class="auth-hero hidden lg:block">
+    <div class="relative z-10 mx-auto grid min-h-[calc(100vh-116px)] w-full max-w-[84rem] px-5 pb-12 pt-28 sm:px-8 sm:pt-32 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,29rem)] lg:items-center lg:gap-10 lg:px-10 lg:pt-16 xl:gap-16">
+      <section class="auth-hero hidden lg:flex lg:items-center">
         <slot name="hero" :siteName="siteName" :siteSubtitle="siteSubtitle" :isDark="isDark">
           <div class="mb-8 flex items-center gap-4">
             <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
@@ -55,7 +55,7 @@
         </slot>
       </section>
 
-      <section class="auth-form-shell mx-auto w-full max-w-[30rem]">
+      <section class="auth-form-shell mx-auto w-full max-w-[29rem] lg:justify-self-end">
         <div class="auth-card rounded-zen p-7 sm:p-8">
           <div class="auth-card-head mb-7 flex items-start justify-between gap-6">
             <div>

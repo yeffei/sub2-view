@@ -1,5 +1,13 @@
 <template>
   <AuthLayout>
+    <template #hero>
+      <AuthArtworkHero
+        :src="loginHeroArtwork"
+        variant="login"
+        object-position="center 52%"
+      />
+    </template>
+
     <div class="space-y-6">
       <!-- Title -->
       <div class="auth-form-header text-center">
@@ -206,11 +214,13 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import DingTalkOAuthSection from '@/components/auth/DingTalkOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
 import WechatOAuthSection from '@/components/auth/WechatOAuthSection.vue'
+import AuthArtworkHero from '@/components/auth/AuthArtworkHero.vue'
 import EmailOAuthButtons from '@/components/auth/EmailOAuthButtons.vue'
 import LoginAgreementPrompt from '@/components/auth/LoginAgreementPrompt.vue'
 import TotpLoginModal from '@/components/auth/TotpLoginModal.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import loginHeroArtwork from '@/assets/brand/sst-login-hero-ai-compact.webp'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, isTotp2FARequired, isWeChatWebOAuthEnabled } from '@/api/auth'
 import type { LoginAgreementDocument, TotpLoginResponse } from '@/types'
