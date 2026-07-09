@@ -194,6 +194,19 @@
             </div>
           </template>
 
+          <template #cell-current_concurrency="{ value }">
+            <span
+              :class="[
+                'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
+                (value ?? 0) > 0
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
+              ]"
+            >
+              {{ value ?? 0 }}
+            </span>
+          </template>
+
           <template #cell-usage="{ row }">
             <div class="key-usage-cell">
               <div class="key-usage-ledger">
@@ -1362,6 +1375,7 @@ const columns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true, class: 'min-w-[8rem]' },
   { key: 'key', label: t('keys.apiKey'), sortable: false, class: 'min-w-[8.75rem]' },
   { key: 'group', label: t('keys.group'), sortable: false, class: 'min-w-[8rem]' },
+  { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: false, class: 'min-w-[6.5rem]' },
   { key: 'usage', label: keysCopy.value.ledger, sortable: false, class: 'min-w-[12rem]' },
   { key: 'created_at', label: keysCopy.value.createdAt, sortable: true, class: 'min-w-[6.25rem]' },
   { key: 'status', label: keysCopy.value.healthStatus, sortable: true, class: 'min-w-[7.5rem]' },
@@ -4629,5 +4643,3 @@ onUnmounted(() => {
   }
 }
 </style>
-
-
