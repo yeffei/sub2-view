@@ -1,5 +1,8 @@
 # Sub2API 安全升级策略（山枢庭 / SST）
 
+> 如果你当前关心的是“服务器以后如何稳定升级”，优先看 [docs/sst-production-upgrade-sop.md](./sst-production-upgrade-sop.md)。
+> 本文更偏“源码层面的升级边界、模块收口和长期兼容策略”。
+
 ## 目标
 
 在继续跟进上游 `Sub2API` 版本时，同时满足三件事：

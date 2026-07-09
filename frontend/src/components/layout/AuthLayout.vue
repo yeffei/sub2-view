@@ -31,26 +31,28 @@
 
     <div class="relative z-10 mx-auto grid min-h-[calc(100vh-116px)] w-full max-w-7xl px-5 pb-10 pt-24 sm:px-8 sm:pt-28 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16 lg:pt-12">
       <section class="auth-hero hidden lg:block">
-        <div class="mb-8 flex items-center gap-4">
-          <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-          <span class="auth-hero-kicker text-xs uppercase tracking-[0.42em] text-zen-mist dark:text-zen-stone">SST</span>
-        </div>
-        <h1 class="auth-hero-title font-serif text-[clamp(4.6rem,7.2vw,7.8rem)] font-semibold leading-none text-zen-ink dark:text-zen-paper">
-          {{ siteName }}
-        </h1>
-        <p class="auth-hero-lead mt-7 max-w-xl font-serif text-4xl leading-tight text-zen-inkSoft dark:text-zen-paper">
-          {{ t('publicSite.tagline') }}
-        </p>
-        <p class="auth-hero-copy mt-5 max-w-md text-sm leading-7 text-zen-mist dark:text-zen-stone">
-          {{ siteSubtitle }}
-        </p>
-        <div class="auth-hero-marks mt-14 flex items-center gap-6 text-sm text-zen-mist dark:text-zen-stone">
-          <span>{{ t('authBrand.marks.stable') }}</span>
-          <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-          <span>{{ t('authBrand.marks.ledger') }}</span>
-          <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
-          <span>{{ t('authBrand.marks.access') }}</span>
-        </div>
+        <slot name="hero" :siteName="siteName" :siteSubtitle="siteSubtitle" :isDark="isDark">
+          <div class="mb-8 flex items-center gap-4">
+            <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
+            <span class="auth-hero-kicker text-xs uppercase tracking-[0.42em] text-zen-mist dark:text-zen-stone">SST</span>
+          </div>
+          <h1 class="auth-hero-title font-serif text-[clamp(4.6rem,7.2vw,7.8rem)] font-semibold leading-none text-zen-ink dark:text-zen-paper">
+            {{ siteName }}
+          </h1>
+          <p class="auth-hero-lead mt-7 max-w-xl font-serif text-4xl leading-tight text-zen-inkSoft dark:text-zen-paper">
+            {{ t('publicSite.tagline') }}
+          </p>
+          <p class="auth-hero-copy mt-5 max-w-md text-sm leading-7 text-zen-mist dark:text-zen-stone">
+            {{ siteSubtitle }}
+          </p>
+          <div class="auth-hero-marks mt-14 flex items-center gap-6 text-sm text-zen-mist dark:text-zen-stone">
+            <span>{{ t('authBrand.marks.stable') }}</span>
+            <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
+            <span>{{ t('authBrand.marks.ledger') }}</span>
+            <span class="h-px w-16 bg-zen-paperLine dark:bg-zen-nightLine"></span>
+            <span>{{ t('authBrand.marks.access') }}</span>
+          </div>
+        </slot>
       </section>
 
       <section class="auth-form-shell mx-auto w-full max-w-[30rem]">
