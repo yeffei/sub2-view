@@ -133,6 +133,9 @@ docs/*
 !docs/PAYMENT.md
 !docs/PAYMENT_CN.md
 !docs/ADMIN_PAYMENT_INTEGRATION_API.md
+!docs/sst-production-upgrade-sop.md
+!docs/sst-remote-docker-upgrade-sop.md
+!docs/sst-release-button-upgrade-plan.md
 !docs/legal/
 !docs/legal/*.md
 .serena/
