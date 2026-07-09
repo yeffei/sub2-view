@@ -64,6 +64,10 @@
           :options="openAITestModeOptions"
           :disabled="status === 'connecting'"
         />
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 text-xs text-stone-600 dark:border-dark-500 dark:bg-dark-700/70 dark:text-gray-300">
+          <div class="font-medium text-stone-900 dark:text-white">{{ currentTestModeLabel }}</div>
+          <div class="mt-1">{{ currentTestModeHint }}</div>
+        </div>
       </div>
 
       <div v-if="supportsImageTest" class="space-y-1.5">
@@ -77,8 +81,29 @@
         />
       </div>
 
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-500 dark:bg-dark-700/70">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">{{ t('admin.accounts.testModel') }}</div>
+          <div class="mt-1 truncate text-sm font-semibold text-stone-900 dark:text-white">{{ selectedModelId || '—' }}</div>
+        </div>
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-500 dark:bg-dark-700/70">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">{{ t('admin.accounts.testRequestType') }}</div>
+          <div class="mt-1 text-sm font-semibold text-stone-900 dark:text-white">{{ testRequestTypeLabel }}</div>
+        </div>
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-500 dark:bg-dark-700/70">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">{{ t('admin.accounts.testStatus') }}</div>
+          <div class="mt-1 text-sm font-semibold text-stone-900 dark:text-white">{{ statusLabel }}</div>
+        </div>
+      </div>
+
       <!-- Terminal Output -->
       <div class="group relative">
+        <div class="mb-2 flex items-center justify-between px-1">
+          <div class="flex items-center gap-2 text-xs text-stone-500 dark:text-gray-400">
+            <span class="h-2 w-2 rounded-full" :class="statusDotClass" />
+            <span>{{ statusLabel }}</span>
+          </div>
+        </div>
         <div
           ref="terminalRef"
           class="max-h-[280px] min-h-[150px] overflow-y-auto rounded-lg border border-stone-200 bg-[#fffdf7] p-4 text-sm leading-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] dark:border-dark-500 dark:bg-dark-800"
@@ -191,7 +216,7 @@
     </div>
 
     <template #footer>
-      <div class="flex justify-end gap-3">
+      <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <button
           @click="handleClose"
           class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500"
@@ -304,6 +329,35 @@ const supportsOpenAIImageTest = computed(() => {
 })
 
 const supportsImageTest = computed(() => supportsGeminiImageTest.value || supportsOpenAIImageTest.value)
+const currentTestModeLabel = computed(() => {
+  if (!isOpenAIAccount.value) return t('admin.accounts.openai.testModeDefault')
+  return testMode.value === 'compact'
+    ? t('admin.accounts.openai.testModeCompact')
+    : t('admin.accounts.openai.testModeDefault')
+})
+const currentTestModeHint = computed(() => {
+  if (!isOpenAIAccount.value) return t('admin.accounts.testModeHintDefault')
+  return testMode.value === 'compact'
+    ? t('admin.accounts.testModeHintCompact')
+    : t('admin.accounts.testModeHintDefault')
+})
+const testRequestTypeLabel = computed(() => {
+  if (supportsImageTest.value) return t('admin.accounts.imageTestMode')
+  if (isOpenAIAccount.value) return currentTestModeLabel.value
+  return t('admin.accounts.testPrompt')
+})
+const statusLabel = computed(() => {
+  if (status.value === 'connecting') return t('admin.accounts.connectingToApi')
+  if (status.value === 'success') return t('admin.accounts.testCompleted')
+  if (status.value === 'error') return errorMessage.value || t('admin.accounts.testFailed')
+  return t('admin.accounts.readyToTest')
+})
+const statusDotClass = computed(() => {
+  if (status.value === 'connecting') return 'bg-[#8a1f12]'
+  if (status.value === 'success') return 'bg-emerald-500'
+  if (status.value === 'error') return 'bg-red-500'
+  return 'bg-stone-300 dark:bg-gray-500'
+})
 
 const sortTestModels = (models: ClaudeModel[]) => {
   const priorityMap = new Map(prioritizedGeminiModels.map((id, index) => [id, index]))

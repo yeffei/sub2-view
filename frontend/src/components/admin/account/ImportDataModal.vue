@@ -10,6 +10,28 @@
       <div class="text-sm text-gray-600 dark:text-dark-300">
         {{ t('admin.accounts.dataImportHint') }}
       </div>
+      <div v-if="files.length > 0" class="grid gap-3 sm:grid-cols-3">
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">
+            {{ t('admin.accounts.dataImportFiles') }}
+          </div>
+          <div class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">{{ files.length }}</div>
+        </div>
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">
+            {{ t('admin.accounts.dataImportSize') }}
+          </div>
+          <div class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">{{ totalFileSizeLabel }}</div>
+        </div>
+        <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+          <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">
+            {{ t('admin.accounts.dataImportMergeMode') }}
+          </div>
+          <div class="mt-1 text-sm font-medium text-stone-900 dark:text-white">
+            {{ files.length > 1 ? t('admin.accounts.dataImportMergeMultiple') : t('admin.accounts.dataImportMergeSingle') }}
+          </div>
+        </div>
+      </div>
       <div
         class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
       >
@@ -51,6 +73,27 @@
         />
       </div>
 
+      <div v-if="files.length > 0" class="space-y-2">
+        <div class="text-xs font-medium uppercase tracking-[0.16em] text-stone-500 dark:text-dark-300">
+          {{ t('admin.accounts.dataImportSelectedFiles') }}
+        </div>
+        <div class="space-y-2">
+          <div
+            v-for="(file, index) in files"
+            :key="`${file.name}-${file.size}-${index}`"
+            class="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white/90 px-3 py-2 dark:border-dark-700 dark:bg-dark-700/70"
+          >
+            <div class="min-w-0">
+              <div class="truncate text-sm font-medium text-stone-900 dark:text-white">{{ file.name }}</div>
+              <div class="text-xs text-stone-500 dark:text-dark-300">{{ formatFileSize(file.size) }}</div>
+            </div>
+            <button type="button" class="shrink-0 text-xs text-red-600 hover:text-red-700 dark:text-red-300" @click="removeFile(index)">
+              {{ t('common.remove') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div
         v-if="result"
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
@@ -60,6 +103,24 @@
         </div>
         <div class="text-sm text-gray-700 dark:text-dark-300">
           {{ t('admin.accounts.dataImportResultSummary', result) }}
+        </div>
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+            <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">{{ t('admin.accounts.dataImportAccountsCreated') }}</div>
+            <div class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">{{ result.account_created }}</div>
+          </div>
+          <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+            <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">{{ t('admin.accounts.dataImportProxiesCreated') }}</div>
+            <div class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">{{ result.proxy_created }}</div>
+          </div>
+          <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+            <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">{{ t('admin.accounts.dataImportProxiesReused') }}</div>
+            <div class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">{{ result.proxy_reused }}</div>
+          </div>
+          <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-700 dark:bg-dark-700/70">
+            <div class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-dark-300">{{ t('admin.accounts.dataImportFailures') }}</div>
+            <div class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">{{ result.account_failed + result.proxy_failed }}</div>
+          </div>
         </div>
 
         <div v-if="errorItems.length" class="mt-2">
@@ -132,6 +193,7 @@ const selectedFilesLabel = computed(() => {
   return t('admin.accounts.selectedCount', { count: files.value.length })
 })
 const fileListTitle = computed(() => files.value.map((item) => item.name).join(', '))
+const totalFileSizeLabel = computed(() => formatFileSize(files.value.reduce((sum, file) => sum + file.size, 0)))
 
 const errorItems = computed(() => result.value?.errors || [])
 
@@ -152,6 +214,18 @@ watch(
 
 const openFilePicker = () => {
   fileInput.value?.click()
+}
+
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const removeFile = (index: number) => {
+  if (importing.value) return
+  files.value = files.value.filter((_, idx) => idx !== index)
+  result.value = null
 }
 
 const handleFileChange = (event: Event) => {

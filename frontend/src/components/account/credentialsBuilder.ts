@@ -35,6 +35,13 @@ export interface HeaderOverrideRow {
   value: string
 }
 
+export type HeaderOverrideRowError =
+  | 'invalidName'
+  | 'blockedName'
+  | 'duplicateName'
+  | 'invalidValue'
+  | null
+
 export function isHeaderOverridePlatform(platform: string): boolean {
   return platform === 'anthropic' || platform === 'openai'
 }
@@ -155,6 +162,48 @@ export function validateHeaderOverrideRows(
   }
   if (seen.size > HEADER_OVERRIDE_MAX_ENTRIES) return 'tooManyEntries'
   return null
+}
+
+export function collectHeaderOverrideRowErrors(rows: HeaderOverrideRow[]): HeaderOverrideRowError[] {
+  const rowErrors: HeaderOverrideRowError[] = rows.map(() => null)
+  const nameIndexes = new Map<string, number[]>()
+
+  rows.forEach((row, index) => {
+    const name = row.name.trim()
+    const value = row.value.trim()
+    if (!name) {
+      if (value) rowErrors[index] = 'invalidName'
+      return
+    }
+    if (!isValidHeaderOverrideName(name) || name.length > HEADER_OVERRIDE_MAX_NAME_LENGTH) {
+      rowErrors[index] = 'invalidName'
+      return
+    }
+    const lower = name.toLowerCase()
+    if (HEADER_OVERRIDE_BLOCKED_NAMES.has(lower)) {
+      rowErrors[index] = 'blockedName'
+      return
+    }
+    if (
+      HEADER_VALUE_INVALID_PATTERN.test(value) ||
+      utf8ByteLength(value) > HEADER_OVERRIDE_MAX_VALUE_LENGTH
+    ) {
+      rowErrors[index] = 'invalidValue'
+      return
+    }
+    const indexes = nameIndexes.get(lower) || []
+    indexes.push(index)
+    nameIndexes.set(lower, indexes)
+  })
+
+  nameIndexes.forEach((indexes) => {
+    if (indexes.length < 2) return
+    indexes.forEach((index) => {
+      if (!rowErrors[index]) rowErrors[index] = 'duplicateName'
+    })
+  })
+
+  return rowErrors
 }
 
 export function buildHeaderOverridesObject(rows: HeaderOverrideRow[]): Record<string, string> {

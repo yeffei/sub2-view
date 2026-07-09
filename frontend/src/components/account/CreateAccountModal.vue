@@ -1432,6 +1432,33 @@
           </div>
 
           <div v-if="headerOverrideEnabled" class="space-y-3">
+            <div class="grid gap-3 sm:grid-cols-3">
+              <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-600 dark:bg-dark-700/70">
+                <p class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">
+                  {{ t('admin.accounts.headerOverride.summaryConfigured') }}
+                </p>
+                <p class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">
+                  {{ headerOverrideNamedCount }}
+                </p>
+              </div>
+              <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-600 dark:bg-dark-700/70">
+                <p class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">
+                  {{ t('admin.accounts.headerOverride.summaryTemplate') }}
+                </p>
+                <p class="mt-1 text-xl font-semibold text-stone-900 dark:text-white">
+                  {{ headerOverrideTemplateCount }}
+                </p>
+              </div>
+              <div class="rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-dark-600 dark:bg-dark-700/70">
+                <p class="text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-gray-400">
+                  {{ t('admin.accounts.headerOverride.summaryPlatform') }}
+                </p>
+                <p class="mt-1 text-xl font-semibold uppercase text-stone-900 dark:text-white">
+                  {{ form.platform }}
+                </p>
+              </div>
+            </div>
+
             <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
               <p class="text-xs text-blue-700 dark:text-blue-400">
                 <Icon name="exclamationCircle" size="sm" class="mr-1 inline" :stroke-width="2" />
@@ -1439,39 +1466,62 @@
               </p>
             </div>
 
-            <div v-if="headerOverrideRows.length > 0" class="space-y-2">
+            <div v-if="headerOverrideRows.length > 0" class="space-y-3">
               <div
                 v-for="(row, index) in headerOverrideRows"
                 :key="getHeaderOverrideRowKey(row)"
-                class="flex items-center gap-2"
+                class="rounded-xl border border-stone-200/80 bg-white/90 p-3 shadow-sm dark:border-dark-600 dark:bg-dark-700/60"
               >
-                <input
-                  v-model="row.name"
-                  type="text"
-                  class="input flex-1"
-                  :placeholder="t('admin.accounts.headerOverride.namePlaceholder')"
-                />
-                <input
-                  v-model="row.value"
-                  type="text"
-                  class="input flex-1"
-                  :placeholder="t('admin.accounts.headerOverride.valuePlaceholder')"
-                />
-                <button
-                  type="button"
-                  @click="removeHeaderOverrideRow(index)"
-                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-                >
-                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                <div class="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_auto] md:items-start">
+                  <div>
+                    <label class="mb-1 block text-[11px] font-medium uppercase tracking-[0.16em] text-stone-500 dark:text-gray-400">
+                      Header
+                    </label>
+                    <input
+                      v-model="row.name"
+                      type="text"
+                      class="input"
+                      :class="headerOverrideRowErrors[index] ? 'border-red-300 bg-red-50/50 dark:border-red-500/70 dark:bg-red-950/20' : ''"
+                      :placeholder="t('admin.accounts.headerOverride.namePlaceholder')"
                     />
-                  </svg>
-                </button>
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-[11px] font-medium uppercase tracking-[0.16em] text-stone-500 dark:text-gray-400">
+                      Value
+                    </label>
+                    <input
+                      v-model="row.value"
+                      type="text"
+                      class="input"
+                      :class="headerOverrideRowErrors[index] ? 'border-red-300 bg-red-50/50 dark:border-red-500/70 dark:bg-red-950/20' : ''"
+                      :placeholder="t('admin.accounts.headerOverride.valuePlaceholder')"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    @click="removeHeaderOverrideRow(index)"
+                    class="justify-self-end rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                  >
+                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <p v-if="headerOverrideRowErrors[index]" class="mt-2 text-xs text-red-600 dark:text-red-400">
+                  {{ t('admin.accounts.headerOverride.rowError', { index: index + 1, message: t(`admin.accounts.headerOverride.${headerOverrideRowErrors[index]}`) }) }}
+                </p>
               </div>
+            </div>
+            <div
+              v-else
+              class="rounded-xl border border-dashed border-stone-300 bg-stone-50/70 px-4 py-5 text-sm text-stone-500 dark:border-dark-500 dark:bg-dark-700/40 dark:text-gray-400"
+            >
+              {{ t('admin.accounts.headerOverride.emptyState') }}
             </div>
 
             <button
@@ -1500,9 +1550,10 @@
               </button>
             </div>
 
-            <p class="text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.headerOverride.emptyValueHint') }}
-            </p>
+            <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <p>{{ t('admin.accounts.headerOverride.emptyValueHint') }}</p>
+              <p>{{ t('admin.accounts.headerOverride.entryCountHint', { count: headerOverrideNamedCount, max: 64 }) }}</p>
+            </div>
           </div>
         </div>
 
@@ -3364,6 +3415,7 @@ import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
   applyHeaderOverride,
   applyInterceptWarmup,
+  collectHeaderOverrideRowErrors,
   getHeaderOverrideTemplate,
   isHeaderOverridePlatform,
   validateHeaderOverrideRows,
@@ -3569,6 +3621,9 @@ const fillHeaderOverrideTemplate = () => {
   }
   headerOverrideRows.value = rows
 }
+const headerOverrideRowErrors = computed(() => collectHeaderOverrideRowErrors(headerOverrideRows.value))
+const headerOverrideNamedCount = computed(() => headerOverrideRows.value.filter((row) => row.name.trim()).length)
+const headerOverrideTemplateCount = computed(() => getHeaderOverrideTemplate(form.platform).length)
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
