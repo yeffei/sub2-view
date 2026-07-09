@@ -6999,7 +6999,7 @@ export default {
           add: '添加端点',
         },
         contactInfo: '前台联系方式',
-        contactInfoPlaceholder: '例如：QQ: 123456789 / support@example.com',
+        contactInfoPlaceholder: "例如：QQ: 123456789 / support{'@'}example.com",
         contactInfoHint: '填写后展示在页脚、FAQ 和价目页；留空则不显示',
         docUrl: '文档链接',
         docUrlHint: '文档网站的链接。留空则隐藏文档链接。',
@@ -8412,4 +8412,3 @@ export default {
   },
 
 }
-

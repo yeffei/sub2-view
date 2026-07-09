@@ -6850,7 +6850,7 @@ export default {
           add: 'Add Endpoint',
         },
         contactInfo: 'Public Contact',
-        contactInfoPlaceholder: 'e.g., QQ: 123456789 / support@example.com',
+        contactInfoPlaceholder: "e.g., QQ: 123456789 / support{'@'}example.com",
         contactInfoHint: 'Shown in the footer, FAQ, and pricing page when configured. Leave empty to hide it.',
         docUrl: 'Documentation URL',
         docUrlPlaceholder: 'https://docs.example.com',
@@ -8234,5 +8234,4 @@ export default {
   },
 
 }
-
 
