@@ -600,3 +600,94 @@ GitHub Actions 的 `Release` workflow 会：
 - 每次升级都跑固定验收清单，而不是靠肉眼临时补查。
 
 如果按这个方向走，后面要保证“升级成功但不破坏现有界面和新功能”，可行，而且成本会越来越低。
+
+---
+
+## 2026-07-09 升级演练记录（上游 `v0.1.146`）
+
+这次已经按上面的流程完成了一次实际升级演练，可作为后续同类升级的参考样板。
+
+### 基本信息
+
+- 日期：`2026-07-09`
+- 上游 release：`v0.1.146`
+- 上游发布时间：`2026-07-07`
+- upgrade worktree：`D:\sub2api-upgrade-20260709`
+- upgrade 分支：`upgrade/upstream-20260709`
+
+### 本次采用的策略
+
+这次没有直接整仓硬合上游，而是采用“选择性同步 + 定向兼容修复”：
+
+1. 先同步上游 `v0.1.146` 中与当前 SST 仓库相关的有效更新。
+2. 避免把已经稳定的前后台品牌化改造整片打散。
+3. 对冲突点优先做最小范围兼容，而不是在 upgrade 分支混入新需求。
+
+对应提交：
+
+- `901bc346` `feat: selective sync upstream v0.1.146 updates`
+- `13759f20` `feat(admin): polish upgrade-related account workflows`
+- `0f90e243` `fix(openai): mark compact channel exhaustion unsupported`
+
+### 本次已验证内容
+
+前端验证：
+
+- `pnpm --dir frontend typecheck`
+- 账号测试、导入、Header Override 相关 `vitest` 用例通过
+
+后端验证：
+
+- `go test ./internal/service -run 'TestBuildOpenAICompactProbeExtraUpdates|TestNormalizeAccountTestMode|TestAccountTestService_OpenAI|TestOpenAIGatewayService_SelectAccountWithScheduler_Compact'`
+
+路由与接口烟测：
+
+- 本地入口：`http://127.0.0.1:18080`
+- 已检查 `/home`、`/login`、`/register`、`/dashboard`、`/keys`、`/usage`、`/profile`、`/admin/dashboard`、`/admin/settings`
+- 已检查 `login`、`auth/me`、`keys`、`workbench`、`admin/settings`
+
+业务态验收：
+
+- 导入账号数据接口可正常处理空有效载荷
+- Header Override 创建、编辑、批量替换、批量清空均已实际写入并回读验证
+- 临时验收账号已清理，不保留脏数据
+
+### 关于 compact 验收的结论
+
+这次排查里最容易误判的一点，是“升级问题”和“上游源能力问题”需要分开看。
+
+实际结论如下：
+
+- 不是 `v0.1.146` 升级导致 OpenAI `compact` 普遍失效
+- 失败样本集中在特定账号对应的上游源 `https://www.kamiapi.top/`
+- 该上游源返回的真实业务错误是：没有 `gpt-5.4-openai-compact` 可用通道
+- 因此这属于“外部上游能力不足”，不是本地 SST 代码回归
+
+本地代码这次做的修复，不是强行让它支持 compact，而是把这种失败正确归类：
+
+- 当 compact 探测命中 `500 + no available channel + -openai-compact` 一类错误时
+- 自动把账号标记为 `openai_compact_supported=false`
+- 避免后续调度持续把它当成“未知异常”反复试错
+
+因此后续验收时要记住：
+
+- 某个模式失败，不一定是升级坏了
+- 先区分是“代码路径回归”还是“账号背后的上游源不支持”
+
+### 对后续升级的直接建议
+
+后续再同步上游时，默认复用这次做法：
+
+1. 先建独立 `upgrade/upstream-YYYYMMDD` worktree
+2. 先做上游同步和兼容修复，不混入新需求
+3. 跑固定 smoke 和关键业务验收
+4. 通过后再合回主分支
+5. 从自己的 SST 主分支发 release，供线上 Docker / 二进制环境升级
+
+如果将来再次遇到“某个账号模式失败”，先检查：
+
+- 账号 `base_url`
+- 该上游是否真的支持目标模型或模式
+- `extra.openai_compact_supported`
+- `extra.openai_compact_last_status`
+- `extra.openai_compact_last_error`
