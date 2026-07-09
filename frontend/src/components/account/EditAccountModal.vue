@@ -2521,7 +2521,6 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
-  applyAntigravityProjectID,
   applyHeaderOverride,
   applyInterceptWarmup,
   getHeaderOverrideTemplate,

@@ -1183,7 +1183,6 @@ const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 
-<<<<<<< HEAD
 const zhKeysCopy = {
   kicker: '密钥庭册',
   title: '调用凭证',
@@ -4644,4 +4643,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

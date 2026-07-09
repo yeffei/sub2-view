@@ -79,6 +79,32 @@ func TestBuildOpenAIResponsesURL_ProbeURL(t *testing.T) {
 	}
 }
 
+func TestBuildOpenAIResponsesInputTokensURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		base string
+		want string
+	}{
+		{"bare domain", "https://api.openai.com", "https://api.openai.com/v1/responses/input_tokens"},
+		{"domain trailing slash", "https://api.openai.com/", "https://api.openai.com/v1/responses/input_tokens"},
+		{"bare /v1", "https://api.openai.com/v1", "https://api.openai.com/v1/responses/input_tokens"},
+		{"already /responses/input_tokens", "https://api.openai.com/v1/responses/input_tokens", "https://api.openai.com/v1/responses/input_tokens"},
+		{"third-party bare domain", "https://api.deepseek.com", "https://api.deepseek.com/v1/responses/input_tokens"},
+		{"third-party versioned path", "https://open.bigmodel.cn/api/paas/v4", "https://open.bigmodel.cn/api/paas/v4/responses/input_tokens"},
+		{"only domain, no scheme", "api.gptgod.online", "api.gptgod.online/v1/responses/input_tokens"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := buildOpenAIResponsesInputTokensURL(tt.base)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndPassesUsageDownstream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

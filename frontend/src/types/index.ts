@@ -1251,6 +1251,7 @@ export interface AdminDataPayload {
   exported_at: string
   proxies: AdminDataProxy[]
   accounts: AdminDataAccount[]
+  skipped_shadows?: number
 }
 
 export interface AdminDataProxy {

@@ -59,7 +59,7 @@ function createStreamResponse(lines: string[]) {
   } as Response
 }
 
-function mountModal() {
+function mountModal(accountOverrides?: Record<string, unknown>) {
   return mount(AccountTestModal, {
     props: {
       show: false,
@@ -68,7 +68,8 @@ function mountModal() {
         name: 'Gemini Image Test',
         platform: 'gemini',
         type: 'apikey',
-        status: 'active'
+        status: 'active',
+        ...accountOverrides
       }
     } as any,
     global: {
