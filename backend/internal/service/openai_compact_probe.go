@@ -37,11 +37,12 @@ func createOpenAICompactProbePayload(model string) map[string]any {
 }
 
 func shouldMarkOpenAICompactUnsupported(status int, body []byte) bool {
+	lower := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(body) + " " + string(body)))
+
 	switch status {
 	case http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusNotImplemented:
 		return true
 	case http.StatusBadRequest, http.StatusForbidden, http.StatusUnprocessableEntity:
-		lower := strings.ToLower(strings.TrimSpace(extractUpstreamErrorMessage(body) + " " + string(body)))
 		if strings.Contains(lower, "compact") {
 			for _, keyword := range []string{
 				"unsupported",
@@ -54,6 +55,15 @@ func shouldMarkOpenAICompactUnsupported(status int, body []byte) bool {
 					return true
 				}
 			}
+		}
+	case http.StatusInternalServerError:
+		// Some OpenAI-compatible pools report missing compact routing as a 500
+		// "no available channel" business error instead of a protocol-level 404.
+		if strings.Contains(lower, "no available channel") &&
+			(strings.Contains(lower, "-openai-compact") ||
+				strings.Contains(lower, " model: gpt-") && strings.Contains(lower, "compact") ||
+				strings.Contains(lower, "get_channel_failed") && strings.Contains(lower, "compact")) {
+			return true
 		}
 	}
 	return false

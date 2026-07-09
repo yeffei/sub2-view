@@ -91,6 +91,19 @@ func TestBuildOpenAICompactProbeExtraUpdates_502DoesNotMarkUnsupported(t *testin
 	}
 }
 
+func TestBuildOpenAICompactProbeExtraUpdates_500NoCompactChannelMarksUnsupported(t *testing.T) {
+	now := time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC)
+	body := []byte(`{"error":{"message":"获取分组 Codex 拼好池 下模型 gpt-5.4-openai-compact 的可用渠道失败（retry）: no available channel after excluding failed channels, group: Codex 拼好池, model: gpt-5.4-openai-compact","code":"get_channel_failed"}}`)
+	updates := buildOpenAICompactProbeExtraUpdates(&http.Response{StatusCode: http.StatusInternalServerError}, body, nil, now)
+
+	if got := updates["openai_compact_supported"]; got != false {
+		t.Fatalf("openai_compact_supported = %v, want false", got)
+	}
+	if got := updates["openai_compact_last_status"]; got != http.StatusInternalServerError {
+		t.Fatalf("openai_compact_last_status = %v, want %d", got, http.StatusInternalServerError)
+	}
+}
+
 func TestBuildOpenAICompactProbeExtraUpdates_RequestErrorDoesNotMarkUnsupported(t *testing.T) {
 	now := time.Date(2026, 4, 10, 10, 0, 0, 0, time.UTC)
 	updates := buildOpenAICompactProbeExtraUpdates(nil, nil, errors.New("dial tcp timeout"), now)
