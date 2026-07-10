@@ -62,15 +62,23 @@
                   <p class="text-xl font-bold text-zen-ink dark:text-zen-paper">
                     {{ formatTokens(usageStats?.total_tokens || 0) }}
                   </p>
-                  <p class="usage-summary-detail text-xs text-zen-mist dark:text-zen-stone">
-                    <span>{{ t('usage.in') }} {{ formatTokens(usageStats?.total_input_tokens || 0) }}</span>
-                    <span> · </span>
-                    <span>{{ t('usage.out') }} {{ formatTokens(usageStats?.total_output_tokens || 0) }}</span>
-                    <span> · </span>
-                    <span>{{ t('usage.cacheHit') }} {{ formatTokens(usageStats?.total_cache_read_tokens || 0) }}</span>
-                    <span> · </span>
-                    <span>{{ t('usage.cacheCreate') }} {{ formatTokens(usageStats?.total_cache_creation_tokens || 0) }}</span>
-                  </p>
+                  <div class="usage-summary-detail usage-summary-detail-token text-xs text-zen-mist dark:text-zen-stone">
+                    <p class="usage-summary-token-line">
+                      <span>{{ t('usage.in') }} {{ formatTokens(usageStats?.total_input_tokens || 0) }}</span>
+                      <span> · </span>
+                      <span>{{ t('usage.out') }} {{ formatTokens(usageStats?.total_output_tokens || 0) }}</span>
+                    </p>
+                    <p class="usage-summary-token-line usage-summary-token-cache-line">
+                      <span class="usage-summary-token-cache-values">
+                        <span>{{ t('usage.cacheHit') }} {{ formatTokens(usageStats?.total_cache_read_tokens || 0) }}</span>
+                        <span> · </span>
+                        <span>{{ t('usage.cacheCreate') }} {{ formatTokens(usageStats?.total_cache_creation_tokens || 0) }}</span>
+                      </span>
+                      <span class="usage-cache-rate-badge" :title="`${usageCopy.cacheRate} ${cacheStats.ratePercent}`">
+                        {{ usageCopy.cacheRate }} {{ cacheStats.ratePercent }}
+                      </span>
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -527,6 +535,7 @@ const zhUsageCopy = {
   records: '当前记录',
   keyScope: '密钥范围',
   cacheHit: '缓存命中',
+  cacheRate: '缓存率',
   noExportRecords: '当前范围暂无记录',
   standardCostPrefix: '标准',
   firstTokenLatency: '首包耗时',
@@ -552,6 +561,7 @@ const enUsageCopy = {
   records: 'Records',
   keyScope: 'Key scope',
   cacheHit: 'Cache hit',
+  cacheRate: 'Cache rate',
   noExportRecords: 'No records in this range',
   standardCostPrefix: 'Standard',
   firstTokenLatency: 'First-token latency',
@@ -582,16 +592,16 @@ const tooltipData = ref<UsageLog | null>(null)
 // Usage stats from API
 const usageStats = ref<UsageStatsResponse | null>(null)
 
-// 缓存命中率 = cache_read / (input + cache_read)
-// 分母为 0（无任何输入）时显示 '-'
+// 缓存命中率 = cache_read / (input + cache_creation + cache_read)
+// 分母为 0（无任何输入）时显示 0.0%
 const cacheStats = computed(() => {
   // 总输入 token = 普通输入 + 缓存写入 + 缓存读取（命中）
-  // 缓存命中率 = 缓存读取 / 总输入；总输入为 0 时返回零值，模板按 '-' 渲染。
+  // 缓存命中率 = 缓存读取 / 总输入。
   const cacheRead = usageStats.value?.total_cache_read_tokens || 0
   const cacheCreate = usageStats.value?.total_cache_creation_tokens || 0
   const input = usageStats.value?.total_input_tokens || 0
   const totalInput = input + cacheCreate + cacheRead
-  const ratePercent = totalInput > 0 ? `${((cacheRead / totalInput) * 100).toFixed(1)}%` : '-'
+  const ratePercent = totalInput > 0 ? `${((cacheRead / totalInput) * 100).toFixed(1)}%` : '0.0%'
   return { cacheRead, totalInput, ratePercent }
 })
 
@@ -1593,6 +1603,39 @@ onMounted(() => {
   line-height: 1.55;
 }
 
+.usage-summary-detail-token {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.usage-summary-token-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.35rem;
+  margin: 0;
+}
+
+.usage-summary-token-cache-line {
+  justify-content: space-between;
+}
+
+.usage-summary-token-cache-values {
+  display: inline-flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.35rem;
+}
+
+.usage-cache-rate-badge {
+  margin-left: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #8b3d2f;
+}
+
 .usage-page-en .usage-summary-detail {
   flex-wrap: nowrap;
   align-items: baseline;
@@ -1609,6 +1652,23 @@ onMounted(() => {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.usage-page-en .usage-summary-detail-token {
+  flex-wrap: initial;
+  align-items: initial;
+  gap: 0.08rem;
+  overflow: visible;
+  white-space: normal;
+}
+
+.usage-page-en .usage-summary-detail-token span {
+  flex: initial;
+}
+
+.usage-page-en .usage-summary-detail-token span:nth-child(n + 5) {
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .usage-summary-card-primary {

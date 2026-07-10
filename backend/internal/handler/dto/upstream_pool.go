@@ -126,6 +126,30 @@ type UpstreamPoolMemberSet struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
+type UpstreamPoolMemberSyncChange struct {
+	AccountID       int64    `json:"account_id"`
+	AccountName     string   `json:"account_name"`
+	AccountPlatform string   `json:"account_platform"`
+	AccountType     string   `json:"account_type"`
+	Action          string   `json:"action"`
+	Overwrites      []string `json:"overwrites"`
+}
+
+type UpstreamPoolMemberSyncResult struct {
+	PoolID             int64                          `json:"pool_id"`
+	Platform           string                         `json:"platform"`
+	Mode               string                         `json:"mode"`
+	CreateCount        int                            `json:"create_count"`
+	UpdateCount        int                            `json:"update_count"`
+	DeleteCount        int                            `json:"delete_count"`
+	SkipCount          int                            `json:"skip_count"`
+	OverwriteRiskCount int                            `json:"overwrite_risk_count"`
+	Creates            []UpstreamPoolMemberSyncChange `json:"creates"`
+	Updates            []UpstreamPoolMemberSyncChange `json:"updates"`
+	Deletes            []UpstreamPoolMemberSyncChange `json:"deletes"`
+	Skips              []UpstreamPoolMemberSyncChange `json:"skips"`
+}
+
 func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
 	if pool == nil {
 		return nil
@@ -280,4 +304,39 @@ func UpstreamPoolMemberSetFromService(item *service.UpstreamPoolMemberSet) *Upst
 		JoinedAt:    item.JoinedAt.Format(upstreamPoolTimeLayout),
 		UpdatedAt:   item.UpdatedAt.Format(upstreamPoolTimeLayout),
 	}
+}
+
+func UpstreamPoolMemberSyncResultFromService(item *service.UpstreamPoolMemberSyncResult) *UpstreamPoolMemberSyncResult {
+	if item == nil {
+		return nil
+	}
+	return &UpstreamPoolMemberSyncResult{
+		PoolID:             item.PoolID,
+		Platform:           item.Platform,
+		Mode:               string(item.Mode),
+		CreateCount:        item.CreateCount,
+		UpdateCount:        item.UpdateCount,
+		DeleteCount:        item.DeleteCount,
+		SkipCount:          item.SkipCount,
+		OverwriteRiskCount: item.OverwriteRiskCount,
+		Creates:            upstreamPoolMemberSyncChangesFromService(item.Creates),
+		Updates:            upstreamPoolMemberSyncChangesFromService(item.Updates),
+		Deletes:            upstreamPoolMemberSyncChangesFromService(item.Deletes),
+		Skips:              upstreamPoolMemberSyncChangesFromService(item.Skips),
+	}
+}
+
+func upstreamPoolMemberSyncChangesFromService(items []service.UpstreamPoolMemberSyncChange) []UpstreamPoolMemberSyncChange {
+	out := make([]UpstreamPoolMemberSyncChange, 0, len(items))
+	for _, item := range items {
+		out = append(out, UpstreamPoolMemberSyncChange{
+			AccountID:       item.AccountID,
+			AccountName:     item.AccountName,
+			AccountPlatform: item.AccountPlatform,
+			AccountType:     item.AccountType,
+			Action:          item.Action,
+			Overwrites:      append([]string{}, item.Overwrites...),
+		})
+	}
+	return out
 }

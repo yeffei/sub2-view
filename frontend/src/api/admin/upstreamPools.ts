@@ -10,7 +10,9 @@ import type {
   UpstreamPoolBinding,
   UpstreamAccountSet,
   UpstreamAccountSetMember,
-  UpstreamPoolMemberSet
+  UpstreamPoolMemberSet,
+  UpstreamPoolMemberSyncMode,
+  UpstreamPoolMemberSyncResult
 } from '@/types'
 
 interface ApiListResponse<T> {
@@ -36,6 +38,26 @@ export async function getMembers(id: number): Promise<UpstreamPoolMember[]> {
     `/admin/upstream-pools/${id}/members`
   )
   return Array.isArray(data) ? data : data.items || []
+}
+
+export async function previewMemberSync(id: number, payload: {
+  mode: UpstreamPoolMemberSyncMode
+}): Promise<UpstreamPoolMemberSyncResult> {
+  const { data } = await apiClient.post<UpstreamPoolMemberSyncResult>(
+    `/admin/upstream-pools/${id}/member-sync/preview`,
+    payload
+  )
+  return data
+}
+
+export async function applyMemberSync(id: number, payload: {
+  mode: UpstreamPoolMemberSyncMode
+}): Promise<UpstreamPoolMemberSyncResult> {
+  const { data } = await apiClient.post<UpstreamPoolMemberSyncResult>(
+    `/admin/upstream-pools/${id}/member-sync/apply`,
+    payload
+  )
+  return data
 }
 
 export async function getBindings(): Promise<UpstreamPoolBinding[]> {
@@ -217,6 +239,8 @@ const upstreamPoolsAPI = {
   list,
   getById,
   getMembers,
+  previewMemberSync,
+  applyMemberSync,
   getBindings,
   getAccountSets,
   getAccountSetMembers,

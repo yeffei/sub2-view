@@ -69,6 +69,49 @@ func (h *UpstreamPoolHandler) GetMembers(c *gin.Context) {
 	response.Success(c, out)
 }
 
+func (h *UpstreamPoolHandler) PreviewMemberSync(c *gin.Context) {
+	poolID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || poolID <= 0 {
+		response.BadRequest(c, "Invalid pool ID")
+		return
+	}
+	var req upstreamPoolMemberSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	result, err := h.adminService.PreviewUpstreamPoolMemberSync(c.Request.Context(), poolID, &service.UpstreamPoolMemberSyncPreviewInput{
+		Mode: service.UpstreamPoolMemberSyncMode(req.Mode),
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, dto.UpstreamPoolMemberSyncResultFromService(result))
+}
+
+func (h *UpstreamPoolHandler) ApplyMemberSync(c *gin.Context) {
+	poolID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || poolID <= 0 {
+		response.BadRequest(c, "Invalid pool ID")
+		return
+	}
+	var req upstreamPoolMemberSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	executeAdminIdempotentJSON(c, "admin.upstream_pools.member_sync.apply", map[string]any{"pool_id": poolID, "payload": req}, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
+		result, err := h.adminService.ApplyUpstreamPoolMemberSync(ctx, poolID, &service.UpstreamPoolMemberSyncApplyInput{
+			Mode: service.UpstreamPoolMemberSyncMode(req.Mode),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return dto.UpstreamPoolMemberSyncResultFromService(result), nil
+	})
+}
+
 func (h *UpstreamPoolHandler) GetBindings(c *gin.Context) {
 	bindings, err := h.adminService.ListUpstreamPoolBindings(c.Request.Context())
 	if err != nil {
@@ -552,6 +595,10 @@ type upstreamPoolMemberWriteRequest struct {
 	PriorityOverride       *int    `json:"priority_override"`
 	MaxConcurrencyOverride *int    `json:"max_concurrency_override"`
 	Notes                  *string `json:"notes"`
+}
+
+type upstreamPoolMemberSyncRequest struct {
+	Mode string `json:"mode"`
 }
 
 type upstreamNullableBoolField struct {

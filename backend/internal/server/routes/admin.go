@@ -666,6 +666,8 @@ func registerUpstreamPoolRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		pools.DELETE("/account-sets/:set_id/members/:account_id", h.Admin.UpstreamPool.DeleteAccountSetMember)
 		pools.GET("/:id", h.Admin.UpstreamPool.GetByID)
 		pools.GET("/:id/members", h.Admin.UpstreamPool.GetMembers)
+		pools.POST("/:id/member-sync/preview", h.Admin.UpstreamPool.PreviewMemberSync)
+		pools.POST("/:id/member-sync/apply", h.Admin.UpstreamPool.ApplyMemberSync)
 		pools.GET("/:id/member-sets", h.Admin.UpstreamPool.GetMemberSets)
 		pools.PUT("/:id", h.Admin.UpstreamPool.Update)
 		pools.DELETE("/:id", h.Admin.UpstreamPool.Delete)

@@ -440,7 +440,7 @@
                   <button
                     v-if="poolRoutingObservabilitySupported"
                     class="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-800 overview-detail-button"
-                    :disabled="!selectedPool || poolRoutingObservability.loading"
+                    :disabled="!selectedPool || poolRoutingObservability.loading || poolRoutingObservability.loadingMore"
                     @click="openPoolObservabilityModal"
                   >
                     查看明细
@@ -467,7 +467,7 @@
                     <div class="min-w-0 sm:pl-4">
                       <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">最近时间</div>
                       <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ latestRoutingLogAt }}</div>
-                      <div class="text-xs text-gray-500 dark:text-gray-400">{{ poolRoutingObservability.loading ? '正在刷新…' : '24h 观测窗口' }}</div>
+                      <div class="text-xs text-gray-500 dark:text-gray-400">{{ (poolRoutingObservability.loading || poolRoutingObservability.loadingMore) ? '正在刷新…' : '24h 观测窗口' }}</div>
                     </div>
                   </div>
                   <div
@@ -791,15 +791,15 @@
               </span>
             </div>
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              共 {{ poolRoutingObservability.total || poolRoutingObservability.logs.length }} 条记录，按日志时间倒序展示。
+              已载入 {{ poolRoutingPaginationInfo.loaded }} / {{ poolRoutingPaginationInfo.total }} 条记录，按日志时间倒序展示。
             </p>
           </div>
           <button
             class="btn btn-secondary btn-sm self-start md:self-auto"
-            :disabled="!selectedPool || !poolRoutingObservabilitySupported || poolRoutingObservability.loading"
+            :disabled="!selectedPool || !poolRoutingObservabilitySupported || poolRoutingObservability.loading || poolRoutingObservability.loadingMore"
             @click="selectedPool && loadPoolObservability(selectedPool)"
           >
-            <Icon name="refresh" size="sm" :class="poolRoutingObservability.loading ? 'animate-spin' : ''" class="mr-1" />
+            <Icon name="refresh" size="sm" :class="(poolRoutingObservability.loading || poolRoutingObservability.loadingMore) ? 'animate-spin' : ''" class="mr-1" />
             刷新
           </button>
         </div>
@@ -912,6 +912,26 @@
               </span>
             </div>
           </div>
+
+          <div class="sticky bottom-0 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-3 py-3 shadow-sm backdrop-blur dark:border-dark-700 dark:bg-dark-900/95 sm:flex-row sm:items-center sm:justify-between">
+            <div class="text-xs text-gray-500 dark:text-gray-400">
+              {{ poolRoutingPaginationInfo.hasMore ? `还有 ${poolRoutingPaginationInfo.total - poolRoutingPaginationInfo.loaded} 条未载入` : '当前筛选范围已全部载入' }}
+            </div>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              :disabled="poolRoutingPaginationInfo.disabled"
+              @click="loadMorePoolObservability"
+            >
+              <Icon
+                v-if="poolRoutingObservability.loadingMore"
+                name="refresh"
+                size="sm"
+                class="mr-1 animate-spin"
+              />
+              {{ poolRoutingObservability.loadingMore ? '加载中…' : poolRoutingPaginationInfo.label }}
+            </button>
+          </div>
         </div>
 
         <div
@@ -941,7 +961,7 @@
           <div>
             <label class="input-label">平台</label>
             <p class="field-hint">决定池内账号的平台类型。</p>
-            <Select v-model="poolForm.platform" :options="platformOptions" />
+            <Select v-model="poolForm.platform" :options="platformOptions" :disabled="editingPoolPlatformLocked" />
           </div>
           <div>
             <label class="input-label">描述</label>
@@ -977,6 +997,13 @@
               <span class="field-hint mb-0 block">sticky 账号太慢或错误率过高时跳出。</span>
             </span>
             <Toggle :model-value="poolForm.sticky_escape_enabled" @update:modelValue="poolForm.sticky_escape_enabled = $event" />
+          </label>
+          <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-dark-600">
+            <span>
+              <span class="block text-sm">故障转移</span>
+              <span class="field-hint mb-0 block">请求失败后允许切换到候选账号。</span>
+            </span>
+            <Toggle :model-value="poolForm.failover_enabled" @update:modelValue="poolForm.failover_enabled = $event" />
           </label>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
@@ -1113,7 +1140,7 @@
           <div>
             <label class="input-label">平台</label>
             <p class="field-hint">集合成员必须和这里的平台一致。</p>
-            <Select v-model="accountSetForm.platform" :options="platformOptions" />
+            <Select v-model="accountSetForm.platform" :options="platformOptions" :disabled="editingAccountSetPlatformLocked" />
           </div>
           <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-dark-600">
             <span>
@@ -1246,19 +1273,19 @@
           <div>
             <label class="input-label">分组</label>
             <p class="field-hint">哪些用户分组走这个池。</p>
-            <Select v-model="bindingForm.group_id" :options="groupOptions" />
+            <Select v-model="bindingForm.group_id" :options="groupOptionsForBinding" />
           </div>
           <div>
             <label class="input-label">上游池</label>
             <p class="field-hint">请求要分配到的账号池。</p>
-            <Select v-model="bindingForm.pool_id" :options="poolOptions" />
+            <Select v-model="bindingForm.pool_id" :options="poolOptions" @change="handleBindingPoolChange" />
           </div>
         </div>
         <div class="grid gap-4 md:grid-cols-2">
           <div>
             <label class="input-label">平台</label>
             <p class="field-hint">必须和池的平台一致。</p>
-            <Select v-model="bindingForm.platform" :options="platformOptions" />
+            <Select v-model="bindingForm.platform" :options="platformOptions" disabled />
           </div>
           <div>
             <label class="input-label">优先级</label>
@@ -1313,9 +1340,19 @@ import type {
   UpstreamPool,
   UpstreamPoolBinding,
   UpstreamPoolMember,
-  UpstreamPoolMemberSet
+  UpstreamPoolMemberSet,
+  UpstreamPoolMemberSyncMode,
+  UpstreamPoolMemberSyncResult
 } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import {
+  buildDeleteAccountSetConfirmMessage,
+  buildDeleteBindingConfirmMessage,
+  buildDeleteMemberSetConfirmMessage,
+  buildDeletePoolConfirmMessage,
+  filterAccountsForPoolCompletion,
+  getPoolRoutingPaginationInfo
+} from '@/utils/upstreamPoolInteractions'
 import { useAppStore } from '@/stores'
 
 type PoolForm = {
@@ -1355,6 +1392,7 @@ type SyncableAccount = {
   platform: string
   type: string
   status: Account['status']
+  group_ids?: number[]
 }
 
 type BindingForm = {
@@ -1383,7 +1421,10 @@ type MemberSetForm = {
 
 type PoolRoutingObservabilityState = {
   loading: boolean
+  loadingMore: boolean
   total: number
+  page: number
+  pageSize: number
   logs: OpsSystemLog[]
 }
 
@@ -1410,7 +1451,10 @@ const togglingPoolStatusIds = ref<Set<number>>(new Set())
 const accountSetMembersPagination = ref({ page: 1, page_size: 10, total: 0 })
 const poolRoutingObservability = ref<PoolRoutingObservabilityState>({
   loading: false,
+  loadingMore: false,
   total: 0,
+  page: 1,
+  pageSize: 60,
   logs: [],
 })
 const searchQuery = ref('')
@@ -1430,6 +1474,26 @@ const editingMember = ref<UpstreamPoolMember | null>(null)
 const editingAccountSet = ref<UpstreamAccountSet | null>(null)
 const editingMemberSet = ref<UpstreamPoolMemberSet | null>(null)
 const editingBinding = ref<UpstreamPoolBinding | null>(null)
+
+function createEmptyPoolRoutingObservabilityState(): PoolRoutingObservabilityState {
+  return {
+    loading: false,
+    loadingMore: false,
+    total: 0,
+    page: 1,
+    pageSize: 60,
+    logs: [],
+  }
+}
+
+const poolRoutingPaginationInfo = computed(() => getPoolRoutingPaginationInfo({
+  loading: poolRoutingObservability.value.loading,
+  loadingMore: poolRoutingObservability.value.loadingMore,
+  total: poolRoutingObservability.value.total,
+  page: poolRoutingObservability.value.page,
+  pageSize: poolRoutingObservability.value.pageSize,
+  logsLength: poolRoutingObservability.value.logs.length,
+}))
 
 function openPoolObservabilityModal() {
   showPoolObservabilityModal.value = true
@@ -2049,9 +2113,11 @@ const directMembers = computed(() =>
 )
 
 const availablePoolAccounts = computed(() => {
-  const platform = selectedPool.value?.platform
-  if (!platform) return []
-  return syncableAccounts.value.filter(account => account.platform === platform)
+  return filterAccountsForPoolCompletion({
+    pool: selectedPool.value,
+    accounts: syncableAccounts.value,
+    bindings: bindings.value,
+  }) as SyncableAccount[]
 })
 
 const accountSetAvailableAccounts = computed(() => {
@@ -2077,12 +2143,26 @@ const accountSetOptionsForPool = computed(() => {
     }))
 })
 
-const groupOptions = computed(() =>
-  allGroups.value.map((group) => ({
-    value: group.id,
-    label: `${group.name} · ${platformLabel(group.platform)}`,
-  }))
-)
+const editingPoolPlatformLocked = computed(() => {
+  if (!editingPool.value) return false
+  return directMembers.value.length > 0 || memberSets.value.length > 0 || selectedPoolBindings.value.length > 0
+})
+
+const editingAccountSetPlatformLocked = computed(() => {
+  if (!editingAccountSet.value) return false
+  return getAccountSetMemberCount(editingAccountSet.value.id) > 0 || memberSets.value.some(item => item.set_id === editingAccountSet.value?.id)
+})
+
+const groupOptionsForBinding = computed(() => {
+  const pool = pools.value.find(item => item.id === bindingForm.value.pool_id)
+  const platform = pool?.platform || bindingForm.value.platform
+  return allGroups.value
+    .filter(group => !platform || group.platform === platform)
+    .map((group) => ({
+      value: group.id,
+      label: `${group.name} · ${platformLabel(group.platform)}`,
+    }))
+})
 
 const poolOptions = computed(() =>
   pools.value.map((pool) => ({
@@ -2177,7 +2257,7 @@ async function loadAll() {
       selectedPool.value = null
       members.value = []
       memberSets.value = []
-      poolRoutingObservability.value = { loading: false, total: 0, logs: [] }
+      poolRoutingObservability.value = createEmptyPoolRoutingObservabilityState()
     } else if (selectedPool.value) {
       const nextSelected = poolList.find(pool => pool.id === selectedPool.value?.id)
       selectPool(nextSelected || poolList[0])
@@ -2268,21 +2348,24 @@ function selectAccountSet(item: UpstreamAccountSet) {
 
 async function loadPoolObservability(pool: UpstreamPool) {
   if (!poolRoutingObservabilityPlatforms.has(pool.platform)) {
-    poolRoutingObservability.value = { loading: false, total: 0, logs: [] }
+    poolRoutingObservability.value = createEmptyPoolRoutingObservabilityState()
     return
   }
 
   const requestToken = ++poolObservabilityRequestToken
   poolRoutingObservability.value = {
     loading: true,
-    total: poolRoutingObservability.value.total,
-    logs: poolRoutingObservability.value.logs,
+    loadingMore: false,
+    total: 0,
+    page: 1,
+    pageSize: poolRoutingObservability.value.pageSize,
+    logs: [],
   }
 
   try {
     const result = await adminAPI.ops.listSystemLogs({
       page: 1,
-      page_size: 60,
+      page_size: poolRoutingObservability.value.pageSize,
       time_range: '24h',
       component: 'routing.explanation',
       platform: pool.platform,
@@ -2291,13 +2374,57 @@ async function loadPoolObservability(pool: UpstreamPool) {
     if (requestToken !== poolObservabilityRequestToken) return
     poolRoutingObservability.value = {
       loading: false,
+      loadingMore: false,
       total: result.total || 0,
+      page: result.page || 1,
+      pageSize: result.page_size || poolRoutingObservability.value.pageSize,
       logs: result.items || [],
     }
   } catch (error) {
     if (requestToken !== poolObservabilityRequestToken) return
-    poolRoutingObservability.value = { loading: false, total: 0, logs: [] }
+    poolRoutingObservability.value = createEmptyPoolRoutingObservabilityState()
     appStore.showError(extractApiErrorMessage(error, '加载最近路由观测失败'))
+  }
+}
+
+async function loadMorePoolObservability() {
+  const pool = selectedPool.value
+  if (!pool || !poolRoutingObservabilitySupported.value || !poolRoutingPaginationInfo.value.hasMore) return
+
+  const requestToken = ++poolObservabilityRequestToken
+  poolRoutingObservability.value = {
+    ...poolRoutingObservability.value,
+    loadingMore: true,
+  }
+
+  try {
+    const result = await adminAPI.ops.listSystemLogs({
+      page: poolRoutingPaginationInfo.value.nextPage,
+      page_size: poolRoutingObservability.value.pageSize,
+      time_range: '24h',
+      component: 'routing.explanation',
+      platform: pool.platform,
+      pool_id: pool.id,
+    })
+    if (requestToken !== poolObservabilityRequestToken) return
+    poolRoutingObservability.value = {
+      loading: false,
+      loadingMore: false,
+      total: result.total || poolRoutingObservability.value.total,
+      page: result.page || poolRoutingPaginationInfo.value.nextPage,
+      pageSize: result.page_size || poolRoutingObservability.value.pageSize,
+      logs: [
+        ...poolRoutingObservability.value.logs,
+        ...(result.items || []),
+      ],
+    }
+  } catch (error) {
+    if (requestToken !== poolObservabilityRequestToken) return
+    poolRoutingObservability.value = {
+      ...poolRoutingObservability.value,
+      loadingMore: false,
+    }
+    appStore.showError(extractApiErrorMessage(error, '加载更多路由观测失败'))
   }
 }
 
@@ -2447,6 +2574,17 @@ function openBindingModal(binding?: UpstreamPoolBinding | null) {
     resetBindingForm()
   }
   showBindingModal.value = true
+}
+
+function handleBindingPoolChange(value: string | number | boolean | null) {
+  const poolID = typeof value === 'number' ? value : Number(value)
+  const pool = pools.value.find(item => item.id === poolID)
+  if (!pool) return
+  bindingForm.value.platform = pool.platform
+  const selectedGroup = allGroups.value.find(group => group.id === bindingForm.value.group_id)
+  if (selectedGroup && selectedGroup.platform !== pool.platform) {
+    bindingForm.value.group_id = null
+  }
 }
 
 function closeBindingModal() {
@@ -2605,54 +2743,14 @@ async function syncSelectedPoolMembers() {
     appStore.showError('当前只支持同步 OpenAI / Anthropic 上游池')
     return
   }
-  if (availablePoolAccounts.value.length === 0) {
-    appStore.showError('当前平台没有可同步的账号')
-    return
-  }
-  if (!window.confirm('全量同步会把当前平台账号同步到这个池，并更新或移除不再匹配的成员。若只想给当前池单独加账号，请用「添加成员」。继续吗？')) {
-    return
-  }
 
   syncingMembers.value = true
   try {
-    const poolMembers = await adminAPI.upstreamPools.getMembers(selectedPool.value.id)
-    const memberByAccountId = new Map(poolMembers.map(member => [member.account_id, member]))
-    const sourceAccountIds = new Set(availablePoolAccounts.value.map(account => account.id))
-
-    let created = 0
-    let updated = 0
-    let removed = 0
-
-    for (const account of availablePoolAccounts.value) {
-      const member = memberByAccountId.get(account.id)
-      const enabled = account.status === 'active'
-      const payload = {
-        account_id: account.id,
-        enabled,
-        schedulable_override: null,
-        manual_drained: !enabled,
-        weight: 100,
-        priority_override: null,
-        max_concurrency_override: null,
-        notes: '从账号管理同步',
-      }
-
-      if (member) {
-        await adminAPI.upstreamPools.updateMember(member.id, payload)
-        updated += 1
-      } else {
-        await adminAPI.upstreamPools.createMember(selectedPool.value.id, payload)
-        created += 1
-      }
-    }
-
-    for (const member of poolMembers) {
-      if (sourceAccountIds.has(member.account_id)) continue
-      await adminAPI.upstreamPools.removeMember(member.id)
-      removed += 1
-    }
-
-    appStore.showSuccess(`同步完成：新增 ${created}，更新 ${updated}，移除 ${removed}`)
+    const mode: UpstreamPoolMemberSyncMode = 'membership_only'
+    const preview = await adminAPI.upstreamPools.previewMemberSync(selectedPool.value.id, { mode })
+    if (!confirmMemberSyncPreview(preview)) return
+    const result = await adminAPI.upstreamPools.applyMemberSync(selectedPool.value.id, { mode })
+    appStore.showSuccess(`同步完成：新增 ${result.create_count}，保留 ${result.skip_count}，移除 ${result.delete_count}`)
     await loadMembers(selectedPool.value.id)
     await loadBindings()
   } catch (error) {
@@ -2660,6 +2758,17 @@ async function syncSelectedPoolMembers() {
   } finally {
     syncingMembers.value = false
   }
+}
+
+function confirmMemberSyncPreview(preview: UpstreamPoolMemberSyncResult) {
+  if (preview.create_count === 0 && preview.update_count === 0 && preview.delete_count === 0) {
+    appStore.showSuccess(`无需同步：已保留 ${preview.skip_count} 个直接成员`)
+    return false
+  }
+  const risk = preview.overwrite_risk_count > 0 ? `\n会影响 ${preview.overwrite_risk_count} 个带人工配置的成员。` : ''
+  return window.confirm(
+    `将按后端预演结果事务同步直接成员：\n新增 ${preview.create_count}\n更新 ${preview.update_count}\n移除 ${preview.delete_count}\n保留 ${preview.skip_count}${risk}\n\n继续执行吗？`
+  )
 }
 
 async function addMissingSelectedPoolMembers() {
@@ -2766,7 +2875,13 @@ async function submitBinding() {
 }
 
 async function confirmDeletePool(pool: UpstreamPool) {
-  if (!window.confirm(`确定删除上游池「${pool.name}」吗？`)) return
+  if (!window.confirm(buildDeletePoolConfirmMessage({
+    pool,
+    selectedPoolId: selectedPool.value?.id,
+    loadedMembers: members.value,
+    memberSets: memberSets.value,
+    bindings: bindings.value,
+  }))) return
   try {
     await adminAPI.upstreamPools.remove(pool.id)
     appStore.showSuccess('上游池已删除')
@@ -2781,7 +2896,12 @@ async function confirmDeletePool(pool: UpstreamPool) {
 }
 
 async function confirmDeleteAccountSet(item: UpstreamAccountSet) {
-  if (!window.confirm(`确定删除账号集合「${item.name}」吗？`)) return
+  if (!window.confirm(buildDeleteAccountSetConfirmMessage({
+    accountSet: item,
+    selectedAccountSetId: selectedAccountSet.value?.id,
+    loadedMembers: accountSetMembers.value,
+    memberSets: memberSets.value,
+  }))) return
   try {
     await adminAPI.upstreamPools.removeAccountSet(item.id)
     appStore.showSuccess('账号集合已删除')
@@ -2827,7 +2947,7 @@ async function confirmDeleteAccountSetMember(item: UpstreamAccountSetMember) {
 }
 
 async function confirmDeleteMemberSet(item: UpstreamPoolMemberSet) {
-  if (!window.confirm(`确定删除集合绑定「${item.set_name || item.set_id}」吗？`)) return
+  if (!window.confirm(buildDeleteMemberSetConfirmMessage(item))) return
   try {
     await adminAPI.upstreamPools.removeMemberSet(item.id)
     appStore.showSuccess('集合绑定已删除')
@@ -2843,7 +2963,7 @@ async function confirmDeleteMemberSet(item: UpstreamPoolMemberSet) {
 }
 
 async function confirmDeleteBinding(binding: UpstreamPoolBinding) {
-  if (!window.confirm(`确定删除绑定 #${binding.id} 吗？`)) return
+  if (!window.confirm(buildDeleteBindingConfirmMessage(binding))) return
   try {
     await adminAPI.upstreamPools.removeBinding(binding.id)
     appStore.showSuccess('绑定已删除')
@@ -2900,6 +3020,7 @@ async function loadSyncableAccounts() {
         platform: account.platform,
         type: account.type,
         status: account.status,
+        group_ids: account.group_ids || [],
       })
     }
     pages = response.pages || 1

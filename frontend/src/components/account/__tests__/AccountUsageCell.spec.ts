@@ -3,14 +3,16 @@ import { flushPromises, mount } from '@vue/test-utils'
 import AccountUsageCell from '../AccountUsageCell.vue'
 import type { Account } from '@/types'
 
-const { getUsage } = vi.hoisted(() => ({
-  getUsage: vi.fn()
+const { getUsage, queryOpenAIQuota } = vi.hoisted(() => ({
+  getUsage: vi.fn(),
+  queryOpenAIQuota: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
-      getUsage
+      getUsage,
+      queryOpenAIQuota
     }
   }
 }))
@@ -57,6 +59,12 @@ function makeAccount(overrides: Partial<Account>): Account {
 describe('AccountUsageCell', () => {
   beforeEach(() => {
     getUsage.mockReset()
+    queryOpenAIQuota.mockReset()
+    queryOpenAIQuota.mockResolvedValue({
+      fetched_at: 1_783_652_760,
+      rate_limit: null,
+      rate_limit_reset_credits: { available_count: 0 }
+    })
     Object.defineProperty(window, 'matchMedia', {
       writable: true,
       value: vi.fn().mockImplementation(() => ({
@@ -209,6 +217,130 @@ describe('AccountUsageCell', () => {
     expect(getUsage).toHaveBeenCalledWith(2000, undefined)
     expect(wrapper.text()).toContain('5h|15|300')
     expect(wrapper.text()).toContain('7d|77|300')
+  })
+
+  it('OpenAI OAuth 使用真实 quota primary window 恢复动态进度条', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: {
+        utilization: 0,
+        resets_at: null,
+        remaining_seconds: 0,
+        window_stats: null
+      },
+      seven_day: null
+    })
+    queryOpenAIQuota.mockResolvedValue({
+      fetched_at: 1_783_652_760,
+      rate_limit: {
+        allowed: true,
+        limit_reached: false,
+        primary_window: {
+          used_percent: 60,
+          limit_window_seconds: 2_628_000,
+          reset_after_seconds: 2_612_728,
+          reset_at: 0
+        },
+        secondary_window: null
+      },
+      rate_limit_reset_credits: { available_count: 0 }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2095,
+          platform: 'openai',
+          type: 'oauth',
+          extra: {}
+        }),
+        compact: true
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'windowStats', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(queryOpenAIQuota).toHaveBeenCalledWith(2095)
+    expect(wrapper.text()).toContain('30d|60|')
+    expect(wrapper.text()).not.toContain('5h|0|')
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.count0')
+  })
+
+  it('OpenAI OAuth 点击查询会刷新同一条真实 quota 进度', async () => {
+    getUsage.mockResolvedValue({ five_hour: null, seven_day: null })
+    queryOpenAIQuota
+      .mockResolvedValueOnce({
+        fetched_at: 1_783_652_760,
+        rate_limit: {
+          allowed: true,
+          limit_reached: false,
+          primary_window: {
+            used_percent: 60,
+            limit_window_seconds: 2_628_000,
+            reset_after_seconds: 100,
+            reset_at: 0
+          },
+          secondary_window: null
+        },
+        rate_limit_reset_credits: { available_count: 0 }
+      })
+      .mockResolvedValueOnce({
+        fetched_at: 1_783_652_770,
+        rate_limit: {
+          allowed: true,
+          limit_reached: false,
+          primary_window: {
+            used_percent: 61,
+            limit_window_seconds: 2_628_000,
+            reset_after_seconds: 90,
+            reset_at: 0
+          },
+          secondary_window: null
+        },
+        rate_limit_reset_credits: { available_count: 0 }
+      })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2096,
+          platform: 'openai',
+          type: 'oauth',
+          extra: {}
+        }),
+        compact: true
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+    expect(wrapper.text()).toContain('30d|60')
+
+    const queryButtons = wrapper.findAll('button').filter((button) => (
+      button.text().trim() === 'admin.accounts.usageWindow.activeQuery'
+    ))
+    expect(queryButtons).toHaveLength(1)
+    await queryButtons[0]!.trigger('click')
+    await flushPromises()
+
+    expect(queryOpenAIQuota).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('30d|61')
   })
 
   it('OpenAI OAuth 有 codex 快照时仍然使用 /usage API 数据渲染', async () => {

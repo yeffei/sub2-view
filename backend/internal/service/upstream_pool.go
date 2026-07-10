@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
 var (
@@ -23,6 +26,9 @@ const (
 	UpstreamPoolAccountTypeStrategyOAuthPreferred  = "oauth_preferred"
 	UpstreamPoolAccountTypeStrategyOAuthOnly       = "oauth_only"
 	UpstreamPoolAccountTypeStrategyAPIKeyPreferred = "apikey_preferred"
+
+	UpstreamPoolMemberSyncModeMembershipOnly           = "membership_only"
+	UpstreamPoolMemberSyncModeOverwriteSchedulerFields = "overwrite_scheduler_fields"
 )
 
 type UpstreamPool struct {
@@ -141,6 +147,64 @@ type UpstreamPoolMemberSet struct {
 	Notes       string
 	JoinedAt    time.Time
 	UpdatedAt   time.Time
+}
+
+type UpstreamPoolPlatformUsage struct {
+	DirectMemberCount int
+	MemberSetCount    int
+	BindingCount      int
+}
+
+func (u UpstreamPoolPlatformUsage) IsLocked() bool {
+	return u.DirectMemberCount > 0 || u.MemberSetCount > 0 || u.BindingCount > 0
+}
+
+type UpstreamAccountSetPlatformUsage struct {
+	MemberCount      int
+	PoolBindingCount int
+}
+
+func (u UpstreamAccountSetPlatformUsage) IsLocked() bool {
+	return u.MemberCount > 0 || u.PoolBindingCount > 0
+}
+
+type UpstreamPoolMemberSyncMode string
+
+type UpstreamPoolMemberSyncTarget struct {
+	AccountID int64
+	Enabled   bool
+}
+
+type UpstreamPoolMemberSyncPreviewInput struct {
+	Mode UpstreamPoolMemberSyncMode
+}
+
+type UpstreamPoolMemberSyncApplyInput struct {
+	Mode UpstreamPoolMemberSyncMode
+}
+
+type UpstreamPoolMemberSyncChange struct {
+	AccountID       int64
+	AccountName     string
+	AccountPlatform string
+	AccountType     string
+	Action          string
+	Overwrites      []string
+}
+
+type UpstreamPoolMemberSyncResult struct {
+	PoolID             int64
+	Platform           string
+	Mode               UpstreamPoolMemberSyncMode
+	CreateCount        int
+	UpdateCount        int
+	DeleteCount        int
+	SkipCount          int
+	OverwriteRiskCount int
+	Creates            []UpstreamPoolMemberSyncChange
+	Updates            []UpstreamPoolMemberSyncChange
+	Deletes            []UpstreamPoolMemberSyncChange
+	Skips              []UpstreamPoolMemberSyncChange
 }
 
 type CreateUpstreamPoolInput struct {
@@ -340,7 +404,7 @@ func (p OpenAIRoutingPolicy) EffectiveMaxFailoverHops(defaultMax int) int {
 	if !p.FailoverEnabled {
 		return 0
 	}
-	if p.MaxFailoverHops > 0 {
+	if p.MaxFailoverHops >= 0 {
 		return p.MaxFailoverHops
 	}
 	return defaultMax
@@ -544,4 +608,167 @@ type UpstreamPoolRepository interface {
 	ListEnabledMemberAccountIDsByGroupAndPlatform(ctx context.Context, groupID int64, platform string) (map[int64]struct{}, error)
 	GetResolvedBindingByGroupAndPlatform(ctx context.Context, groupID int64, platform string) (*UpstreamPoolResolvedBinding, error)
 	GetOpenAIRoutingPolicy(ctx context.Context, groupID int64) (*OpenAIRoutingPolicy, error)
+}
+
+type UpstreamPoolPlatformUsageReader interface {
+	GetUpstreamPoolPlatformUsage(ctx context.Context, poolID int64) (UpstreamPoolPlatformUsage, error)
+	GetUpstreamAccountSetPlatformUsage(ctx context.Context, setID int64) (UpstreamAccountSetPlatformUsage, error)
+}
+
+type UpstreamPoolMemberSyncer interface {
+	SyncUpstreamPoolDirectMembers(ctx context.Context, poolID int64, targets []UpstreamPoolMember, mode UpstreamPoolMemberSyncMode) (*UpstreamPoolMemberSyncResult, error)
+}
+
+func NormalizeUpstreamPoolMemberSyncMode(mode UpstreamPoolMemberSyncMode) UpstreamPoolMemberSyncMode {
+	switch strings.TrimSpace(string(mode)) {
+	case UpstreamPoolMemberSyncModeOverwriteSchedulerFields:
+		return UpstreamPoolMemberSyncModeOverwriteSchedulerFields
+	default:
+		return UpstreamPoolMemberSyncModeMembershipOnly
+	}
+}
+
+func NewUpstreamPoolBadRequest(reason, message string) error {
+	return infraerrors.BadRequest(reason, message)
+}
+
+func NewUpstreamPoolPlatformLockedError(resource string, usage any) error {
+	return infraerrors.Conflict(
+		"UPSTREAM_POOL_PLATFORM_LOCKED",
+		fmt.Sprintf("%s platform cannot be changed while it has members or bindings", resource),
+	).WithMetadata(map[string]string{
+		"resource": fmt.Sprintf("%s", resource),
+		"usage":    fmt.Sprintf("%+v", usage),
+	})
+}
+
+func BuildUpstreamPoolMemberSyncResult(pool *UpstreamPool, current []UpstreamPoolMember, targets []UpstreamPoolMember, mode UpstreamPoolMemberSyncMode) *UpstreamPoolMemberSyncResult {
+	if pool == nil {
+		return &UpstreamPoolMemberSyncResult{}
+	}
+	mode = NormalizeUpstreamPoolMemberSyncMode(mode)
+	result := &UpstreamPoolMemberSyncResult{
+		PoolID:   pool.ID,
+		Platform: pool.Platform,
+		Mode:     mode,
+	}
+	targetByAccountID := make(map[int64]UpstreamPoolMember, len(targets))
+	for _, target := range targets {
+		if target.AccountID <= 0 {
+			continue
+		}
+		targetByAccountID[target.AccountID] = target
+	}
+	directByAccountID := make(map[int64]UpstreamPoolMember, len(current))
+	for _, member := range current {
+		if member.AccountID <= 0 {
+			continue
+		}
+		if strings.EqualFold(strings.TrimSpace(member.SourceType), "account_set") || member.ID <= 0 {
+			result.Skips = append(result.Skips, UpstreamPoolMemberSyncChange{
+				AccountID:       member.AccountID,
+				AccountName:     member.AccountName,
+				AccountPlatform: member.AccountPlatform,
+				AccountType:     member.AccountType,
+				Action:          "skip_account_set_member",
+			})
+			continue
+		}
+		directByAccountID[member.AccountID] = member
+	}
+	for _, target := range targets {
+		member, exists := directByAccountID[target.AccountID]
+		if !exists {
+			result.Creates = append(result.Creates, upstreamPoolMemberSyncChangeFromTarget(target, "create", nil))
+			continue
+		}
+		if mode == UpstreamPoolMemberSyncModeOverwriteSchedulerFields {
+			overwrites := upstreamPoolMemberSyncOverwrites(member, target)
+			change := upstreamPoolMemberSyncChangeFromTarget(target, "update", overwrites)
+			change.AccountID = member.AccountID
+			if change.AccountName == "" {
+				change.AccountName = member.AccountName
+			}
+			result.Updates = append(result.Updates, change)
+			if len(overwrites) > 0 {
+				result.OverwriteRiskCount++
+			}
+			continue
+		}
+		result.Skips = append(result.Skips, upstreamPoolMemberSyncChangeFromTarget(target, "skip_existing_direct_member", nil))
+	}
+	for _, member := range directByAccountID {
+		if _, ok := targetByAccountID[member.AccountID]; ok {
+			continue
+		}
+		result.Deletes = append(result.Deletes, upstreamPoolMemberSyncChangeFromTarget(member, "delete", upstreamPoolMemberSyncDeleteOverwrites(member)))
+		if len(upstreamPoolMemberSyncDeleteOverwrites(member)) > 0 {
+			result.OverwriteRiskCount++
+		}
+	}
+	result.CreateCount = len(result.Creates)
+	result.UpdateCount = len(result.Updates)
+	result.DeleteCount = len(result.Deletes)
+	result.SkipCount = len(result.Skips)
+	return result
+}
+
+func upstreamPoolMemberSyncChangeFromTarget(member UpstreamPoolMember, action string, overwrites []string) UpstreamPoolMemberSyncChange {
+	return UpstreamPoolMemberSyncChange{
+		AccountID:       member.AccountID,
+		AccountName:     member.AccountName,
+		AccountPlatform: member.AccountPlatform,
+		AccountType:     member.AccountType,
+		Action:          action,
+		Overwrites:      append([]string{}, overwrites...),
+	}
+}
+
+func upstreamPoolMemberSyncOverwrites(current, target UpstreamPoolMember) []string {
+	overwrites := make([]string, 0, 6)
+	if current.Enabled != target.Enabled {
+		overwrites = append(overwrites, "enabled")
+	}
+	if current.ManualDrained != target.ManualDrained {
+		overwrites = append(overwrites, "manual_drained")
+	}
+	if current.Weight != target.Weight {
+		overwrites = append(overwrites, "weight")
+	}
+	if current.SchedulableOverride != nil {
+		overwrites = append(overwrites, "schedulable_override")
+	}
+	if current.PriorityOverride != nil {
+		overwrites = append(overwrites, "priority_override")
+	}
+	if current.MaxConcurrencyOverride != nil {
+		overwrites = append(overwrites, "max_concurrency_override")
+	}
+	if strings.TrimSpace(current.Notes) != strings.TrimSpace(target.Notes) {
+		overwrites = append(overwrites, "notes")
+	}
+	return overwrites
+}
+
+func upstreamPoolMemberSyncDeleteOverwrites(member UpstreamPoolMember) []string {
+	overwrites := []string{"membership"}
+	if member.Weight != 100 {
+		overwrites = append(overwrites, "weight")
+	}
+	if member.SchedulableOverride != nil {
+		overwrites = append(overwrites, "schedulable_override")
+	}
+	if member.PriorityOverride != nil {
+		overwrites = append(overwrites, "priority_override")
+	}
+	if member.MaxConcurrencyOverride != nil {
+		overwrites = append(overwrites, "max_concurrency_override")
+	}
+	if member.ManualDrained {
+		overwrites = append(overwrites, "manual_drained")
+	}
+	if strings.TrimSpace(member.Notes) != "" {
+		overwrites = append(overwrites, "notes")
+	}
+	return overwrites
 }

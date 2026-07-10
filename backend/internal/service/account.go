@@ -4,8 +4,10 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"net/http"
 	"reflect"
 	"sort"
 	"strconv"
@@ -701,7 +703,24 @@ func (a *Account) OpenAICompactSupportKnown() (supported bool, known bool) {
 	if !ok {
 		return false, false
 	}
+	if !supported && isOpenAICompactTransientChannelExhaustionState(a.Extra) {
+		return false, false
+	}
 	return supported, true
+}
+
+func isOpenAICompactTransientChannelExhaustionState(extra map[string]any) bool {
+	if len(extra) == 0 {
+		return false
+	}
+	if parseExtraInt(extra["openai_compact_last_status"]) != http.StatusInternalServerError {
+		return false
+	}
+	errMsg := strings.ToLower(strings.TrimSpace(fmt.Sprint(extra["openai_compact_last_error"])))
+	if errMsg == "" || !strings.Contains(errMsg, "compact") {
+		return false
+	}
+	return strings.Contains(errMsg, "no available channel") || strings.Contains(errMsg, "get_channel_failed")
 }
 
 // AllowsOpenAICompact reports whether the account may be considered for compact

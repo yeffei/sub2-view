@@ -222,6 +222,22 @@ func (r *upstreamPoolRepository) DeleteUpstreamPool(ctx context.Context, id int6
 	return nil
 }
 
+func (r *upstreamPoolRepository) GetUpstreamPoolPlatformUsage(ctx context.Context, poolID int64) (service.UpstreamPoolPlatformUsage, error) {
+	if r == nil || r.db == nil || poolID <= 0 {
+		return service.UpstreamPoolPlatformUsage{}, nil
+	}
+	var usage service.UpstreamPoolPlatformUsage
+	const query = `
+SELECT
+  (SELECT COUNT(*) FROM upstream_pool_members WHERE pool_id = $1),
+  (SELECT COUNT(*) FROM upstream_pool_member_sets WHERE pool_id = $1),
+  (SELECT COUNT(*) FROM upstream_pool_bindings WHERE pool_id = $1)`
+	if err := r.db.QueryRowContext(ctx, query, poolID).Scan(&usage.DirectMemberCount, &usage.MemberSetCount, &usage.BindingCount); err != nil {
+		return service.UpstreamPoolPlatformUsage{}, fmt.Errorf("query upstream pool platform usage: %w", err)
+	}
+	return usage, nil
+}
+
 func (r *upstreamPoolRepository) ListUpstreamPoolMembers(ctx context.Context, poolID int64) ([]service.UpstreamPoolMember, error) {
 	if r == nil || r.db == nil || poolID <= 0 {
 		return []service.UpstreamPoolMember{}, nil
@@ -499,6 +515,89 @@ func (r *upstreamPoolRepository) DeleteUpstreamPoolMember(ctx context.Context, i
 	return nil
 }
 
+func (r *upstreamPoolRepository) SyncUpstreamPoolDirectMembers(ctx context.Context, poolID int64, targets []service.UpstreamPoolMember, mode service.UpstreamPoolMemberSyncMode) (*service.UpstreamPoolMemberSyncResult, error) {
+	if r == nil || r.db == nil || poolID <= 0 {
+		return nil, service.ErrUpstreamPoolNotFound
+	}
+	pool, err := r.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	current, err := r.ListUpstreamPoolMembers(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	result := service.BuildUpstreamPoolMemberSyncResult(pool, current, targets, mode)
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin upstream pool member sync: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	for _, change := range result.Creates {
+		target := findUpstreamPoolMemberSyncTarget(targets, change.AccountID)
+		if target.AccountID <= 0 {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `
+INSERT INTO upstream_pool_members (
+  pool_id, account_id, enabled, schedulable_override, manual_drained,
+  weight, priority_override, max_concurrency_override, notes
+) VALUES ($1,$2,$3,NULL,$4,$5,NULL,NULL,$6)
+ON CONFLICT (pool_id, account_id) DO NOTHING`,
+			poolID,
+			target.AccountID,
+			target.Enabled,
+			target.ManualDrained,
+			target.Weight,
+			target.Notes,
+		); err != nil {
+			return nil, fmt.Errorf("sync create upstream pool member: %w", err)
+		}
+	}
+
+	if result.Mode == service.UpstreamPoolMemberSyncModeOverwriteSchedulerFields {
+		for _, change := range result.Updates {
+			target := findUpstreamPoolMemberSyncTarget(targets, change.AccountID)
+			if target.AccountID <= 0 {
+				continue
+			}
+			if _, err := tx.ExecContext(ctx, `
+UPDATE upstream_pool_members SET
+  enabled = $3,
+  schedulable_override = NULL,
+  manual_drained = $4,
+  weight = $5,
+  priority_override = NULL,
+  max_concurrency_override = NULL,
+  notes = $6,
+  updated_at = NOW()
+WHERE pool_id = $1 AND account_id = $2`,
+				poolID,
+				target.AccountID,
+				target.Enabled,
+				target.ManualDrained,
+				target.Weight,
+				target.Notes,
+			); err != nil {
+				return nil, fmt.Errorf("sync update upstream pool member: %w", err)
+			}
+		}
+	}
+
+	for _, change := range result.Deletes {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM upstream_pool_members WHERE pool_id = $1 AND account_id = $2`, poolID, change.AccountID); err != nil {
+			return nil, fmt.Errorf("sync delete upstream pool member: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit upstream pool member sync: %w", err)
+	}
+	return result, nil
+}
+
 func (r *upstreamPoolRepository) ListUpstreamAccountSets(ctx context.Context) ([]service.UpstreamAccountSet, error) {
 	if r == nil || r.db == nil {
 		return []service.UpstreamAccountSet{}, nil
@@ -654,6 +753,21 @@ func (r *upstreamPoolRepository) DeleteUpstreamAccountSet(ctx context.Context, i
 		return service.ErrUpstreamPoolNotFound
 	}
 	return nil
+}
+
+func (r *upstreamPoolRepository) GetUpstreamAccountSetPlatformUsage(ctx context.Context, setID int64) (service.UpstreamAccountSetPlatformUsage, error) {
+	if r == nil || r.db == nil || setID <= 0 {
+		return service.UpstreamAccountSetPlatformUsage{}, nil
+	}
+	var usage service.UpstreamAccountSetPlatformUsage
+	const query = `
+SELECT
+  (SELECT COUNT(*) FROM upstream_account_set_members WHERE set_id = $1),
+  (SELECT COUNT(*) FROM upstream_pool_member_sets WHERE set_id = $1)`
+	if err := r.db.QueryRowContext(ctx, query, setID).Scan(&usage.MemberCount, &usage.PoolBindingCount); err != nil {
+		return service.UpstreamAccountSetPlatformUsage{}, fmt.Errorf("query upstream account set platform usage: %w", err)
+	}
+	return usage, nil
 }
 
 func (r *upstreamPoolRepository) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]service.UpstreamAccountSetMember, error) {
@@ -1406,4 +1520,13 @@ func normalizeStringSliceJSON(in []string) []string {
 		return []string{}
 	}
 	return in
+}
+
+func findUpstreamPoolMemberSyncTarget(targets []service.UpstreamPoolMember, accountID int64) service.UpstreamPoolMember {
+	for _, target := range targets {
+		if target.AccountID == accountID {
+			return target
+		}
+	}
+	return service.UpstreamPoolMember{}
 }

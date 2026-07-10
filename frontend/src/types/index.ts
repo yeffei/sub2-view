@@ -685,6 +685,32 @@ export interface UpstreamPoolMemberSet {
   updated_at: string
 }
 
+export type UpstreamPoolMemberSyncMode = 'membership_only' | 'overwrite_scheduler_fields'
+
+export interface UpstreamPoolMemberSyncChange {
+  account_id: number
+  account_name: string
+  account_platform: string
+  account_type: string
+  action: string
+  overwrites: string[]
+}
+
+export interface UpstreamPoolMemberSyncResult {
+  pool_id: number
+  platform: string
+  mode: UpstreamPoolMemberSyncMode
+  create_count: number
+  update_count: number
+  delete_count: number
+  skip_count: number
+  overwrite_risk_count: number
+  creates: UpstreamPoolMemberSyncChange[]
+  updates: UpstreamPoolMemberSyncChange[]
+  deletes: UpstreamPoolMemberSyncChange[]
+  skips: UpstreamPoolMemberSyncChange[]
+}
+
 export interface ApiKey {
   id: number
   user_id: number

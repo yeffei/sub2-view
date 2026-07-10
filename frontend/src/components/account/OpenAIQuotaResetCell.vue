@@ -6,10 +6,9 @@
       via the #pre-actions slot so the user sees a single row of related
       buttons rather than two near-duplicate "查询" rows.
 
-      The 5h / 7d window bars are deliberately NOT rendered here — the local
-      active-sampling display (UsageProgressBar in AccountUsageCell) already
-      owns that real estate. This cell is purely about the rate-limit reset
-      credit: query its count, consume one if needed.
+      The quota progress bars are rendered by AccountUsageCell. This child owns
+      the reset-credit actions and emits every fresh quota response back to the
+      parent so both surfaces stay on one upstream snapshot.
     -->
     <div class="flex flex-wrap items-center gap-1.5">
       <slot name="pre-actions" />
@@ -93,6 +92,11 @@ import {
 
 const props = defineProps<{
   account: Account
+  initialData?: OpenAIQuotaUsage | null
+}>()
+
+const emit = defineEmits<{
+  (event: 'quota-updated', quota: OpenAIQuotaUsage): void
 }>()
 
 const { t } = useI18n()
@@ -153,7 +157,9 @@ const handleQuery = async () => {
   error.value = null
   resetMessage.value = null
   try {
-    data.value = await queryOpenAIQuota(props.account.id)
+    const quota = await queryOpenAIQuota(props.account.id)
+    data.value = quota
+    emit('quota-updated', quota)
   } catch (e) {
     error.value = extractErrorMessage(e)
   } finally {
@@ -187,10 +193,17 @@ const handleReset = async () => {
 }
 
 watch(
+  () => props.initialData,
+  (initialData) => {
+    data.value = initialData ?? null
+  },
+  { immediate: true }
+)
+
+watch(
   () => props.account.id,
   () => {
-    // Account row may be reused across paginated lists; reset local state.
-    data.value = null
+    data.value = props.initialData ?? null
     error.value = null
     resetMessage.value = null
     loading.value = false

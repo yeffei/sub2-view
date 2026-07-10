@@ -126,6 +126,33 @@ func TestAccountOpenAICompactSupportKnown(t *testing.T) {
 			wantKnown:     true,
 		},
 		{
+			name: "auto false from transient channel exhaustion is treated as unknown",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					"openai_compact_supported":   false,
+					"openai_compact_last_status": 500,
+					"openai_compact_last_error":  "get_channel_failed: no available channel for gpt-5.4-openai-compact",
+				},
+			},
+			wantSupported: false,
+			wantKnown:     false,
+		},
+		{
+			name: "force off still overrides transient channel exhaustion",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Extra: map[string]any{
+					"openai_compact_mode":        OpenAICompactModeForceOff,
+					"openai_compact_supported":   false,
+					"openai_compact_last_status": 500,
+					"openai_compact_last_error":  "get_channel_failed: no available channel for gpt-5.4-openai-compact",
+				},
+			},
+			wantSupported: false,
+			wantKnown:     true,
+		},
+		{
 			name: "auto without probe state remains unknown",
 			account: &Account{
 				Platform: PlatformOpenAI,

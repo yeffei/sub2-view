@@ -421,6 +421,22 @@ func (s *stubAdminService) ListUpstreamPoolMembers(ctx context.Context, poolID i
 	return out, nil
 }
 
+func (s *stubAdminService) PreviewUpstreamPoolMemberSync(ctx context.Context, poolID int64, input *service.UpstreamPoolMemberSyncPreviewInput) (*service.UpstreamPoolMemberSyncResult, error) {
+	pool, err := s.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	return &service.UpstreamPoolMemberSyncResult{PoolID: pool.ID, Platform: pool.Platform, Mode: service.NormalizeUpstreamPoolMemberSyncMode(input.Mode)}, nil
+}
+
+func (s *stubAdminService) ApplyUpstreamPoolMemberSync(ctx context.Context, poolID int64, input *service.UpstreamPoolMemberSyncApplyInput) (*service.UpstreamPoolMemberSyncResult, error) {
+	pool, err := s.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	return &service.UpstreamPoolMemberSyncResult{PoolID: pool.ID, Platform: pool.Platform, Mode: service.NormalizeUpstreamPoolMemberSyncMode(input.Mode)}, nil
+}
+
 func (s *stubAdminService) CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *service.CreateUpstreamPoolMemberInput) (*service.UpstreamPoolMember, error) {
 	member := service.UpstreamPoolMember{ID: 201, PoolID: poolID, AccountID: input.AccountID, Enabled: true, Weight: 100}
 	return &member, nil

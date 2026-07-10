@@ -105,85 +105,69 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
-    <!-- OpenAI OAuth accounts: single source from /usage API -->
+    <!-- OpenAI OAuth accounts: real quota windows from /wham/usage + local window stats -->
     <template v-else-if="account.platform === 'openai' && account.type === 'oauth'">
-      <div v-if="hasOpenAIUsageFallback" class="space-y-1">
-        <UsageProgressBar
-          v-if="usageInfo?.five_hour"
-          label="5h"
-          :utilization="usageInfo.five_hour.utilization"
-          :resets-at="usageInfo.five_hour.resets_at"
-          :window-stats="usageInfo.five_hour.window_stats"
-          :show-now-when-idle="true"
-          color="indigo"
-        />
-        <UsageProgressBar
-          v-if="!compact && usageInfo?.seven_day"
-          label="7d"
-          :utilization="usageInfo.seven_day.utilization"
-          :resets-at="usageInfo.seven_day.resets_at"
-          :window-stats="usageInfo.seven_day.window_stats"
-          :show-now-when-idle="true"
-          color="emerald"
-        />
-        <!--
-          Upstream codex /wham/usage quota query + reset. The local active-sampling
-          refresh button is rendered via the pre-actions slot so the user sees a
-          single row of related buttons instead of two stacked rows.
-        -->
-        <OpenAIQuotaResetCell :account="account">
-          <template #pre-actions>
-            <button
-              type="button"
-              class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="activeQueryLoading"
-              @click="loadActiveUsage"
-            >
-              <svg
-                class="h-2.5 w-2.5"
-                :class="{ 'animate-spin': activeQueryLoading }"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              {{ t('admin.accounts.usageWindow.activeQuery') }}
-            </button>
+      <div class="space-y-1">
+        <div v-if="(loading || openAIQuotaLoading) && !openAIQuota" class="space-y-1.5">
+          <div class="flex items-center gap-1">
+            <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+            <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+            <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+          </div>
+        </div>
+
+        <template v-else-if="hasOpenAIUsageData">
+          <UsageProgressBar
+            v-for="bar in visibleOpenAIQuotaBars"
+            :key="bar.key"
+            :label="bar.label"
+            :utilization="bar.utilization"
+            :resets-at="bar.resetsAt"
+            :window-stats="bar.windowStats"
+            :show-now-when-idle="true"
+            :color="bar.color"
+          />
+
+          <!-- Compatibility fallback for servers that do not expose /wham/usage yet. -->
+          <template v-if="openAIQuotaBars.length === 0">
+            <UsageProgressBar
+              v-if="usageInfo?.five_hour"
+              label="5h"
+              :utilization="usageInfo.five_hour.utilization"
+              :resets-at="usageInfo.five_hour.resets_at"
+              :window-stats="usageInfo.five_hour.window_stats"
+              :show-now-when-idle="true"
+              color="indigo"
+            />
+            <UsageProgressBar
+              v-if="!compact && usageInfo?.seven_day"
+              label="7d"
+              :utilization="usageInfo.seven_day.utilization"
+              :resets-at="usageInfo.seven_day.resets_at"
+              :window-stats="usageInfo.seven_day.window_stats"
+              :show-now-when-idle="true"
+              color="emerald"
+            />
           </template>
-        </OpenAIQuotaResetCell>
-      </div>
-      <div v-else-if="loading" class="space-y-1.5">
-        <div class="flex items-center gap-1">
-          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
-          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        </div>
-        <div class="flex items-center gap-1">
-          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
-          <div class="h-3 w-[32px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-        </div>
-      </div>
-      <div v-else>
-        <div class="text-xs text-gray-400">-</div>
-        <!-- Always allow on-demand upstream quota query, even before local data exists. -->
-        <OpenAIQuotaResetCell :account="account" class="mt-1">
+        </template>
+
+        <div v-else class="text-xs text-gray-400">-</div>
+
+        <OpenAIQuotaResetCell
+          :account="account"
+          :initial-data="openAIQuota"
+          @quota-updated="handleOpenAIQuotaUpdated"
+        >
           <template #pre-actions>
             <button
               type="button"
               class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-              :disabled="activeQueryLoading"
+              :disabled="activeQueryLoading || openAIQuotaLoading"
               @click="loadActiveUsage"
             >
               <svg
                 class="h-2.5 w-2.5"
-                :class="{ 'animate-spin': activeQueryLoading }"
+                :class="{ 'animate-spin': activeQueryLoading || openAIQuotaLoading }"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -535,7 +519,9 @@ import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'v
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
+import type { OpenAIQuotaUsage } from '@/api/admin/accounts'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
+import { buildOpenAIQuotaProgressBars } from '@/utils/openAIQuotaProgress'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber } from '@/utils/format'
 import UsageProgressBar from './UsageProgressBar.vue'
@@ -544,6 +530,7 @@ import OpenAIQuotaResetCell from './OpenAIQuotaResetCell.vue'
 
 // Module-level cache shared across all AccountUsageCell instances
 const _usageCache = new Map<number, { data: AccountUsageInfo; ts: number }>()
+const _openAIQuotaCache = new Map<number, { data: OpenAIQuotaUsage; ts: number }>()
 const USAGE_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 const props = withDefaults(
@@ -572,6 +559,8 @@ const loading = ref(false)
 const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<AccountUsageInfo | null>(null)
+const openAIQuota = ref<OpenAIQuotaUsage | null>(null)
+const openAIQuotaLoading = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 const isDesktopViewport = ref(
   typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
@@ -626,6 +615,23 @@ const hasOpenAIUsageFallback = computed(() => {
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return false
   return !!usageInfo.value?.five_hour || !!usageInfo.value?.seven_day
 })
+
+const isOpenAIOAuth = computed(() => (
+  props.account.platform === 'openai' && props.account.type === 'oauth'
+))
+
+const openAIQuotaBars = computed(() => buildOpenAIQuotaProgressBars(openAIQuota.value, {
+  fiveHour: usageInfo.value?.five_hour?.window_stats,
+  sevenDay: usageInfo.value?.seven_day?.window_stats
+}))
+
+const visibleOpenAIQuotaBars = computed(() => (
+  props.compact ? openAIQuotaBars.value.slice(0, 1) : openAIQuotaBars.value
+))
+
+const hasOpenAIUsageData = computed(() => (
+  openAIQuotaBars.value.length > 0 || hasOpenAIUsageFallback.value
+))
 
 const openAIUsageRefreshKey = computed(() => buildOpenAIUsageRefreshKey(props.account))
 
@@ -1050,14 +1056,52 @@ const isAnthropicOAuthOrSetupToken = computed(() => {
   return props.account.platform === 'anthropic' && (props.account.type === 'oauth' || props.account.type === 'setup-token')
 })
 
-const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?: boolean }) => {
+const handleOpenAIQuotaUpdated = (quota: OpenAIQuotaUsage) => {
+  openAIQuota.value = quota
+  _openAIQuotaCache.set(props.account.id, { data: quota, ts: Date.now() })
+}
+
+const loadOpenAIQuota = async (options?: { bypassCache?: boolean }) => {
+  if (!isOpenAIOAuth.value) return
+
+  if (!options?.bypassCache) {
+    const cached = _openAIQuotaCache.get(props.account.id)
+    if (cached && Date.now() - cached.ts < USAGE_CACHE_TTL) {
+      openAIQuota.value = cached.data
+      return
+    }
+  }
+
+  openAIQuotaLoading.value = true
+  try {
+    const quota = await adminAPI.accounts.queryOpenAIQuota(props.account.id)
+    if (!unmounted.value) {
+      handleOpenAIQuotaUpdated(quota)
+    }
+  } catch (e) {
+    console.error('Failed to load OpenAI quota:', e)
+  } finally {
+    if (!unmounted.value) openAIQuotaLoading.value = false
+  }
+}
+
+const loadUsage = async (options?: {
+  source?: 'passive' | 'active'
+  bypassCache?: boolean
+  refreshOpenAIQuota?: boolean
+}) => {
   if (!shouldFetchUsage.value) return
+
+  const quotaPromise = isOpenAIOAuth.value
+    ? loadOpenAIQuota({ bypassCache: options?.refreshOpenAIQuota })
+    : Promise.resolve()
 
   // Check cache
   if (!options?.bypassCache) {
     const cached = _usageCache.get(props.account.id)
     if (cached && Date.now() - cached.ts < USAGE_CACHE_TTL) {
       usageInfo.value = cached.data
+      await quotaPromise
       loading.value = false
       return
     }
@@ -1068,7 +1112,10 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
 
   try {
     const fetchFn = () => adminAPI.accounts.getUsage(props.account.id, options?.source)
-    const result = await enqueueUsageRequest(props.account, fetchFn)
+    const [result] = await Promise.all([
+      enqueueUsageRequest(props.account, fetchFn),
+      quotaPromise
+    ])
     if (!unmounted.value) {
       usageInfo.value = result
       _usageCache.set(props.account.id, { data: result, ts: Date.now() })
@@ -1136,7 +1183,11 @@ const attachVisibilityObserver = () => {
 const loadActiveUsage = async () => {
   activeQueryLoading.value = true
   try {
-    usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    if (isOpenAIOAuth.value) {
+      await loadUsage({ bypassCache: true, refreshOpenAIQuota: true })
+    } else {
+      usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    }
   } catch (e: any) {
     console.error('Failed to load active usage:', e)
   } finally {
@@ -1261,6 +1312,15 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
 })
 
 watch(
+  () => props.account.id,
+  (nextID, prevID) => {
+    if (nextID === prevID) return
+    openAIQuota.value = null
+    openAIQuotaLoading.value = false
+  }
+)
+
+watch(
   () => props.manualRefreshToken,
   (nextToken, prevToken) => {
     if (nextToken === prevToken) return
@@ -1268,7 +1328,7 @@ watch(
 
     const source = isAnthropicOAuthOrSetupToken.value ? 'passive' : undefined
     _usageCache.delete(props.account.id)
-    loadUsage({ source, bypassCache: true }).catch((e) => {
+    loadUsage({ source, bypassCache: true, refreshOpenAIQuota: isOpenAIOAuth.value }).catch((e) => {
       console.error('Failed to refresh usage after manual refresh:', e)
     })
   }

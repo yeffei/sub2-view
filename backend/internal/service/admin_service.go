@@ -76,6 +76,8 @@ type AdminService interface {
 	UpdateUpstreamPool(ctx context.Context, id int64, input *UpdateUpstreamPoolInput) (*UpstreamPool, error)
 	DeleteUpstreamPool(ctx context.Context, id int64) error
 	ListUpstreamPoolMembers(ctx context.Context, poolID int64) ([]UpstreamPoolMember, error)
+	PreviewUpstreamPoolMemberSync(ctx context.Context, poolID int64, input *UpstreamPoolMemberSyncPreviewInput) (*UpstreamPoolMemberSyncResult, error)
+	ApplyUpstreamPoolMemberSync(ctx context.Context, poolID int64, input *UpstreamPoolMemberSyncApplyInput) (*UpstreamPoolMemberSyncResult, error)
 	CreateUpstreamPoolMember(ctx context.Context, poolID int64, input *CreateUpstreamPoolMemberInput) (*UpstreamPoolMember, error)
 	UpdateUpstreamPoolMember(ctx context.Context, id int64, input *UpdateUpstreamPoolMemberInput) (*UpstreamPoolMember, error)
 	DeleteUpstreamPoolMember(ctx context.Context, id int64) error
@@ -719,7 +721,13 @@ func (s *adminServiceImpl) UpdateUpstreamPool(ctx context.Context, id int64, inp
 		pool.Code = strings.TrimSpace(*input.Code)
 	}
 	if input.Platform != nil {
-		pool.Platform = strings.TrimSpace(*input.Platform)
+		nextPlatform := strings.TrimSpace(*input.Platform)
+		if !strings.EqualFold(nextPlatform, pool.Platform) {
+			if err := s.ensureUpstreamPoolPlatformMutable(ctx, pool.ID); err != nil {
+				return nil, err
+			}
+		}
+		pool.Platform = nextPlatform
 	}
 	if input.Description != nil {
 		pool.Description = strings.TrimSpace(*input.Description)
@@ -821,6 +829,159 @@ func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID i
 		s.applyUpstreamAccountRuntimeToPoolMember(&members[i], account, runtimeSnapshots[members[i].AccountID], monitorLatest[members[i].AccountID])
 	}
 	return members, nil
+}
+
+func (s *adminServiceImpl) PreviewUpstreamPoolMemberSync(ctx context.Context, poolID int64, input *UpstreamPoolMemberSyncPreviewInput) (*UpstreamPoolMemberSyncResult, error) {
+	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	mode := NormalizeUpstreamPoolMemberSyncMode(input.Mode)
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.buildUpstreamPoolMemberSyncTargets(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+	members, err := s.upstreamPoolRepo.ListUpstreamPoolMembers(ctx, pool.ID)
+	if err != nil {
+		return nil, err
+	}
+	return BuildUpstreamPoolMemberSyncResult(pool, members, targets, mode), nil
+}
+
+func (s *adminServiceImpl) ApplyUpstreamPoolMemberSync(ctx context.Context, poolID int64, input *UpstreamPoolMemberSyncApplyInput) (*UpstreamPoolMemberSyncResult, error) {
+	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil || input == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	syncer, ok := s.upstreamPoolRepo.(UpstreamPoolMemberSyncer)
+	if !ok {
+		return nil, infraerrors.InternalServer("UPSTREAM_POOL_SYNC_UNAVAILABLE", "upstream pool member sync is not available")
+	}
+	mode := NormalizeUpstreamPoolMemberSyncMode(input.Mode)
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, poolID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.buildUpstreamPoolMemberSyncTargets(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+	return syncer.SyncUpstreamPoolDirectMembers(ctx, pool.ID, targets, mode)
+}
+
+func (s *adminServiceImpl) buildUpstreamPoolMemberSyncTargets(ctx context.Context, pool *UpstreamPool) ([]UpstreamPoolMember, error) {
+	if pool == nil {
+		return nil, ErrUpstreamPoolNotFound
+	}
+	accounts, err := s.listUpstreamPoolMemberSyncAccounts(ctx, pool)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]UpstreamPoolMember, 0, len(accounts))
+	for i := range accounts {
+		account := accounts[i]
+		if !strings.EqualFold(strings.TrimSpace(account.Platform), strings.TrimSpace(pool.Platform)) {
+			continue
+		}
+		if !accountMatchesUpstreamPoolMemberSyncStrategy(&account, pool.AccountTypeStrategy) {
+			continue
+		}
+		enabled := account.IsActive() && account.IsSchedulable()
+		targets = append(targets, UpstreamPoolMember{
+			PoolID:          pool.ID,
+			AccountID:       account.ID,
+			AccountName:     account.Name,
+			AccountPlatform: account.Platform,
+			AccountType:     account.Type,
+			AccountStatus:   account.Status,
+			Enabled:         enabled,
+			ManualDrained:   !enabled,
+			Weight:          100,
+			Notes:           "从账号管理同步",
+		})
+	}
+	return targets, nil
+}
+
+func (s *adminServiceImpl) listUpstreamPoolMemberSyncAccounts(ctx context.Context, pool *UpstreamPool) ([]Account, error) {
+	groupIDs, err := s.enabledUpstreamPoolBindingGroupIDs(ctx, pool.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(groupIDs) == 0 {
+		accounts, _, err := s.accountRepo.ListWithFilters(
+			ctx,
+			pagination.PaginationParams{Page: 1, PageSize: 10000, SortBy: "id", SortOrder: "ASC"},
+			pool.Platform,
+			"",
+			"",
+			"",
+			"",
+			0,
+			"",
+		)
+		return accounts, err
+	}
+
+	seen := make(map[int64]struct{})
+	accounts := make([]Account, 0)
+	for _, groupID := range groupIDs {
+		groupAccounts, err := s.accountRepo.ListByGroup(ctx, groupID)
+		if err != nil {
+			return nil, err
+		}
+		for _, account := range groupAccounts {
+			if _, ok := seen[account.ID]; ok {
+				continue
+			}
+			seen[account.ID] = struct{}{}
+			accounts = append(accounts, account)
+		}
+	}
+	sort.SliceStable(accounts, func(i, j int) bool {
+		return accounts[i].ID < accounts[j].ID
+	})
+	return accounts, nil
+}
+
+func (s *adminServiceImpl) enabledUpstreamPoolBindingGroupIDs(ctx context.Context, poolID int64) ([]int64, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return nil, nil
+	}
+	bindings, err := s.upstreamPoolRepo.ListUpstreamPoolBindings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return enabledUpstreamPoolBindingGroupIDsFromList(poolID, bindings), nil
+}
+
+func accountMatchesUpstreamPoolMemberSyncStrategy(account *Account, strategy string) bool {
+	if account == nil {
+		return false
+	}
+	if NormalizeUpstreamPoolAccountTypeStrategy(strategy) == UpstreamPoolAccountTypeStrategyOAuthOnly {
+		return account.Type == AccountTypeOAuth || account.Type == AccountTypeSetupToken
+	}
+	return true
+}
+
+func enabledUpstreamPoolBindingGroupIDsFromList(poolID int64, bindings []UpstreamPoolBinding) []int64 {
+	seen := make(map[int64]struct{})
+	groupIDs := make([]int64, 0)
+	for _, binding := range bindings {
+		if binding.PoolID != poolID || !binding.Enabled || binding.GroupID <= 0 {
+			continue
+		}
+		if _, ok := seen[binding.GroupID]; ok {
+			continue
+		}
+		seen[binding.GroupID] = struct{}{}
+		groupIDs = append(groupIDs, binding.GroupID)
+	}
+	sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
+	return groupIDs
 }
 
 func (s *adminServiceImpl) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error) {
@@ -1156,7 +1317,13 @@ func (s *adminServiceImpl) UpdateUpstreamAccountSet(ctx context.Context, id int6
 		item.Code = strings.TrimSpace(*input.Code)
 	}
 	if input.Platform != nil {
-		item.Platform = strings.TrimSpace(*input.Platform)
+		nextPlatform := strings.TrimSpace(*input.Platform)
+		if !strings.EqualFold(nextPlatform, item.Platform) {
+			if err := s.ensureUpstreamAccountSetPlatformMutable(ctx, item.ID); err != nil {
+				return nil, err
+			}
+		}
+		item.Platform = nextPlatform
 	}
 	if input.Description != nil {
 		item.Description = strings.TrimSpace(*input.Description)
@@ -1306,13 +1473,16 @@ func (s *adminServiceImpl) CreateUpstreamPoolBinding(ctx context.Context, input 
 		GroupName:        group.Name,
 		GroupPlatform:    group.Platform,
 		PoolID:           pool.ID,
-		Platform:         strings.TrimSpace(input.Platform),
+		Platform:         pool.Platform,
 		Models:           append([]string{}, input.Models...),
 		RequestPathScope: append([]string{}, input.RequestPathScope...),
 		Priority:         input.Priority,
 		Enabled:          input.Enabled,
 	}
 	if err := normalizeUpstreamPoolBindingForCreate(binding); err != nil {
+		return nil, err
+	}
+	if err := validateUpstreamPoolBindingPlatform(group, pool, binding.Platform); err != nil {
 		return nil, err
 	}
 	created, err := s.upstreamPoolRepo.CreateUpstreamPoolBinding(ctx, binding)
@@ -1353,14 +1523,27 @@ func (s *adminServiceImpl) UpdateUpstreamPoolBinding(ctx context.Context, id int
 	if input.Enabled != nil {
 		binding.Enabled = *input.Enabled
 	}
+	group, err := s.groupRepo.GetByIDLite(ctx, binding.GroupID)
+	if err != nil {
+		return nil, err
+	}
+	pool, err := s.upstreamPoolRepo.GetUpstreamPoolByID(ctx, binding.PoolID)
+	if err != nil {
+		return nil, err
+	}
+	binding.Platform = pool.Platform
+	if err := normalizeUpstreamPoolBindingForCreate(binding); err != nil {
+		return nil, err
+	}
+	if err := validateUpstreamPoolBindingPlatform(group, pool, binding.Platform); err != nil {
+		return nil, err
+	}
 	updated, err := s.upstreamPoolRepo.UpdateUpstreamPoolBinding(ctx, binding)
 	if err != nil {
 		return nil, err
 	}
-	if group, gerr := s.groupRepo.GetByIDLite(ctx, updated.GroupID); gerr == nil && group != nil {
-		updated.GroupName = group.Name
-		updated.GroupPlatform = group.Platform
-	}
+	updated.GroupName = group.Name
+	updated.GroupPlatform = group.Platform
 	return updated, nil
 }
 
@@ -1369,6 +1552,49 @@ func (s *adminServiceImpl) DeleteUpstreamPoolBinding(ctx context.Context, id int
 		return ErrUpstreamPoolNotFound
 	}
 	return s.upstreamPoolRepo.DeleteUpstreamPoolBinding(ctx, id)
+}
+
+func (s *adminServiceImpl) ensureUpstreamPoolPlatformMutable(ctx context.Context, poolID int64) error {
+	reader, ok := s.upstreamPoolRepo.(UpstreamPoolPlatformUsageReader)
+	if !ok {
+		return nil
+	}
+	usage, err := reader.GetUpstreamPoolPlatformUsage(ctx, poolID)
+	if err != nil {
+		return err
+	}
+	if usage.IsLocked() {
+		return NewUpstreamPoolPlatformLockedError("upstream_pool", usage)
+	}
+	return nil
+}
+
+func (s *adminServiceImpl) ensureUpstreamAccountSetPlatformMutable(ctx context.Context, setID int64) error {
+	reader, ok := s.upstreamPoolRepo.(UpstreamPoolPlatformUsageReader)
+	if !ok {
+		return nil
+	}
+	usage, err := reader.GetUpstreamAccountSetPlatformUsage(ctx, setID)
+	if err != nil {
+		return err
+	}
+	if usage.IsLocked() {
+		return NewUpstreamPoolPlatformLockedError("upstream_account_set", usage)
+	}
+	return nil
+}
+
+func validateUpstreamPoolBindingPlatform(group *Group, pool *UpstreamPool, bindingPlatform string) error {
+	if group == nil || pool == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	if !strings.EqualFold(strings.TrimSpace(pool.Platform), strings.TrimSpace(bindingPlatform)) {
+		return NewUpstreamPoolBadRequest("UPSTREAM_POOL_BINDING_PLATFORM_MISMATCH", "binding platform must match pool platform")
+	}
+	if !strings.EqualFold(strings.TrimSpace(group.Platform), strings.TrimSpace(pool.Platform)) {
+		return NewUpstreamPoolBadRequest("UPSTREAM_POOL_BINDING_GROUP_PLATFORM_MISMATCH", "group platform must match pool platform")
+	}
+	return nil
 }
 
 func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
@@ -1395,25 +1621,25 @@ func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
 		pool.SchedulerMode = UpstreamPoolSchedulerModeAdvanced
 	}
 	if pool.StickyTTLSeconds <= 0 {
-		pool.StickyTTLSeconds = 1800
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_STICKY_TTL", "sticky_ttl_seconds must be > 0")
 	}
-	if pool.StickyEscapeErrorRateThreshold <= 0 {
-		pool.StickyEscapeErrorRateThreshold = 0.3000
+	if pool.StickyEscapeErrorRateThreshold <= 0 || pool.StickyEscapeErrorRateThreshold > 1 {
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_STICKY_ESCAPE_ERROR_RATE", "sticky_escape_error_rate_threshold must be > 0 and <= 1")
 	}
 	if pool.StickyEscapeTTFTMSThreshold <= 0 {
-		pool.StickyEscapeTTFTMSThreshold = 6000
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_STICKY_ESCAPE_TTFT", "sticky_escape_ttft_ms_threshold must be > 0")
 	}
 	if pool.TopK <= 0 {
-		pool.TopK = 2
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_TOP_K", "top_k must be > 0")
 	}
-	if pool.MaxFailoverHops <= 0 {
-		pool.MaxFailoverHops = 3
+	if pool.MaxFailoverHops < 0 {
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_MAX_FAILOVER_HOPS", "max_failover_hops must be >= 0")
 	}
-	if pool.WaitTimeoutMS <= 0 {
-		pool.WaitTimeoutMS = 30000
+	if pool.WaitTimeoutMS < 0 {
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_WAIT_TIMEOUT", "wait_timeout_ms must be >= 0")
 	}
-	if pool.MaxWaiting <= 0 {
-		pool.MaxWaiting = 100
+	if pool.MaxWaiting < 0 {
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_MAX_WAITING", "max_waiting must be >= 0")
 	}
 	if pool.PolicyJSON == nil {
 		pool.PolicyJSON = map[string]any{}
@@ -1459,8 +1685,8 @@ func normalizeUpstreamPoolBindingForCreate(binding *UpstreamPoolBinding) error {
 	if binding.Platform == "" {
 		return errors.New("platform is required")
 	}
-	if binding.Priority <= 0 {
-		binding.Priority = 100
+	if binding.Priority < 0 {
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_BINDING_PRIORITY", "priority must be >= 0")
 	}
 	if binding.Models == nil {
 		binding.Models = []string{}

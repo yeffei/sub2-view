@@ -56,15 +56,6 @@ func shouldMarkOpenAICompactUnsupported(status int, body []byte) bool {
 				}
 			}
 		}
-	case http.StatusInternalServerError:
-		// Some OpenAI-compatible pools report missing compact routing as a 500
-		// "no available channel" business error instead of a protocol-level 404.
-		if strings.Contains(lower, "no available channel") &&
-			(strings.Contains(lower, "-openai-compact") ||
-				strings.Contains(lower, " model: gpt-") && strings.Contains(lower, "compact") ||
-				strings.Contains(lower, "get_channel_failed") && strings.Contains(lower, "compact")) {
-			return true
-		}
 	}
 	return false
 }
