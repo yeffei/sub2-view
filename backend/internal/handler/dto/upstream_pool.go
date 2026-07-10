@@ -16,6 +16,7 @@ type UpstreamPool struct {
 	Description                    string         `json:"description"`
 	Enabled                        bool           `json:"enabled"`
 	SchedulerMode                  string         `json:"scheduler_mode"`
+	AccountTypeStrategy            string         `json:"account_type_strategy"`
 	DefaultRequiredCapability      string         `json:"default_required_capability"`
 	DefaultRequiredTransport       string         `json:"default_required_transport"`
 	StickyEnabled                  bool           `json:"sticky_enabled"`
@@ -94,13 +95,22 @@ type UpstreamAccountSet struct {
 }
 
 type UpstreamAccountSetMember struct {
-	SetID           int64  `json:"set_id"`
-	AccountID       int64  `json:"account_id"`
-	AccountName     string `json:"account_name"`
-	AccountPlatform string `json:"account_platform"`
-	AccountType     string `json:"account_type"`
-	AccountStatus   string `json:"account_status"`
-	AddedAt         string `json:"added_at"`
+	SetID                         int64    `json:"set_id"`
+	AccountID                     int64    `json:"account_id"`
+	AccountName                   string   `json:"account_name"`
+	AccountPlatform               string   `json:"account_platform"`
+	AccountType                   string   `json:"account_type"`
+	AccountStatus                 string   `json:"account_status"`
+	AccountSchedulable            bool     `json:"account_schedulable"`
+	RuntimeStatus                 string   `json:"runtime_status"`
+	RuntimeReason                 string   `json:"runtime_reason"`
+	RuntimeErrorRate              *float64 `json:"runtime_error_rate"`
+	RuntimeTTFTMs                 *int     `json:"runtime_ttft_ms"`
+	RuntimeLastUsedAt             *string  `json:"runtime_last_used_at"`
+	RuntimeRateLimitResetAt       *string  `json:"runtime_rate_limit_reset_at"`
+	RuntimeOverloadUntil          *string  `json:"runtime_overload_until"`
+	RuntimeTempUnschedulableUntil *string  `json:"runtime_temp_unschedulable_until"`
+	AddedAt                       string   `json:"added_at"`
 }
 
 type UpstreamPoolMemberSet struct {
@@ -128,6 +138,7 @@ func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
 		Description:                    pool.Description,
 		Enabled:                        pool.Enabled,
 		SchedulerMode:                  pool.SchedulerMode,
+		AccountTypeStrategy:            pool.AccountTypeStrategy,
 		DefaultRequiredCapability:      pool.DefaultRequiredCapability,
 		DefaultRequiredTransport:       pool.DefaultRequiredTransport,
 		StickyEnabled:                  pool.StickyEnabled,
@@ -234,13 +245,22 @@ func UpstreamAccountSetMemberFromService(item *service.UpstreamAccountSetMember)
 		return nil
 	}
 	return &UpstreamAccountSetMember{
-		SetID:           item.SetID,
-		AccountID:       item.AccountID,
-		AccountName:     item.AccountName,
-		AccountPlatform: item.AccountPlatform,
-		AccountType:     item.AccountType,
-		AccountStatus:   item.AccountStatus,
-		AddedAt:         item.AddedAt.Format(upstreamPoolTimeLayout),
+		SetID:                         item.SetID,
+		AccountID:                     item.AccountID,
+		AccountName:                   item.AccountName,
+		AccountPlatform:               item.AccountPlatform,
+		AccountType:                   item.AccountType,
+		AccountStatus:                 item.AccountStatus,
+		AccountSchedulable:            item.AccountSchedulable,
+		RuntimeStatus:                 item.RuntimeStatus,
+		RuntimeReason:                 item.RuntimeReason,
+		RuntimeErrorRate:              item.RuntimeErrorRate,
+		RuntimeTTFTMs:                 item.RuntimeTTFTMs,
+		RuntimeLastUsedAt:             formatOptionalTime(item.RuntimeLastUsedAt),
+		RuntimeRateLimitResetAt:       formatOptionalTime(item.RuntimeRateLimitResetAt),
+		RuntimeOverloadUntil:          formatOptionalTime(item.RuntimeOverloadUntil),
+		RuntimeTempUnschedulableUntil: formatOptionalTime(item.RuntimeTempUnschedulableUntil),
+		AddedAt:                       item.AddedAt.Format(upstreamPoolTimeLayout),
 	}
 }
 

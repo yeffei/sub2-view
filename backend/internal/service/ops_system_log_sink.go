@@ -119,6 +119,9 @@ func (s *OpsSystemLogSink) shouldIndex(event *logger.LogEvent) bool {
 	if strings.Contains(component, "routing.explanation") {
 		return true
 	}
+	if strings.Contains(component, cacheInstrumentationComponent) {
+		return true
+	}
 	return false
 }
 

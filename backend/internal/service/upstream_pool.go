@@ -18,11 +18,17 @@ const (
 
 	UpstreamPoolSchedulerModeBasic    = "basic"
 	UpstreamPoolSchedulerModeAdvanced = "advanced"
+
+	UpstreamPoolAccountTypeStrategyAll             = "all"
+	UpstreamPoolAccountTypeStrategyOAuthPreferred  = "oauth_preferred"
+	UpstreamPoolAccountTypeStrategyOAuthOnly       = "oauth_only"
+	UpstreamPoolAccountTypeStrategyAPIKeyPreferred = "apikey_preferred"
 )
 
 type UpstreamPool struct {
 	ID                             int64
 	Name                           string
+	AccountTypeStrategy            string
 	Code                           string
 	Platform                       string
 	Description                    string
@@ -106,13 +112,22 @@ type UpstreamAccountSet struct {
 }
 
 type UpstreamAccountSetMember struct {
-	SetID           int64
-	AccountID       int64
-	AccountName     string
-	AccountPlatform string
-	AccountType     string
-	AccountStatus   string
-	AddedAt         time.Time
+	SetID                         int64
+	AccountID                     int64
+	AccountName                   string
+	AccountPlatform               string
+	AccountType                   string
+	AccountStatus                 string
+	AccountSchedulable            bool
+	RuntimeStatus                 string
+	RuntimeReason                 string
+	RuntimeErrorRate              *float64
+	RuntimeTTFTMs                 *int
+	RuntimeLastUsedAt             *time.Time
+	RuntimeRateLimitResetAt       *time.Time
+	RuntimeOverloadUntil          *time.Time
+	RuntimeTempUnschedulableUntil *time.Time
+	AddedAt                       time.Time
 }
 
 type UpstreamPoolMemberSet struct {
@@ -130,6 +145,7 @@ type UpstreamPoolMemberSet struct {
 
 type CreateUpstreamPoolInput struct {
 	Name                           string
+	AccountTypeStrategy            string
 	Code                           string
 	Platform                       string
 	Description                    string
@@ -153,6 +169,7 @@ type CreateUpstreamPoolInput struct {
 
 type UpdateUpstreamPoolInput struct {
 	Name                           *string
+	AccountTypeStrategy            *string
 	Code                           *string
 	Platform                       *string
 	Description                    *string
@@ -279,6 +296,7 @@ type OpenAIAccountRuntimeObserver interface {
 // HasBinding=false 表示该 group 当前没有命中可用的 upstream pool 绑定，
 // 路由层应回退到默认调度行为。
 type OpenAIRoutingPolicy struct {
+	AccountTypeStrategy            string
 	HasBinding                     bool
 	PoolID                         int64
 	PoolCode                       string
@@ -335,6 +353,45 @@ func (p OpenAIRoutingPolicy) EffectiveCacheAffinityEnabled(defaultEnabled bool) 
 	return *p.CacheAffinityEnabled
 }
 
+func NormalizeUpstreamPoolAccountTypeStrategy(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case UpstreamPoolAccountTypeStrategyOAuthPreferred:
+		return UpstreamPoolAccountTypeStrategyOAuthPreferred
+	case UpstreamPoolAccountTypeStrategyOAuthOnly:
+		return UpstreamPoolAccountTypeStrategyOAuthOnly
+	case UpstreamPoolAccountTypeStrategyAPIKeyPreferred:
+		return UpstreamPoolAccountTypeStrategyAPIKeyPreferred
+	default:
+		return UpstreamPoolAccountTypeStrategyAll
+	}
+}
+
+func UpstreamPoolAccountTypeStrategyFromPolicyJSON(policyJSON map[string]any) string {
+	if routing := policyJSONMap(policyJSON, "routing"); len(routing) > 0 {
+		if strategy, ok := policyJSONString(routing, "account_type_strategy"); ok {
+			return NormalizeUpstreamPoolAccountTypeStrategy(strategy)
+		}
+	}
+	if strategy, ok := policyJSONString(policyJSON, "account_type_strategy"); ok {
+		return NormalizeUpstreamPoolAccountTypeStrategy(strategy)
+	}
+	return UpstreamPoolAccountTypeStrategyAll
+}
+
+func SetUpstreamPoolAccountTypeStrategyPolicyJSON(policyJSON map[string]any, strategy string) map[string]any {
+	if policyJSON == nil {
+		policyJSON = map[string]any{}
+	}
+	normalized := NormalizeUpstreamPoolAccountTypeStrategy(strategy)
+	routing := policyJSONMap(policyJSON, "routing")
+	if routing == nil {
+		routing = map[string]any{}
+	}
+	routing["account_type_strategy"] = normalized
+	policyJSON["routing"] = routing
+	return policyJSON
+}
+
 func (p OpenAIRoutingPolicy) EffectivePoolMode5xxCooldown(defaultCooldown time.Duration) time.Duration {
 	if !p.HasBinding || p.PoolMode5xxCooldown <= 0 {
 		return defaultCooldown
@@ -357,6 +414,14 @@ func ApplyOpenAIRoutingPolicyJSON(policy *OpenAIRoutingPolicy, policyJSON map[st
 		if enabled, ok := policyJSONBool(cacheAffinity, "enabled"); ok {
 			policy.CacheAffinityEnabled = &enabled
 		}
+	}
+	if routing := policyJSONMap(policyJSON, "routing"); len(routing) > 0 {
+		if strategy, ok := policyJSONString(routing, "account_type_strategy"); ok {
+			policy.AccountTypeStrategy = NormalizeUpstreamPoolAccountTypeStrategy(strategy)
+		}
+	}
+	if strategy, ok := policyJSONString(policyJSON, "account_type_strategy"); ok && policy.AccountTypeStrategy == "" {
+		policy.AccountTypeStrategy = NormalizeUpstreamPoolAccountTypeStrategy(strategy)
 	}
 	if circuitBreaker := policyJSONMap(policyJSON, "circuit_breaker"); len(circuitBreaker) > 0 {
 		if minutes, ok := policyJSONInt(circuitBreaker, "openai_pool_mode_5xx_cooldown_minutes"); ok && minutes > 0 {
@@ -402,6 +467,25 @@ func policyJSONBool(input map[string]any, key string) (bool, bool) {
 		}
 	}
 	return false, false
+}
+
+func policyJSONString(input map[string]any, key string) (string, bool) {
+	raw, ok := input[key]
+	if !ok || raw == nil {
+		return "", false
+	}
+	switch typed := raw.(type) {
+	case string:
+		value := strings.TrimSpace(typed)
+		return value, value != ""
+	case json.RawMessage:
+		var value string
+		if err := json.Unmarshal(typed, &value); err == nil {
+			value = strings.TrimSpace(value)
+			return value, value != ""
+		}
+	}
+	return "", false
 }
 
 func policyJSONInt(input map[string]any, key string) (int, bool) {

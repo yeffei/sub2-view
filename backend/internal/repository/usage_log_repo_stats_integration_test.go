@@ -25,13 +25,28 @@ func TestUsageLog_GetStatsWithFilters_AggregatesAndEndpoints(t *testing.T) {
 	now := time.Now().UTC()
 	inboundEndpoint := "/v1/messages"
 	upstreamEndpoint := "/v1/responses"
-	for i := 0; i < 3; i++ {
-		_, err := repo.Create(ctx, &service.UsageLog{
+	logs := []*service.UsageLog{
+		{
 			UserID: user.ID, APIKeyID: apiKey.ID, AccountID: account.ID,
 			Model: "claude-3", InputTokens: 2, OutputTokens: 3,
-			TotalCost: 0.5, ActualCost: 0.4, CreatedAt: now,
+			CacheReadTokens: 4, TotalCost: 0.5, ActualCost: 0.4, CreatedAt: now,
 			InboundEndpoint: &inboundEndpoint, UpstreamEndpoint: &upstreamEndpoint,
-		})
+		},
+		{
+			UserID: user.ID, APIKeyID: apiKey.ID, AccountID: account.ID,
+			Model: "claude-3", InputTokens: 4, OutputTokens: 5,
+			CacheCreationTokens: 7, TotalCost: 0.6, ActualCost: 0.5, CreatedAt: now,
+			InboundEndpoint: &inboundEndpoint, UpstreamEndpoint: &upstreamEndpoint,
+		},
+		{
+			UserID: user.ID, APIKeyID: apiKey.ID, AccountID: account.ID,
+			Model: "claude-3", InputTokens: 6, OutputTokens: 7,
+			TotalCost: 0.7, ActualCost: 0.6, CreatedAt: now,
+			InboundEndpoint: &inboundEndpoint, UpstreamEndpoint: &upstreamEndpoint,
+		},
+	}
+	for _, log := range logs {
+		_, err := repo.Create(ctx, log)
 		require.NoError(t, err)
 	}
 
@@ -42,10 +57,22 @@ func TestUsageLog_GetStatsWithFilters_AggregatesAndEndpoints(t *testing.T) {
 	stats, err := repo.GetStatsWithFilters(ctx, usagestats.UsageLogFilters{UserID: user.ID, StartTime: &start, EndTime: &end})
 	require.NoError(t, err)
 	require.Equal(t, int64(3), stats.TotalRequests)
-	require.Equal(t, int64(6), stats.TotalInputTokens)
-	require.Equal(t, int64(9), stats.TotalOutputTokens)
-	require.InDelta(t, 1.2, stats.TotalActualCost, 1e-9)
+	require.Equal(t, int64(12), stats.TotalInputTokens)
+	require.Equal(t, int64(15), stats.TotalOutputTokens)
+	require.Equal(t, int64(7), stats.TotalCacheCreationTokens)
+	require.Equal(t, int64(4), stats.TotalCacheReadTokens)
+	require.Equal(t, int64(1), stats.CacheReadHitRequests)
+	require.Equal(t, int64(1), stats.CacheCreationRequests)
+	require.InDelta(t, 1.5, stats.TotalActualCost, 1e-9)
+	require.InDelta(t, 1.0/3.0, stats.CacheReadHitRatio, 1e-9)
+	require.InDelta(t, 4.0, stats.AverageCacheReadTokensPerHit, 1e-9)
+	require.InDelta(t, 4.0, stats.AverageActualInputTokens, 1e-9)
 	require.NotEmpty(t, stats.Endpoints)
 	require.NotEmpty(t, stats.UpstreamEndpoints)
 	require.NotEmpty(t, stats.EndpointPaths)
+	require.Equal(t, int64(12), stats.Endpoints[0].InputTokens)
+	require.Equal(t, int64(15), stats.Endpoints[0].OutputTokens)
+	require.Equal(t, int64(7), stats.Endpoints[0].CacheCreationTokens)
+	require.Equal(t, int64(4), stats.Endpoints[0].CacheReadTokens)
+	require.InDelta(t, 4.0, stats.Endpoints[0].AverageActualInputTokens, 1e-9)
 }

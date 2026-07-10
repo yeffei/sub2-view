@@ -18,8 +18,14 @@ const messages: Record<string, string> = {
   'admin.dashboard.tokens': 'Tokens',
   'admin.dashboard.actual': 'Actual',
   'admin.dashboard.standard': 'Standard',
+  'admin.dashboard.cacheHitRequestsShort': 'Hits {value}',
+  'admin.dashboard.cacheHitRateShort': 'Hit rate {value}',
+  'admin.dashboard.cacheReadPerHitShort': 'Read/hit {value}',
+  'admin.dashboard.avgInputShort': 'Avg in {value}',
   'admin.dashboard.metricTokens': 'By Tokens',
   'admin.dashboard.metricActualCost': 'By Actual Cost',
+  'admin.dashboard.metricCacheHitRate': 'By Hit Rate',
+  'admin.dashboard.metricCacheReadPerHit': 'By Read/Hit',
   'admin.dashboard.noDataAvailable': 'No data available',
   'admin.redeem.userPrefix': 'User #{id}',
 }
@@ -29,7 +35,14 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, string | number>) => {
+        const message = messages[key] ?? key
+        if (!params) return message
+        return Object.entries(params).reduce(
+          (result, [name, value]) => result.replace(`{${name}}`, String(value)),
+          message
+        )
+      },
     }),
   }
 })
@@ -50,9 +63,15 @@ describe('ModelDistributionChart', () => {
       output_tokens: 50,
       cache_creation_tokens: 0,
       cache_read_tokens: 0,
+      cache_read_hit_requests: 4,
+      cache_creation_requests: 0,
+      cache_read_hit_ratio: 0.5,
+      average_cache_read_tokens_per_hit: 250,
+      average_actual_input_tokens: 12.5,
       total_tokens: 1000,
       cost: 1.5,
       actual_cost: 0.2,
+      account_cost: 0.18,
     },
     {
       model: 'model-b',
@@ -61,9 +80,15 @@ describe('ModelDistributionChart', () => {
       output_tokens: 20,
       cache_creation_tokens: 0,
       cache_read_tokens: 0,
+      cache_read_hit_requests: 1,
+      cache_creation_requests: 0,
+      cache_read_hit_ratio: 0.33,
+      average_cache_read_tokens_per_hit: 100,
+      average_actual_input_tokens: 13.3,
       total_tokens: 500,
       cost: 0.5,
       actual_cost: 1.4,
+      account_cost: 1.2,
     },
   ]
 
@@ -85,6 +110,9 @@ describe('ModelDistributionChart', () => {
 
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0].text()).toContain('model-a')
+    expect(rows[0].text()).toContain('Hits 4')
+    expect(rows[0].text()).toContain('Hit rate 50.0%')
+    expect(rows[0].text()).toContain('Read/hit 250')
     expect(rows[1].text()).toContain('model-b')
 
     const options = (wrapper.vm as any).$?.setupState.doughnutOptions
@@ -124,6 +152,32 @@ describe('ModelDistributionChart', () => {
       dataset: { data: [1.4, 0.2] },
     })
     expect(label).toBe('model-b: $1.40 (87.5%)')
+  })
+
+  it('uses cache_hit_ratio and reorders rows by hit rate', () => {
+    const wrapper = mount(ModelDistributionChart, {
+      props: {
+        modelStats,
+        metric: 'cache_hit_ratio',
+      },
+      global: {
+        stubs: {
+          LoadingSpinner: true,
+        },
+      },
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    expect(chartData.labels).toEqual(['model-a', 'model-b'])
+    expect(chartData.datasets[0].data).toEqual([0.5, 0.33])
+
+    const options = (wrapper.vm as any).$?.setupState.doughnutOptions
+    const label = options.plugins.tooltip.callbacks.label({
+      label: 'model-a',
+      raw: 0.5,
+      dataset: { data: [0.5, 0.33] },
+    })
+    expect(label).toBe('model-a: 50.0% (60.2%)')
   })
 
   it('renders Others in the spending ranking table and uses a dedicated chart color', async () => {

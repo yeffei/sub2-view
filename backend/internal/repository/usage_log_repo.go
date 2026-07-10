@@ -1797,6 +1797,8 @@ func (r *usageLogRepository) GetUserStatsAggregated(ctx context.Context, userID 
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
 			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(AVG(COALESCE(duration_ms, 0)), 0) as avg_duration_ms
@@ -1816,6 +1818,8 @@ func (r *usageLogRepository) GetUserStatsAggregated(ctx context.Context, userID 
 		&stats.TotalCacheTokens,
 		&stats.TotalCacheCreationTokens,
 		&stats.TotalCacheReadTokens,
+		&stats.CacheReadHitRequests,
+		&stats.CacheCreationRequests,
 		&stats.TotalCost,
 		&stats.TotalActualCost,
 		&stats.AverageDurationMs,
@@ -1823,6 +1827,7 @@ func (r *usageLogRepository) GetUserStatsAggregated(ctx context.Context, userID 
 		return nil, err
 	}
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	stats.PopulateCacheDerivedMetrics()
 	return &stats, nil
 }
 
@@ -1836,6 +1841,8 @@ func (r *usageLogRepository) GetAPIKeyStatsAggregated(ctx context.Context, apiKe
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
 			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(AVG(COALESCE(duration_ms, 0)), 0) as avg_duration_ms
@@ -1855,6 +1862,8 @@ func (r *usageLogRepository) GetAPIKeyStatsAggregated(ctx context.Context, apiKe
 		&stats.TotalCacheTokens,
 		&stats.TotalCacheCreationTokens,
 		&stats.TotalCacheReadTokens,
+		&stats.CacheReadHitRequests,
+		&stats.CacheCreationRequests,
 		&stats.TotalCost,
 		&stats.TotalActualCost,
 		&stats.AverageDurationMs,
@@ -1862,6 +1871,7 @@ func (r *usageLogRepository) GetAPIKeyStatsAggregated(ctx context.Context, apiKe
 		return nil, err
 	}
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	stats.PopulateCacheDerivedMetrics()
 	return &stats, nil
 }
 
@@ -1885,6 +1895,8 @@ func (r *usageLogRepository) GetAccountStatsAggregated(ctx context.Context, acco
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
 			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(AVG(COALESCE(duration_ms, 0)), 0) as avg_duration_ms
@@ -1904,6 +1916,8 @@ func (r *usageLogRepository) GetAccountStatsAggregated(ctx context.Context, acco
 		&stats.TotalCacheTokens,
 		&stats.TotalCacheCreationTokens,
 		&stats.TotalCacheReadTokens,
+		&stats.CacheReadHitRequests,
+		&stats.CacheCreationRequests,
 		&stats.TotalCost,
 		&stats.TotalActualCost,
 		&stats.AverageDurationMs,
@@ -1911,6 +1925,7 @@ func (r *usageLogRepository) GetAccountStatsAggregated(ctx context.Context, acco
 		return nil, err
 	}
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	stats.PopulateCacheDerivedMetrics()
 	return &stats, nil
 }
 
@@ -1925,6 +1940,8 @@ func (r *usageLogRepository) GetModelStatsAggregated(ctx context.Context, modelN
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
 			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(AVG(COALESCE(duration_ms, 0)), 0) as avg_duration_ms
@@ -1944,6 +1961,8 @@ func (r *usageLogRepository) GetModelStatsAggregated(ctx context.Context, modelN
 		&stats.TotalCacheTokens,
 		&stats.TotalCacheCreationTokens,
 		&stats.TotalCacheReadTokens,
+		&stats.CacheReadHitRequests,
+		&stats.CacheCreationRequests,
 		&stats.TotalCost,
 		&stats.TotalActualCost,
 		&stats.AverageDurationMs,
@@ -1951,6 +1970,7 @@ func (r *usageLogRepository) GetModelStatsAggregated(ctx context.Context, modelN
 		return nil, err
 	}
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	stats.PopulateCacheDerivedMetrics()
 	return &stats, nil
 }
 
@@ -2752,6 +2772,8 @@ func (r *usageLogRepository) GetUserModelStats(ctx context.Context, userID int64
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
 			COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
 			COALESCE(SUM(actual_cost), 0) as actual_cost,
@@ -3193,6 +3215,8 @@ func (r *usageLogRepository) getModelStatsWithFiltersBySource(ctx context.Contex
 			COALESCE(SUM(output_tokens), 0) as output_tokens,
 			COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
 			COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
 			%s,
@@ -3479,6 +3503,10 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 			COALESCE(SUM(input_tokens), 0) as total_input_tokens,
 			COALESCE(SUM(output_tokens), 0) as total_output_tokens,
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
+			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
+			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(AVG(duration_ms), 0) as avg_duration_ms
@@ -3496,6 +3524,10 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 		&stats.TotalInputTokens,
 		&stats.TotalOutputTokens,
 		&stats.TotalCacheTokens,
+		&stats.TotalCacheCreationTokens,
+		&stats.TotalCacheReadTokens,
+		&stats.CacheReadHitRequests,
+		&stats.CacheCreationRequests,
 		&stats.TotalCost,
 		&stats.TotalActualCost,
 		&stats.AverageDurationMs,
@@ -3503,6 +3535,7 @@ func (r *usageLogRepository) GetGlobalStats(ctx context.Context, startTime, endT
 		return nil, err
 	}
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	stats.PopulateCacheDerivedMetrics()
 	return stats, nil
 }
 
@@ -3549,6 +3582,10 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			COALESCE(SUM(input_tokens), 0) as total_input_tokens,
 			COALESCE(SUM(output_tokens), 0) as total_output_tokens,
 			COALESCE(SUM(cache_creation_tokens + cache_read_tokens), 0) as total_cache_tokens,
+			COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation_tokens,
+			COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) as cache_creation_requests,
 			COALESCE(SUM(total_cost), 0) as total_cost,
 			COALESCE(SUM(actual_cost), 0) as total_actual_cost,
 			COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) as total_account_cost,
@@ -3579,6 +3616,10 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			&stats.TotalInputTokens,
 			&stats.TotalOutputTokens,
 			&stats.TotalCacheTokens,
+			&stats.TotalCacheCreationTokens,
+			&stats.TotalCacheReadTokens,
+			&stats.CacheReadHitRequests,
+			&stats.CacheCreationRequests,
 			&stats.TotalCost,
 			&stats.TotalActualCost,
 			&totalAccountCost,
@@ -3639,6 +3680,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 
 	stats.TotalAccountCost = &totalAccountCost
 	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheTokens
+	stats.PopulateCacheDerivedMetrics()
 	stats.Endpoints = endpoints
 	stats.UpstreamEndpoints = upstreamEndpoints
 	stats.EndpointPaths = endpointPaths
@@ -3668,6 +3710,12 @@ func (r *usageLogRepository) getEndpointStatsByColumnWithFilters(ctx context.Con
 		SELECT
 			COALESCE(NULLIF(TRIM(%s), ''), 'unknown') AS endpoint,
 			COUNT(*) AS requests,
+			COALESCE(SUM(input_tokens), 0) AS input_tokens,
+			COALESCE(SUM(output_tokens), 0) AS output_tokens,
+			COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
+			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) AS cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) AS cache_creation_requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
 			%s
@@ -3714,9 +3762,22 @@ func (r *usageLogRepository) getEndpointStatsByColumnWithFilters(ctx context.Con
 	results = make([]EndpointStat, 0)
 	for rows.Next() {
 		var row EndpointStat
-		if err := rows.Scan(&row.Endpoint, &row.Requests, &row.TotalTokens, &row.Cost, &row.ActualCost); err != nil {
+		if err := rows.Scan(
+			&row.Endpoint,
+			&row.Requests,
+			&row.InputTokens,
+			&row.OutputTokens,
+			&row.CacheCreationTokens,
+			&row.CacheReadTokens,
+			&row.CacheReadHitRequests,
+			&row.CacheCreationRequests,
+			&row.TotalTokens,
+			&row.Cost,
+			&row.ActualCost,
+		); err != nil {
 			return nil, err
 		}
+		row.PopulateCacheDerivedMetrics()
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -3739,6 +3800,12 @@ func (r *usageLogRepository) getEndpointPathStatsWithFilters(ctx context.Context
 				COALESCE(NULLIF(TRIM(upstream_endpoint), ''), 'unknown')
 			) AS endpoint,
 			COUNT(*) AS requests,
+			COALESCE(SUM(input_tokens), 0) AS input_tokens,
+			COALESCE(SUM(output_tokens), 0) AS output_tokens,
+			COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
+			COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
+			COALESCE(SUM(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) AS cache_read_hit_requests,
+			COALESCE(SUM(CASE WHEN cache_creation_tokens > 0 THEN 1 ELSE 0 END), 0) AS cache_creation_requests,
 			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS total_tokens,
 			COALESCE(SUM(total_cost), 0) as cost,
 			%s
@@ -3785,9 +3852,22 @@ func (r *usageLogRepository) getEndpointPathStatsWithFilters(ctx context.Context
 	results = make([]EndpointStat, 0)
 	for rows.Next() {
 		var row EndpointStat
-		if err := rows.Scan(&row.Endpoint, &row.Requests, &row.TotalTokens, &row.Cost, &row.ActualCost); err != nil {
+		if err := rows.Scan(
+			&row.Endpoint,
+			&row.Requests,
+			&row.InputTokens,
+			&row.OutputTokens,
+			&row.CacheCreationTokens,
+			&row.CacheReadTokens,
+			&row.CacheReadHitRequests,
+			&row.CacheCreationRequests,
+			&row.TotalTokens,
+			&row.Cost,
+			&row.ActualCost,
+		); err != nil {
 			return nil, err
 		}
+		row.PopulateCacheDerivedMetrics()
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {
@@ -4506,6 +4586,8 @@ func scanModelStatsRows(rows *sql.Rows) ([]ModelStat, error) {
 			&row.OutputTokens,
 			&row.CacheCreationTokens,
 			&row.CacheReadTokens,
+			&row.CacheReadHitRequests,
+			&row.CacheCreationRequests,
 			&row.TotalTokens,
 			&row.Cost,
 			&row.ActualCost,
@@ -4513,6 +4595,7 @@ func scanModelStatsRows(rows *sql.Rows) ([]ModelStat, error) {
 		); err != nil {
 			return nil, err
 		}
+		row.PopulateCacheDerivedMetrics()
 		results = append(results, row)
 	}
 	if err := rows.Err(); err != nil {

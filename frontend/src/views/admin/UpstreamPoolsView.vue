@@ -87,6 +87,7 @@
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">负载均衡 {{ row.load_balance_enabled ? '开' : '关' }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">故障转移 {{ row.failover_enabled ? '开' : '关' }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">TopK {{ row.top_k }}</span>
+                  <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">{{ accountTypeStrategyLabel(row.account_type_strategy) }}</span>
                 </div>
                 <div class="flex flex-wrap gap-1">
                   <span class="rounded bg-primary-50 px-2 py-0.5 text-primary-700 dark:bg-primary-950/30 dark:text-primary-200">
@@ -112,10 +113,6 @@
               <button class="text-sm text-primary-700 hover:underline dark:text-primary-300" @click="selectPool(row)">
                 {{ selectedPool?.id === row.id ? (bindings.filter(item => item.pool_id === row.id).length || 0) : '—' }} 个绑定
               </button>
-            </template>
-
-            <template #cell-created_at="{ value }">
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(value) }}</span>
             </template>
 
             <template #cell-actions="{ row }">
@@ -155,8 +152,8 @@
         </template>
       </TablePageLayout>
 
-      <section class="sst-admin-panel mb-4 p-4">
-        <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <section class="sst-admin-panel account-sets-panel mb-4 p-4">
+        <div class="account-sets-header mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 class="text-base font-semibold text-gray-900 dark:text-white">账号集合</h3>
             <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -167,11 +164,11 @@
             新建账号集合
           </button>
         </div>
-        <div class="mb-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
-          <h4 class="text-sm font-semibold text-amber-900 dark:text-amber-100">如何使用账号集合</h4>
-          <p class="mt-1 text-xs leading-6 text-amber-800 dark:text-amber-200">
-            1. 先新建一个同平台集合。2. 把这批账号加入集合。3. 在下方“集合成员绑定”里把集合挂到目标上游池。4. 最后在“分组绑定”里让用户分组命中这个池。
-          </p>
+        <div class="account-sets-guide mb-4">
+          <span>新建同平台集合</span>
+          <span>加入账号</span>
+          <span>挂到上游池</span>
+          <span>分组命中池</span>
         </div>
         <DataTable :columns="accountSetColumns" :data="accountSets" :loading="accountSetsLoading" row-key="id">
           <template #cell-name="{ row, value }">
@@ -218,7 +215,7 @@
           </template>
         </DataTable>
 
-        <div v-if="selectedAccountSet" class="mt-4 rounded-2xl border border-gray-200 bg-white/80 p-3 dark:border-dark-700 dark:bg-dark-900/60">
+        <div v-if="selectedAccountSet" class="account-set-members-panel mt-4">
           <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedAccountSet.name }} · 集合成员</h4>
@@ -240,6 +237,56 @@
 
             <template #cell-account_platform="{ value }">
               <span class="badge badge-gray">{{ platformLabel(value) }}</span>
+            </template>
+
+            <template #cell-runtime_status="{ row, value }">
+              <div class="flex flex-col gap-1">
+                <span :class="['badge', runtimeStatusClass(value)]">{{ runtimeStatusLabel(value) }}</span>
+                <div
+                  v-if="row.runtime_ttft_ms != null || row.runtime_error_rate != null"
+                  class="flex flex-wrap gap-1 text-[11px] text-gray-500 dark:text-gray-400"
+                >
+                  <span
+                    v-if="row.runtime_ttft_ms != null"
+                    class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700"
+                  >
+                    TTFT {{ formatThresholdMs(row.runtime_ttft_ms) }}
+                  </span>
+                  <span
+                    v-if="row.runtime_error_rate != null"
+                    class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700"
+                  >
+                    错率 {{ formatRateThreshold(row.runtime_error_rate) }}
+                  </span>
+                </div>
+                <span v-if="row.runtime_reason" class="max-w-[320px] whitespace-normal text-xs text-gray-500 dark:text-gray-400">
+                  {{ row.runtime_reason }}
+                </span>
+                <span
+                  v-if="row.runtime_rate_limit_reset_at || row.runtime_overload_until || row.runtime_temp_unschedulable_until"
+                  class="text-xs text-gray-500 dark:text-gray-400"
+                >
+                  {{
+                    formatCompactDateTime(
+                      row.runtime_rate_limit_reset_at ||
+                      row.runtime_overload_until ||
+                      row.runtime_temp_unschedulable_until
+                    )
+                  }}
+                </span>
+              </div>
+            </template>
+
+            <template #cell-usage="{ row }">
+              <div class="account-set-usage-cell">
+                <div class="account-set-usage-cell__main">
+                  {{ formatRuntimeLastUsed(row.runtime_last_used_at) }}
+                </div>
+                <div class="account-set-usage-cell__meta">
+                  <span>TTFT {{ formatThresholdMs(row.runtime_ttft_ms) }}</span>
+                  <span>错率 {{ formatRateThreshold(row.runtime_error_rate) }}</span>
+                </div>
+              </div>
             </template>
 
             <template #cell-added_at="{ value }">
@@ -269,62 +316,21 @@
         </div>
       </section>
 
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
-        <section class="sst-admin-panel p-4">
-          <div class="mb-3 flex items-center justify-between gap-2">
-            <div>
-              <h3 class="text-base font-semibold text-gray-900 dark:text-white">成员</h3>
-              <p class="text-xs text-gray-500 dark:text-gray-400">
-                {{ selectedPool ? `${selectedPool.name} 的成员列表` : '选择一个池后查看成员' }}
-              </p>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <button
-                class="btn btn-secondary btn-sm"
-                :disabled="!selectedPool || !canSyncSelectedPool || syncingMembers"
-                @click="addMissingSelectedPoolMembers()"
-              >
-                <Icon name="plus" size="sm" class="mr-1" />
-                补齐缺失账号
-              </button>
-              <button
-                class="btn btn-secondary btn-sm"
-                :disabled="!selectedPool || !canSyncSelectedPool || syncingMembers"
-                @click="syncSelectedPoolMembers()"
-              >
-                <Icon name="refresh" size="sm" :class="syncingMembers ? 'animate-spin' : ''" class="mr-1" />
-                全量同步账号
-              </button>
-              <button class="btn btn-secondary btn-sm" :disabled="!selectedPool" @click="openMemberModal()">
-                添加成员
-              </button>
-            </div>
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(460px,0.72fr)]">
+        <section class="sst-admin-panel overview-panel p-4">
+          <div class="overview-panel__header mb-3">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">池运行概览</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ selectedPool ? `${selectedPool.name} 的运行状态、命中与诊断；直接成员列表已移到下方整行区域。` : '选择一个池后查看运行概览；直接成员列表会显示在下方整行区域。' }}
+            </p>
           </div>
-          <div
-            class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/70 px-3 py-2 text-sm text-primary-900 dark:border-primary-900/40 dark:bg-primary-950/20 dark:text-primary-100"
-          >
-            <span class="font-medium">当前操作池：</span>
-            <span v-if="selectedPool">{{ selectedPool.name }}</span>
-            <span v-else>未选择</span>
-            <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">{{ platformLabel(selectedPool.platform) }}</span>
-            <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">编码 {{ selectedPool.code }}</span>
-            <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">
-              逃逸 {{ selectedPool.sticky_escape_enabled ? '开' : '关' }}
-            </span>
-            <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">
-              TTFT {{ formatThresholdMs(selectedPool.sticky_escape_ttft_ms_threshold) }}
-            </span>
-            <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">
-              错率 {{ formatRateThreshold(selectedPool.sticky_escape_error_rate_threshold) }}
-            </span>
-          </div>
-          <div class="mb-3 rounded-2xl border border-gray-200 bg-white/80 p-3 dark:border-dark-700 dark:bg-dark-900/60">
+          <div class="overview-sheet mb-3">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
-                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white">池运行概览</h4>
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ selectedPool?.name || '未选择上游池' }}</h4>
                   <span :class="['badge', poolHealthStatusClass]">{{ poolHealthStatusLabel }}</span>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">成员状态、绑定覆盖与最近 24 小时选路</span>
+                  <span class="text-xs text-gray-500 dark:text-gray-400">成员、绑定与 24 小时选路</span>
                 </div>
                 <div
                   v-if="poolHealthSignals.length > 0"
@@ -349,37 +355,37 @@
               </button>
             </div>
 
-            <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+            <div class="overview-metric-grid mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <div class="overview-metric-card">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">调度就绪</div>
                 <div class="mt-2 text-3xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ poolHealth.readyMembers }}/{{ poolHealth.totalMembers }}</div>
                 <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">健康 {{ poolHealth.healthyMembers }} · 排空 {{ poolHealth.drainedMembers }}</div>
               </div>
-              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+              <div class="overview-metric-card">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">运行风险</div>
                 <div class="mt-2 text-3xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ poolHealth.blockedMembers + poolHealth.errorMembers }}</div>
                 <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">熔断 {{ poolHealth.blockedMembers }} · 错误 {{ poolHealth.errorMembers }}</div>
               </div>
-              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+              <div class="overview-metric-card">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">最近命中</div>
                 <div class="mt-2 text-3xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ poolHealth.observedRoutes }}</div>
                 <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">账号 {{ poolHealth.uniqueRoutedAccounts }} · 模型 {{ topObservedModelSummary }}</div>
               </div>
-              <div class="rounded-xl border border-gray-200 bg-gray-50/65 px-4 py-3 dark:border-dark-700 dark:bg-dark-800/55 overview-metric-card">
+              <div class="overview-metric-card">
                 <div class="text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-metric-label">调度集中度</div>
                 <div class="mt-2 truncate text-2xl font-semibold leading-none text-gray-900 dark:text-white overview-metric-value">{{ topRoutedAccountName }}</div>
                 <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400 overview-metric-meta">{{ topRoutedAccountShare }} · 粘性逃逸 {{ poolHealth.stickyEscapes }}</div>
               </div>
             </div>
 
-            <div class="mt-3 grid gap-4 border-t border-gray-200/80 pt-3 dark:border-dark-700/80 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
+            <div class="overview-detail-grid mt-3 grid gap-4 border-t border-gray-200/80 pt-3 dark:border-dark-700/80 xl:grid-cols-[minmax(0,1.06fr)_minmax(0,0.94fr)]">
               <div class="min-w-0 xl:pr-4">
                 <div class="mb-3 flex items-center justify-between gap-2">
                   <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">绑定与命中</div>
                   <span class="text-[11px] text-gray-500 dark:text-gray-400">覆盖 {{ poolModelCoverageRows.length }} 项</span>
                 </div>
                 <div class="space-y-3">
-                  <div class="min-w-0 rounded-xl bg-gray-50/55 px-3 py-3 dark:bg-dark-800/35 overview-subpanel">
+                  <div class="min-w-0 overview-subpanel">
                     <div class="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500 overview-subpanel-label">绑定覆盖</div>
                     <div v-if="poolModelCoverageRows.length > 0" class="divide-y divide-gray-200/80 dark:divide-dark-700/70">
                       <div
@@ -404,7 +410,7 @@
                     </div>
                   </div>
 
-                  <div class="min-w-0 rounded-xl bg-gray-50/55 px-3 py-3 dark:bg-dark-800/35 overview-subpanel">
+                  <div class="min-w-0 overview-subpanel">
                     <div class="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-200">最近账号命中</div>
                     <div v-if="poolRoutedAccountRows.length > 0" class="space-y-2">
                       <div
@@ -455,7 +461,7 @@
                     </div>
                     <div class="min-w-0">
                       <div class="text-[11px] uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">最近账号</div>
-                      <div class="mt-1 break-words text-sm font-medium leading-5 text-gray-900 dark:text-white">{{ recentRoutedAccountSummary }}</div>
+                      <div class="mt-1 truncate text-sm font-medium leading-5 text-gray-900 dark:text-white" :title="recentRoutedAccountSummary">{{ recentRoutedAccountSummary }}</div>
                       <div class="text-xs text-gray-500 dark:text-gray-400">按最新记录去重</div>
                     </div>
                     <div class="min-w-0 sm:pl-4">
@@ -474,140 +480,97 @@
               </div>
             </div>
           </div>
-          <div class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
-            <span class="font-medium">恢复探针</span>
-            <span>自动探测异常/可恢复成员；每分钟扫描，近 2 分钟内刚用过的成员先跳过；API Key 优先使用轻量 Hi 探针，运行态同时参考 Claude Code 与 OpenAI 最近探针。</span>
-          </div>
-          <DataTable :columns="memberColumns" :data="members" :loading="membersLoading" :row-key="poolMemberRowKey">
-            <template #cell-account_name="{ row, value }">
-              <div class="flex flex-col gap-1">
-                <div class="max-w-[320px] whitespace-normal break-words font-medium leading-6 text-gray-900 dark:text-white">
-                  {{ formatPoolMemberAccountName(value, row.account_id) }}
-                </div>
-                <div class="flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{{ row.account_platform || '未知平台' }}</span>
-                  <span>·</span>
-                  <span>{{ row.account_type || '-' }}</span>
-                </div>
-              </div>
-            </template>
-
-            <template #cell-source_type="{ row }">
-              <div class="flex flex-col gap-1">
-                <span :class="['inline-flex w-fit rounded px-2 py-0.5 text-xs', row.source_type === 'account_set' ? 'bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200' : 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-200']">
-                  {{ row.source_type === 'account_set' ? '来自集合' : '直接成员' }}
-                </span>
-                <span v-if="row.source_type === 'account_set'" class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ row.source_set_name || `集合 #${row.source_set_id || '-'}` }}
-                </span>
-              </div>
-            </template>
-
-            <template #cell-enabled="{ value }">
-              <span :class="['badge', value ? 'badge-success' : 'badge-danger']">{{ value ? '启用' : '停用' }}</span>
-            </template>
-
-            <template #cell-runtime_status="{ row, value }">
-              <div class="flex flex-col gap-1">
-                <span :class="['badge', runtimeStatusClass(value)]">{{ runtimeStatusLabel(value) }}</span>
-                <div
-                  v-if="row.runtime_ttft_ms != null || row.runtime_error_rate != null"
-                  class="flex flex-wrap gap-1 text-[11px] text-gray-500 dark:text-gray-400"
-                >
-                  <span
-                    v-if="row.runtime_ttft_ms != null"
-                    class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700"
-                  >
-                    TTFT {{ formatThresholdMs(row.runtime_ttft_ms) }}
-                  </span>
-                  <span
-                    v-if="row.runtime_error_rate != null"
-                    class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700"
-                  >
-                    错率 {{ formatRateThreshold(row.runtime_error_rate) }}
-                  </span>
-                </div>
-                <span v-if="row.runtime_reason" class="max-w-[320px] whitespace-normal text-xs text-gray-500 dark:text-gray-400">
-                  {{ row.runtime_reason }}
-                </span>
-                <span
-                  v-if="row.runtime_rate_limit_reset_at || row.runtime_overload_until || row.runtime_temp_unschedulable_until"
-                  class="text-xs text-gray-500 dark:text-gray-400"
-                >
-                  {{
-                    formatCompactDateTime(
-                      row.runtime_rate_limit_reset_at ||
-                      row.runtime_overload_until ||
-                      row.runtime_temp_unschedulable_until
-                    )
-                  }}
-                </span>
-              </div>
-            </template>
-
-            <template #cell-manual_drained="{ value }">
-              <span :class="['badge', value ? 'badge-warning' : 'badge-gray']">{{ value ? '已排空' : '正常' }}</span>
-            </template>
-
-            <template #cell-weight="{ value }">
-              <span class="font-mono text-sm">{{ value }}</span>
-            </template>
-
-            <template #cell-updated_at="{ value }">
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
-            </template>
-
-            <template #cell-actions="{ row }">
-              <div class="flex gap-1">
-                <button
-                  class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-dark-700"
-                  :disabled="row.editable === false"
-                  @click="openMemberModal(row)"
-                >
-                  编辑
-                </button>
-                <button
-                  class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/20"
-                  :disabled="row.editable === false"
-                  @click="confirmDeleteMember(row)"
-                >
-                  删除
-                </button>
-              </div>
-            </template>
-
-            <template #empty>
-              <EmptyState title="暂无成员" description="先把账号或账号集合加入当前上游池。" action-text="添加成员" @action="openMemberModal()" />
-            </template>
-          </DataTable>
         </section>
 
-        <section class="sst-admin-panel p-4">
-          <div class="mb-4 rounded-2xl border border-gray-200 bg-white/80 p-3 dark:border-dark-700 dark:bg-dark-900/60">
+        <section class="sst-admin-panel current-sets-panel p-4">
+          <div class="current-sets-flow mb-4">
             <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">集合成员绑定</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400">把账号集合直接挂到当前池，运行时自动展开。</p>
+                <h3 class="text-base font-semibold text-gray-900 dark:text-white">当前集合</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ selectedPool ? `${selectedPool.name} 当前挂载的账号集合；运行时会自动展开为成员。` : '先选择一个池，再查看它当前挂载的集合。' }}
+                </p>
               </div>
-              <button class="btn btn-secondary btn-sm self-start md:self-auto" :disabled="!selectedPool" @click="openMemberSetManagerModal">
+              <button class="btn btn-secondary btn-sm current-sets-manage-button self-start md:self-auto" :disabled="!selectedPool" @click="openMemberSetManagerModal">
                 管理集合绑定
               </button>
             </div>
-            <div class="mt-3 grid gap-3 sm:grid-cols-3">
-              <div class="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/45">
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">已绑定集合</div>
-                <div class="mt-1 font-mono text-lg font-semibold text-gray-900 dark:text-white">{{ memberSets.length }}</div>
+            <div
+              v-if="selectedPool"
+              class="current-sets-title-strip mt-3 flex flex-wrap items-center gap-2 text-sm"
+            >
+              <span class="text-base font-semibold text-gray-900 dark:text-white">{{ selectedPool.name }}</span>
+              <span class="current-sets-pill">
+                {{ platformLabel(selectedPool.platform) }}
+              </span>
+              <span class="current-sets-pill">
+                编码 {{ selectedPool.code }}
+              </span>
+            </div>
+            <div class="current-sets-stats mt-3">
+              <div class="current-sets-stat">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400">已绑定集合</span>
+                <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ memberSets.length }}</span>
               </div>
-              <div class="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/45">
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">启用绑定</div>
-                <div class="mt-1 font-mono text-lg font-semibold text-gray-900 dark:text-white">{{ enabledMemberSetCount }}</div>
+              <div class="current-sets-stat">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400">启用绑定</span>
+                <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">{{ enabledMemberSetCount }}</span>
               </div>
-              <div class="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/45">
-                <div class="text-[11px] text-gray-500 dark:text-gray-400">空集合</div>
-                <div :class="['mt-1 font-mono text-lg font-semibold', emptyBoundMemberSets.length > 0 ? 'text-amber-700 dark:text-amber-200' : 'text-gray-900 dark:text-white']">
+              <div class="current-sets-stat">
+                <span class="text-[11px] text-gray-500 dark:text-gray-400">空集合</span>
+                <span :class="['font-mono text-sm font-semibold', emptyBoundMemberSets.length > 0 ? 'text-amber-700 dark:text-amber-200' : 'text-gray-900 dark:text-white']">
                   {{ emptyBoundMemberSets.length }}
+                </span>
+              </div>
+            </div>
+            <div v-if="selectedPool && memberSets.length > 0" class="current-sets-list mt-4">
+              <div
+                v-for="item in memberSets"
+                :key="item.id"
+                class="current-sets-item"
+              >
+                <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <div class="truncate text-base font-semibold text-gray-900 dark:text-white">
+                        {{ item.set_name || `集合 #${item.set_id}` }}
+                      </div>
+                      <span class="rounded-full bg-white/85 px-2.5 py-1 text-[11px] text-[#7b6041] ring-1 ring-[#e7d9c3] dark:bg-dark-900/55 dark:text-[#d7c1a6] dark:ring-white/10">
+                        {{ platformLabel(item.set_platform) }}
+                      </span>
+                      <span :class="['badge', item.enabled ? 'badge-success' : 'badge-danger']">{{ item.enabled ? '启用' : '停用' }}</span>
+                      <span
+                        v-if="getAccountSetMemberCount(item.set_id) === 0"
+                        class="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:ring-amber-900/40"
+                      >
+                        空集合
+                      </span>
+                    </div>
+                    <div class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">编码：{{ item.set_code }}</div>
+                    <div v-if="item.notes" class="mt-2 max-w-2xl text-sm leading-6 text-[#6e5a45] dark:text-[#cfbea8]">
+                      {{ item.notes }}
+                    </div>
+                    <div
+                      v-else-if="getAccountSetMemberCount(item.set_id) === 0"
+                      class="mt-2 text-sm leading-6 text-amber-800 dark:text-amber-200"
+                    >
+                      当前集合为空，不会为这个池展开出可用成员。
+                    </div>
+                  </div>
+                  <div class="current-sets-item-meta">
+                    <span class="font-mono text-lg font-semibold text-gray-900 dark:text-white">{{ getAccountSetMemberCount(item.set_id) }}</span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">账号</span>
+                    <span class="hidden h-3 w-px bg-[#ddd1bf] lg:inline-block"></span>
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(item.updated_at) }}</span>
+                  </div>
                 </div>
               </div>
+            </div>
+            <div
+              v-else-if="selectedPool"
+              class="mt-4 rounded-2xl border border-dashed border-[#d6c6ae] bg-[rgba(252,248,242,0.85)] px-4 py-5 text-sm text-[#7a654b] dark:border-[#4e4031] dark:bg-[rgba(24,20,17,0.72)] dark:text-[#ccb79a]"
+            >
+              当前池还没有挂载任何集合。左侧可维护直接成员，若希望按集合管理，请点击“管理集合绑定”添加当前集合。
             </div>
             <div
               v-if="emptyBoundMemberSets.length > 0"
@@ -647,10 +610,6 @@
               <span class="badge badge-gray">{{ platformLabel(value) }}</span>
             </template>
 
-            <template #cell-created_at="{ value }">
-              <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatDateTime(value) }}</span>
-            </template>
-
             <template #cell-actions="{ row }">
               <div class="flex gap-1">
                 <button class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700" @click="openBindingModal(row)">
@@ -668,6 +627,151 @@
           </DataTable>
         </section>
       </div>
+
+      <section class="sst-admin-panel mt-4 p-4">
+        <div class="mb-3 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">直接成员</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ selectedPool ? `${selectedPool.name} 的直接挂载账号；集合请看上方右侧“当前集合”。` : '选择一个池后查看直接成员。' }}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              class="btn btn-secondary btn-sm"
+              :disabled="!selectedPool || !canSyncSelectedPool || syncingMembers"
+              @click="addMissingSelectedPoolMembers()"
+            >
+              <Icon name="plus" size="sm" class="mr-1" />
+              补齐缺失账号
+            </button>
+            <button
+              class="btn btn-secondary btn-sm"
+              :disabled="!selectedPool || !canSyncSelectedPool || syncingMembers"
+              @click="syncSelectedPoolMembers()"
+            >
+              <Icon name="refresh" size="sm" :class="syncingMembers ? 'animate-spin' : ''" class="mr-1" />
+              全量同步账号
+            </button>
+            <button class="btn btn-secondary btn-sm" :disabled="!selectedPool" @click="openMemberModal()">
+              添加成员
+            </button>
+          </div>
+        </div>
+        <div
+          class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-primary-200 bg-primary-50/70 px-3 py-2 text-sm text-primary-900 dark:border-primary-900/40 dark:bg-primary-950/20 dark:text-primary-100"
+        >
+          <span class="font-medium">当前操作池：</span>
+          <span v-if="selectedPool">{{ selectedPool.name }}</span>
+          <span v-else>未选择</span>
+          <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">{{ platformLabel(selectedPool.platform) }}</span>
+          <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">编码 {{ selectedPool.code }}</span>
+          <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">
+            逃逸 {{ selectedPool.sticky_escape_enabled ? '开' : '关' }}
+          </span>
+          <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">
+            TTFT {{ formatThresholdMs(selectedPool.sticky_escape_ttft_ms_threshold) }}
+          </span>
+          <span v-if="selectedPool" class="rounded bg-white/80 px-2 py-0.5 text-xs dark:bg-dark-900/60">
+            错率 {{ formatRateThreshold(selectedPool.sticky_escape_error_rate_threshold) }}
+          </span>
+        </div>
+        <div class="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
+          <span class="font-medium">恢复探针</span>
+          <span>自动探测异常/可恢复成员；每分钟扫描，近 2 分钟内刚用过的成员先跳过；API Key 优先使用轻量 Hi 探针，运行态同时参考 Claude Code 与 OpenAI 最近探针。</span>
+        </div>
+        <DataTable :columns="memberColumns" :data="directMembers" :loading="membersLoading" :row-key="poolMemberRowKey">
+          <template #cell-account_name="{ row, value }">
+            <div class="flex flex-col gap-1">
+              <div class="pool-member-account-name whitespace-normal break-words font-medium leading-6 text-gray-900 dark:text-white">
+                {{ formatPoolMemberAccountName(value, row.account_id) }}
+              </div>
+              <div class="flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
+                <span>{{ row.account_platform || '未知平台' }}</span>
+                <span>·</span>
+                <span>{{ row.account_type || '-' }}</span>
+              </div>
+            </div>
+          </template>
+
+          <template #cell-enabled="{ value }">
+            <span :class="['badge', value ? 'badge-success' : 'badge-danger']">{{ value ? '启用' : '停用' }}</span>
+          </template>
+
+          <template #cell-runtime_status="{ row, value }">
+            <div class="flex flex-col gap-1">
+              <span :class="['badge', runtimeStatusClass(value)]">{{ runtimeStatusLabel(value) }}</span>
+              <div
+                v-if="row.runtime_ttft_ms != null || row.runtime_error_rate != null"
+                class="flex flex-wrap gap-1 text-[11px] text-gray-500 dark:text-gray-400"
+              >
+                <span
+                  v-if="row.runtime_ttft_ms != null"
+                  class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700"
+                >
+                  TTFT {{ formatThresholdMs(row.runtime_ttft_ms) }}
+                </span>
+                <span
+                  v-if="row.runtime_error_rate != null"
+                  class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700"
+                >
+                  错率 {{ formatRateThreshold(row.runtime_error_rate) }}
+                </span>
+              </div>
+              <span v-if="row.runtime_reason" class="max-w-[320px] whitespace-normal text-xs text-gray-500 dark:text-gray-400">
+                {{ row.runtime_reason }}
+              </span>
+              <span
+                v-if="row.runtime_rate_limit_reset_at || row.runtime_overload_until || row.runtime_temp_unschedulable_until"
+                class="text-xs text-gray-500 dark:text-gray-400"
+              >
+                {{
+                  formatCompactDateTime(
+                    row.runtime_rate_limit_reset_at ||
+                    row.runtime_overload_until ||
+                    row.runtime_temp_unschedulable_until
+                  )
+                }}
+              </span>
+            </div>
+          </template>
+
+          <template #cell-manual_drained="{ value }">
+            <span :class="['badge', value ? 'badge-warning' : 'badge-gray']">{{ value ? '已排空' : '正常' }}</span>
+          </template>
+
+          <template #cell-weight="{ value }">
+            <span class="font-mono text-sm">{{ value }}</span>
+          </template>
+
+          <template #cell-updated_at="{ value }">
+            <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="flex gap-1">
+              <button
+                class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-dark-700"
+                :disabled="row.editable === false"
+                @click="openMemberModal(row)"
+              >
+                编辑
+              </button>
+              <button
+                class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-900/20"
+                :disabled="row.editable === false"
+                @click="confirmDeleteMember(row)"
+              >
+                删除
+              </button>
+            </div>
+          </template>
+
+          <template #empty>
+            <EmptyState title="暂无直接成员" description="当前池没有直接挂载账号；如果你使用集合，请看上方右侧“当前集合”。" action-text="添加成员" @action="openMemberModal()" />
+          </template>
+        </DataTable>
+      </section>
     </div>
 
     <BaseDialog
@@ -722,7 +826,7 @@
                 {{ formatRoutingReason(getLogExtraString(log, 'reason')) }}
               </span>
               <span class="rounded bg-gray-100 px-2 py-0.5 text-gray-700 dark:bg-dark-700 dark:text-gray-200">
-                {{ formatObservabilityAccountLabel(log.account_id) }}
+                命中 {{ formatObservabilityAccountLabel(getObservabilitySelectedAccountId(log)) }}
               </span>
               <span
                 v-if="getLogExtraBool(log, 'sticky_escape_triggered')"
@@ -730,6 +834,49 @@
               >
                 触发逃逸 · {{ formatStickyEscapeReason(getLogExtraString(log, 'sticky_escape_reason')) }}
               </span>
+            </div>
+            <div
+              v-if="getObservabilityCandidateCount(log) != null || getObservabilityTopKLabels(log).length > 0 || getObservabilitySkippedEntries(log).length > 0"
+              class="mt-2 rounded-xl border border-[#e6dccd] bg-[#faf7f2]/90 px-3 py-3 dark:border-[#4e4031] dark:bg-[rgba(41,33,26,0.72)]"
+            >
+              <div class="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                <span
+                  v-if="getObservabilityCandidateCount(log) != null"
+                  class="rounded bg-white/90 px-2 py-0.5 text-gray-700 ring-1 ring-gray-200 dark:bg-dark-800/70 dark:text-gray-200 dark:ring-dark-600"
+                >
+                  候选 {{ getObservabilityCandidateCount(log) }}
+                </span>
+                <span
+                  v-if="getObservabilityTopKLabels(log).length > 0"
+                  class="rounded bg-white/90 px-2 py-0.5 text-gray-700 ring-1 ring-gray-200 dark:bg-dark-800/70 dark:text-gray-200 dark:ring-dark-600"
+                >
+                  TopK {{ getObservabilityTopKLabels(log).length }}
+                </span>
+              </div>
+              <div v-if="getObservabilityTopKLabels(log).length > 0" class="mt-2">
+                <div class="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8a6d4a] dark:text-[#c5ac8f]">TopK 候选池</div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <span
+                    v-for="label in getObservabilityTopKLabels(log)"
+                    :key="label"
+                    class="rounded-full border border-[#e1d4c3] bg-white/90 px-2.5 py-1 text-xs text-[#6f573d] dark:border-[#5a4838] dark:bg-dark-800/70 dark:text-[#dbc7b0]"
+                  >
+                    {{ label }}
+                  </span>
+                </div>
+              </div>
+              <div v-if="getObservabilitySkippedEntries(log).length > 0" class="mt-3">
+                <div class="text-[11px] font-medium uppercase tracking-[0.14em] text-[#8a6d4a] dark:text-[#c5ac8f]">跳过原因</div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <span
+                    v-for="entry in getObservabilitySkippedEntries(log)"
+                    :key="entry.key"
+                    class="rounded-full border border-amber-200 bg-amber-50/90 px-2.5 py-1 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200"
+                  >
+                    {{ entry.label }} {{ entry.count }}
+                  </span>
+                </div>
+              </div>
             </div>
             <div class="mt-2 flex flex-wrap gap-2 text-[11px] text-gray-500 dark:text-gray-400">
               <span
@@ -861,7 +1008,7 @@
             <input v-model.number="poolForm.wait_timeout_ms" type="number" min="0" class="input" />
           </div>
         </div>
-        <div class="grid gap-4 md:grid-cols-2">
+        <div class="grid gap-4 md:grid-cols-3">
           <div>
             <label class="input-label">成员上限</label>
             <p class="field-hint">同时排队等待的请求上限。</p>
@@ -871,6 +1018,11 @@
             <label class="input-label">调度模式</label>
             <p class="field-hint">默认 advanced 即可。</p>
             <input v-model="poolForm.scheduler_mode" class="input" />
+          </div>
+          <div>
+            <label class="input-label">账号类型策略</label>
+            <p class="field-hint">OAuth 优先时，缓存亲和仍在 OAuth 候选内生效。</p>
+            <Select v-model="poolForm.account_type_strategy" :options="accountTypeStrategyOptions" />
           </div>
         </div>
         <div class="flex justify-end gap-2 pt-2">
@@ -1164,7 +1316,6 @@ import type {
   UpstreamPoolMemberSet
 } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
-import { formatDateTime } from '@/utils/format'
 import { useAppStore } from '@/stores'
 
 type PoolForm = {
@@ -1174,6 +1325,7 @@ type PoolForm = {
   description: string
   enabled: boolean
   scheduler_mode: string
+  account_type_strategy: string
   sticky_enabled: boolean
   sticky_escape_enabled: boolean
   sticky_escape_error_rate_threshold: number
@@ -1294,6 +1446,7 @@ const poolForm = ref<PoolForm>({
   description: '',
   enabled: true,
   scheduler_mode: 'advanced',
+  account_type_strategy: 'all',
   sticky_enabled: true,
   sticky_escape_enabled: true,
   sticky_escape_error_rate_threshold: 0.3,
@@ -1352,6 +1505,13 @@ const enabledOptions = [
   { value: '', label: '全部状态' },
   { value: 'true', label: '启用' },
   { value: 'false', label: '停用' },
+]
+
+const accountTypeStrategyOptions = [
+  { value: 'all', label: '全部参与' },
+  { value: 'oauth_preferred', label: 'OAuth 优先，API Key 兜底' },
+  { value: 'oauth_only', label: '仅 OAuth' },
+  { value: 'apikey_preferred', label: 'API Key 优先，OAuth 兜底' },
 ]
 
 const boolSelectOptions = [
@@ -1564,13 +1724,11 @@ const poolColumns = [
   { key: 'sticky_enabled', label: '粘性' },
   { key: 'members', label: '成员' },
   { key: 'bindings', label: '绑定' },
-  { key: 'created_at', label: '创建时间' },
   { key: 'actions', label: '操作' },
 ]
 
 const memberColumns = [
-  { key: 'account_name', label: '账号' },
-  { key: 'source_type', label: '来源' },
+  { key: 'account_name', label: '账号', class: 'pool-member-account-col' },
   { key: 'enabled', label: '状态' },
   { key: 'runtime_status', label: '运行态' },
   { key: 'manual_drained', label: '排空' },
@@ -1591,6 +1749,8 @@ const accountSetColumns = [
 const accountSetMemberColumns = [
   { key: 'account_name', label: '账号' },
   { key: 'account_platform', label: '平台' },
+  { key: 'runtime_status', label: '运行态' },
+  { key: 'usage', label: '使用情况' },
   { key: 'added_at', label: '加入时间' },
   { key: 'actions', label: '操作' },
 ]
@@ -1609,11 +1769,11 @@ const bindingColumns = [
   { key: 'platform', label: '平台' },
   { key: 'enabled', label: '状态' },
   { key: 'priority', label: '优先级' },
-  { key: 'created_at', label: '创建时间' },
   { key: 'actions', label: '操作' },
 ]
 
 const platformLabel = (value: string) => platformOptions.find(item => item.value === value)?.label || value || '-'
+const accountTypeStrategyLabel = (value?: string) => accountTypeStrategyOptions.find(item => item.value === value)?.label || '全部参与'
 
 const runtimeStatusLabel = (value?: string) => {
   switch (value) {
@@ -1660,6 +1820,11 @@ const formatCompactDateTime = (value?: string | null) => {
   const hours = String(date.getHours()).padStart(2, '0')
   const minutes = String(date.getMinutes()).padStart(2, '0')
   return `${month}/${day} ${hours}:${minutes}`
+}
+
+const formatRuntimeLastUsed = (value?: string | null) => {
+  const formatted = formatCompactDateTime(value)
+  return formatted === '-' ? '最近未使用' : `最近 ${formatted}`
 }
 
 const formatPoolMemberAccountName = (value?: string | null, accountID?: number) => {
@@ -1772,6 +1937,86 @@ const getLogExtraNumber = (log: OpsSystemLog, key: string) => {
   return null
 }
 
+const getLogExtraNumberArray = (log: OpsSystemLog, key: string) => {
+  const value = log.extra?.[key]
+  if (!Array.isArray(value)) return []
+  return value
+    .map(item => {
+      if (typeof item === 'number' && Number.isFinite(item)) return item
+      if (typeof item === 'string') {
+        const parsed = Number(item)
+        return Number.isFinite(parsed) ? parsed : null
+      }
+      return null
+    })
+    .filter((item): item is number => item != null)
+}
+
+const getLogExtraRecord = (log: OpsSystemLog, key: string) => {
+  const value = log.extra?.[key]
+  if (!value || Array.isArray(value) || typeof value !== 'object') return null
+  return value as Record<string, unknown>
+}
+
+const getObservabilitySelectedAccountId = (log: OpsSystemLog) => {
+  const extraSelected = getLogExtraNumber(log, 'selected_account_id')
+  if (extraSelected != null && extraSelected > 0) return extraSelected
+  if (typeof log.account_id === 'number' && log.account_id > 0) return log.account_id
+  return null
+}
+
+const getObservabilityCandidateCount = (log: OpsSystemLog) => {
+  const value = getLogExtraNumber(log, 'candidate_count')
+  return value != null && value >= 0 ? value : null
+}
+
+const getObservabilityTopKLabels = (log: OpsSystemLog) =>
+  getLogExtraNumberArray(log, 'cache_affinity_top_k_account_ids').map(accountId =>
+    formatObservabilityAccountLabel(accountId)
+  )
+
+const formatRoutingSkippedReason = (value: string) => {
+  switch (value) {
+    case 'excluded_by_failover':
+      return '故障回退排除'
+    case 'platform_mismatch':
+      return '平台不匹配'
+    case 'not_schedulable':
+      return '账号不可调度'
+    case 'runtime_blocked':
+      return '运行态阻塞'
+    case 'privacy_not_set':
+      return '隐私集未设置'
+    case 'request_incompatible':
+      return '请求不兼容'
+    case 'transport_incompatible':
+      return '传输不兼容'
+    default:
+      return value || '未知原因'
+  }
+}
+
+const getObservabilitySkippedEntries = (log: OpsSystemLog) => {
+  const record = getLogExtraRecord(log, 'skipped')
+  if (!record) return []
+  return Object.entries(record)
+    .map(([key, value]) => {
+      const count = typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number(value)
+          : NaN
+      if (!Number.isFinite(count) || count <= 0) return null
+      return {
+        key,
+        count,
+        label: formatRoutingSkippedReason(key),
+      }
+    })
+    .filter((entry): entry is { key: string; count: number; label: string } => entry != null)
+    .sort((left, right) => right.count - left.count)
+}
+
 const formatObservabilityAccountLabel = (accountID?: number | null) => {
   if (!accountID) return '-'
   return memberAccountNameMap.value.get(accountID) || `账号 #${accountID}`
@@ -1798,6 +2043,10 @@ const pagedAccountSetMembers = computed(() => {
   const start = (accountSetMembersPagination.value.page - 1) * accountSetMembersPagination.value.page_size
   return accountSetMembers.value.slice(start, start + accountSetMembersPagination.value.page_size)
 })
+
+const directMembers = computed(() =>
+  members.value.filter(member => String(member.source_type || 'direct') !== 'account_set')
+)
 
 const availablePoolAccounts = computed(() => {
   const platform = selectedPool.value?.platform
@@ -1850,6 +2099,7 @@ function resetPoolForm() {
     description: '',
     enabled: true,
     scheduler_mode: 'advanced',
+    account_type_strategy: 'all',
     sticky_enabled: true,
     sticky_escape_enabled: true,
     sticky_escape_error_rate_threshold: 0.3,
@@ -2070,6 +2320,7 @@ function openPoolModal(pool?: UpstreamPool | null) {
       description: pool.description || '',
       enabled: pool.enabled,
       scheduler_mode: pool.scheduler_mode || 'advanced',
+      account_type_strategy: pool.account_type_strategy || 'all',
       sticky_enabled: pool.sticky_enabled,
       sticky_escape_enabled: pool.sticky_escape_enabled,
       sticky_escape_error_rate_threshold: pool.sticky_escape_error_rate_threshold,
@@ -2680,13 +2931,91 @@ onMounted(loadAll)
   color: rgb(107 114 128);
 }
 
+.account-sets-panel,
+.overview-panel,
+.current-sets-panel {
+  border-color: rgba(218, 205, 181, 0.62);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 249, 0.92), rgba(250, 247, 240, 0.78)),
+    rgba(255, 253, 248, 0.82);
+  box-shadow: 0 14px 36px rgba(96, 72, 43, 0.035);
+}
+
+.account-sets-header,
+.overview-panel__header {
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(215, 200, 166, 0.42);
+}
+
+.account-sets-guide {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  color: #8a4a2b;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.account-sets-guide span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.account-sets-guide span:not(:last-child)::after {
+  content: '';
+  width: 1.8rem;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(138, 74, 43, 0.42), transparent);
+}
+
+.account-set-members-panel {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(215, 200, 166, 0.5);
+}
+
+.account-set-usage-cell {
+  min-width: 9.5rem;
+  color: rgb(55 65 81);
+}
+
+.account-set-usage-cell__main {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgb(31 41 55);
+}
+
+.account-set-usage-cell__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+  font-size: 0.68rem;
+  color: rgb(107 114 128);
+}
+
+.account-set-usage-cell__meta span {
+  padding: 0.08rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(232, 224, 208, 0.56);
+}
+
+.overview-sheet {
+  padding: 0.25rem 0 0;
+}
+
 .overview-refresh-button {
   min-height: 2.5rem;
   padding-inline: 0.95rem;
 }
 
 .overview-metric-card {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  min-height: 5.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(225, 214, 195, 0.68);
+  border-radius: 0.7rem;
+  background: rgba(255, 252, 246, 0.74);
 }
 
 .overview-metric-label {
@@ -2702,7 +3031,12 @@ onMounted(loadAll)
 }
 
 .overview-subpanel {
-  border: 1px solid rgba(215, 200, 166, 0.2);
+  padding: 0.2rem 0 0.7rem;
+}
+
+.overview-subpanel + .overview-subpanel {
+  border-top: 1px solid rgba(215, 200, 166, 0.42);
+  padding-top: 0.9rem;
 }
 
 .overview-hit-row {
@@ -2711,10 +3045,100 @@ onMounted(loadAll)
 
 .overview-diagnostic-panel {
   position: relative;
+  padding-top: 0.2rem;
 }
 
 .overview-detail-button {
   border: 1px solid rgba(215, 200, 166, 0.22);
+}
+
+.current-sets-flow {
+  padding-bottom: 0.35rem;
+}
+
+.current-sets-manage-button {
+  min-width: 7.75rem;
+  white-space: nowrap;
+}
+
+.current-sets-title-strip {
+  padding: 0.85rem 0;
+  border-top: 1px solid rgba(218, 205, 181, 0.58);
+  border-bottom: 1px solid rgba(218, 205, 181, 0.4);
+  color: #6f5436;
+  background: transparent;
+}
+
+.current-sets-pill {
+  border-radius: 999px;
+  padding: 0.22rem 0.62rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: #7b6041;
+  font-size: 0.72rem;
+  box-shadow: inset 0 0 0 1px rgba(215, 200, 166, 0.52);
+}
+
+.current-sets-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.current-sets-stat {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  border-radius: 0.55rem;
+  padding: 0.62rem 0.7rem;
+  background: rgba(247, 242, 232, 0.64);
+}
+
+.current-sets-list {
+  overflow: hidden;
+  border-top: 1px solid rgba(218, 205, 181, 0.54);
+}
+
+.current-sets-item {
+  padding: 0.95rem 0;
+  border-bottom: 1px solid rgba(218, 205, 181, 0.44);
+  background: transparent;
+}
+
+.current-sets-item:last-child {
+  border-bottom: 0;
+}
+
+.current-sets-item-meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+  color: rgb(75 85 99);
+}
+
+.pool-member-account-name {
+  width: 13.35rem;
+  max-width: 13.35rem;
+}
+
+:deep(.pool-member-account-col) {
+  width: 13.35rem;
+  min-width: 13.35rem;
+  max-width: 13.35rem;
+}
+
+:deep(.upstream-pools-night .table-wrapper) {
+  border-color: rgba(218, 205, 181, 0.54);
+  border-radius: 0.7rem;
+  background: rgba(255, 253, 248, 0.76);
+}
+
+:deep(.upstream-pools-night .table-wrapper .table-header),
+:deep(.upstream-pools-night .sticky-header-cell) {
+  background: linear-gradient(180deg, rgba(239, 231, 214, 0.92), rgba(231, 221, 201, 0.86));
+  color: #6f6758;
 }
 
 .pool-status-toggle {

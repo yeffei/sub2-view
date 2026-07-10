@@ -565,6 +565,7 @@ export interface ModelsListConfig {
 }
 
 export type UpstreamPoolSchedulerMode = 'basic' | 'advanced' | string
+export type UpstreamPoolAccountTypeStrategy = 'all' | 'oauth_preferred' | 'oauth_only' | 'apikey_preferred' | string
 
 export interface UpstreamPool {
   id: number
@@ -574,6 +575,7 @@ export interface UpstreamPool {
   description: string
   enabled: boolean
   scheduler_mode: UpstreamPoolSchedulerMode
+  account_type_strategy: UpstreamPoolAccountTypeStrategy
   default_required_capability: string
   default_required_transport: string
   sticky_enabled: boolean
@@ -658,6 +660,15 @@ export interface UpstreamAccountSetMember {
   account_platform: string
   account_type: string
   account_status: string
+  account_schedulable?: boolean
+  runtime_status?: string
+  runtime_reason?: string
+  runtime_error_rate?: number | null
+  runtime_ttft_ms?: number | null
+  runtime_last_used_at?: string | null
+  runtime_rate_limit_reset_at?: string | null
+  runtime_overload_until?: string | null
+  runtime_temp_unschedulable_until?: string | null
   added_at: string
 }
 
@@ -1573,6 +1584,11 @@ export interface UsageStatsResponse {
   total_cache_tokens: number
   total_cache_read_tokens: number
   total_cache_creation_tokens: number
+  cache_read_hit_requests: number
+  cache_creation_requests: number
+  cache_read_hit_ratio: number
+  average_cache_read_tokens_per_hit: number
+  average_actual_input_tokens: number
   total_tokens: number
   total_cost: number // 标准计费
   total_actual_cost: number // 实际扣除
@@ -1601,6 +1617,11 @@ export interface ModelStat {
   output_tokens: number
   cache_creation_tokens: number
   cache_read_tokens: number
+  cache_read_hit_requests: number
+  cache_creation_requests: number
+  cache_read_hit_ratio: number
+  average_cache_read_tokens_per_hit: number
+  average_actual_input_tokens: number
   total_tokens: number
   cost: number // 标准计费
   actual_cost: number // 实际扣除
@@ -1610,6 +1631,15 @@ export interface ModelStat {
 export interface EndpointStat {
   endpoint: string
   requests: number
+  input_tokens: number
+  output_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+  cache_read_hit_requests: number
+  cache_creation_requests: number
+  cache_read_hit_ratio: number
+  average_cache_read_tokens_per_hit: number
+  average_actual_input_tokens: number
   total_tokens: number
   cost: number
   actual_cost: number

@@ -54,10 +54,16 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	anthropicDigestChain := ""
 	anthropicMatchedDigestChain := ""
 	compatPromptCacheInjected := false
+	sessionSignalSource := resolveOpenAISessionSignalSource(c, body)
 	if promptCacheKey == "" && shouldAutoInjectPromptCacheKeyForCompat(upstreamModel) {
 		promptCacheKey = promptCacheKeyFromAnthropicMetadataSession(&anthropicReq)
 		if promptCacheKey == "" {
 			promptCacheKey = deriveAnthropicCacheControlPromptCacheKey(&anthropicReq)
+			if promptCacheKey != "" {
+				sessionSignalSource = "anthropic_cache_anchor"
+			}
+		} else {
+			sessionSignalSource = "anthropic_metadata_session"
 		}
 		if promptCacheKey == "" {
 			anthropicDigestChain = buildOpenAICompatAnthropicDigestChain(anthropicDigestReq)
@@ -66,6 +72,9 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 				anthropicMatchedDigestChain = matchedChain
 			} else {
 				promptCacheKey = promptCacheKeyFromAnthropicDigest(anthropicDigestChain)
+			}
+			if promptCacheKey != "" {
+				sessionSignalSource = "anthropic_digest"
 			}
 		}
 		compatPromptCacheInjected = promptCacheKey != ""
@@ -223,6 +232,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			}
 		}
 	}
+	setCacheInstrumentationOpenAIMessagesState(c, body, promptCacheKey, compatPromptCacheInjected, previousResponseID != "", sessionSignalSource)
 
 	// 4c. Apply OpenAI fast policy (may filter service_tier or block the request).
 	// Mirrors the Claude anthropic-beta "fast-mode-2026-02-01" filter, but keyed

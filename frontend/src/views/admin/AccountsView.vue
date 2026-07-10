@@ -255,11 +255,11 @@
             <span class="font-mono text-xs text-gray-500 dark:text-gray-400">#{{ value }}</span>
           </template>
           <template #cell-name="{ row, value }">
-            <div class="flex flex-col">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <div class="flex w-full min-w-0 max-w-full flex-col">
+              <span class="block w-full truncate font-medium text-gray-900 dark:text-white" :title="String(value || '')">{{ value }}</span>
               <span
                 v-if="row.extra?.email_address || row.extra?.email || row.credentials?.email"
-                class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
+                class="block w-full truncate text-xs text-gray-500 dark:text-gray-400"
                 :title="String(row.extra?.email_address || row.extra?.email || row.credentials?.email)"
               >
                 {{ row.extra?.email_address || row.extra?.email || row.credentials?.email }}
@@ -1354,7 +1354,7 @@ function getAntigravityTierClass(row: any): string {
 
 const ACCOUNT_COLUMN_CLASS_MAP: Record<string, string> = {
   select: 'w-12 min-w-[3rem] max-w-[3rem]',
-  name: 'w-[10rem] min-w-[10rem]',
+  name: 'w-[24ch] min-w-[24ch] max-w-[24ch]',
   id: 'w-[5.5rem] min-w-[5.5rem]',
   platform_type: 'w-[8rem] min-w-[8rem]',
   capacity: 'w-[6rem] min-w-[6rem]',

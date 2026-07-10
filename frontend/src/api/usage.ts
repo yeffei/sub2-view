@@ -36,6 +36,11 @@ export interface UserDashboardStats {
   total_output_tokens: number
   total_cache_creation_tokens: number
   total_cache_read_tokens: number
+  cache_read_hit_requests: number
+  cache_creation_requests: number
+  cache_read_hit_ratio: number
+  average_cache_read_tokens_per_hit: number
+  average_actual_input_tokens: number
   total_tokens: number
   total_cost: number // 标准计费
   total_actual_cost: number // 实际扣除

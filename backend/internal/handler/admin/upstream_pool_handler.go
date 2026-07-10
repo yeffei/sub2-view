@@ -96,6 +96,7 @@ func (h *UpstreamPoolHandler) Create(c *gin.Context) {
 			Description:                    stringValue(req.Description),
 			Enabled:                        boolValue(req.Enabled, true),
 			SchedulerMode:                  stringValue(req.SchedulerMode),
+			AccountTypeStrategy:            stringValue(req.AccountTypeStrategy),
 			DefaultRequiredCapability:      stringValue(req.DefaultRequiredCapability),
 			DefaultRequiredTransport:       stringValue(req.DefaultRequiredTransport),
 			StickyEnabled:                  boolValue(req.StickyEnabled, true),
@@ -138,6 +139,7 @@ func (h *UpstreamPoolHandler) Update(c *gin.Context) {
 			Description:                    req.Description,
 			Enabled:                        req.Enabled,
 			SchedulerMode:                  req.SchedulerMode,
+			AccountTypeStrategy:            req.AccountTypeStrategy,
 			DefaultRequiredCapability:      req.DefaultRequiredCapability,
 			DefaultRequiredTransport:       req.DefaultRequiredTransport,
 			StickyEnabled:                  req.StickyEnabled,
@@ -524,6 +526,7 @@ type upstreamPoolWriteRequest struct {
 	Description                    *string        `json:"description"`
 	Enabled                        *bool          `json:"enabled"`
 	SchedulerMode                  *string        `json:"scheduler_mode"`
+	AccountTypeStrategy            *string        `json:"account_type_strategy"`
 	DefaultRequiredCapability      *string        `json:"default_required_capability"`
 	DefaultRequiredTransport       *string        `json:"default_required_transport"`
 	StickyEnabled                  *bool          `json:"sticky_enabled"`

@@ -1186,6 +1186,7 @@ LIMIT 1`
 	binding.Models = cloneStringSliceJSON(modelsJSON)
 	binding.RequestPathScope = cloneStringSliceJSON(requestPathScopeJSON)
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
+	pool.AccountTypeStrategy = service.UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
 
 	if !pool.Enabled {
 		return &service.UpstreamPoolResolvedBinding{
@@ -1310,6 +1311,7 @@ func (r *upstreamPoolRepository) GetOpenAIRoutingPolicy(ctx context.Context, gro
 		PoolCode:                       pool.Code,
 		PoolName:                       pool.Name,
 		SchedulerMode:                  pool.SchedulerMode,
+		AccountTypeStrategy:            pool.AccountTypeStrategy,
 		StickyEnabled:                  pool.StickyEnabled,
 		StickyEscapeEnabled:            &stickyEscapeEnabled,
 		StickyEscapeErrorRateThreshold: pool.StickyEscapeErrorRateThreshold,
@@ -1358,6 +1360,7 @@ func scanUpstreamPoolRow(scanner interface {
 		return service.UpstreamPool{}, err
 	}
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
+	pool.AccountTypeStrategy = service.UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
 	return pool, nil
 }
 

@@ -84,6 +84,8 @@ temp/
 *.log
 *.bak
 .cache/
+.tmp-go/
+.tmp-stability/
 .dev/
 .serena/
 .playwright-cli/

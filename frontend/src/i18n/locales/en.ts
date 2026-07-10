@@ -1158,6 +1158,10 @@ export default {
     cacheBreakdown: 'Cache Token Breakdown',
     cacheCreationTokensLabel: 'Cache Creation',
     cacheReadTokensLabel: 'Cache Read',
+    cacheHitTitle: 'Cache Hit',
+    cacheHitRequestsLabel: 'Hit Requests {value}',
+    cacheReadPerHitLabel: 'Avg Read / Hit {value}',
+    avgActualInputTokensLabel: 'Avg Actual Input {value}',
     totalCost: 'Total Cost',
     standardCost: 'Standard',
     actualCost: 'Actual',
@@ -2065,6 +2069,8 @@ export default {
       groupDistribution: 'Group Usage Distribution',
       metricTokens: 'By Tokens',
       metricActualCost: 'By Actual Cost',
+      metricCacheHitRate: 'By Hit Rate',
+      metricCacheReadPerHit: 'By Read/Hit',
       tokenUsageTrend: 'Token Usage Trend',
       userUsageTrend: 'User Usage Trend (Top 12)',
       model: 'Model',
@@ -2087,6 +2093,10 @@ export default {
       spendingRankingOther: 'Others',
       spendingRankingUsage: 'Usage',
       spendShort: 'Spend',
+      cacheHitRequestsShort: 'Hits {value}',
+      cacheHitRateShort: 'Hit rate {value}',
+      cacheReadPerHitShort: 'Read/hit {value}',
+      avgInputShort: 'Avg in {value}',
       requestsShort: 'Req',
       tokensShort: 'Tok',
       failedToLoad: 'Failed to load dashboard statistics',
@@ -8234,4 +8244,3 @@ export default {
   },
 
 }
-

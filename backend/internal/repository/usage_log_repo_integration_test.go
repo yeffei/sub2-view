@@ -1116,14 +1116,29 @@ func (s *UsageLogRepoSuite) TestGetGlobalStats() {
 	account := mustCreateAccount(s.T(), s.client, &service.Account{Name: "acc-global"})
 
 	base := time.Date(2025, 1, 15, 12, 0, 0, 0, time.UTC)
-	s.createUsageLog(user, apiKey, account, 10, 20, 0.5, base)
-	s.createUsageLog(user, apiKey, account, 15, 25, 0.6, base.Add(1*time.Hour))
+	_, err := s.repo.Create(s.ctx, &service.UsageLog{
+		UserID: user.ID, APIKeyID: apiKey.ID, AccountID: account.ID,
+		Model: "claude-3-opus", InputTokens: 10, OutputTokens: 20,
+		CacheReadTokens: 5, TotalCost: 0.5, ActualCost: 0.5, CreatedAt: base,
+	})
+	s.Require().NoError(err)
+	_, err = s.repo.Create(s.ctx, &service.UsageLog{
+		UserID: user.ID, APIKeyID: apiKey.ID, AccountID: account.ID,
+		Model: "claude-3-opus", InputTokens: 15, OutputTokens: 25,
+		CacheCreationTokens: 6, TotalCost: 0.6, ActualCost: 0.6, CreatedAt: base.Add(1 * time.Hour),
+	})
+	s.Require().NoError(err)
 
 	stats, err := s.repo.GetGlobalStats(s.ctx, base.Add(-1*time.Hour), base.Add(2*time.Hour))
 	s.Require().NoError(err, "GetGlobalStats")
 	s.Require().Equal(int64(2), stats.TotalRequests)
 	s.Require().Equal(int64(25), stats.TotalInputTokens)
 	s.Require().Equal(int64(45), stats.TotalOutputTokens)
+	s.Require().Equal(int64(6), stats.TotalCacheCreationTokens)
+	s.Require().Equal(int64(5), stats.TotalCacheReadTokens)
+	s.Require().Equal(int64(1), stats.CacheReadHitRequests)
+	s.Require().Equal(int64(1), stats.CacheCreationRequests)
+	s.Require().InDelta(12.5, stats.AverageActualInputTokens, 1e-9)
 }
 
 func testMaxTime(a, b time.Time) time.Time {
@@ -1445,6 +1460,9 @@ func (s *UsageLogRepoSuite) TestGetModelStatsWithFilters() {
 	stats, err := s.repo.GetModelStatsWithFilters(s.ctx, startTime, endTime, user.ID, 0, 0, 0, nil, nil, nil)
 	s.Require().NoError(err, "GetModelStatsWithFilters user filter")
 	s.Require().Len(stats, 2)
+	s.Require().Equal("claude-3-opus", stats[0].Model)
+	s.Require().InDelta(100.0, stats[0].AverageActualInputTokens, 1e-9)
+	s.Require().Equal(int64(0), stats[0].CacheReadHitRequests)
 
 	// Test with apiKey filter
 	stats, err = s.repo.GetModelStatsWithFilters(s.ctx, startTime, endTime, 0, apiKey.ID, 0, 0, nil, nil, nil)

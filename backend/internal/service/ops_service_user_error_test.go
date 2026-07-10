@@ -130,8 +130,11 @@ func TestGetUserErrorRequestDetail_OwnershipEnforced(t *testing.T) {
 	if got2.ID != 42 {
 		t.Errorf("want ID=42, got %d", got2.ID)
 	}
-	if got2.ErrorBody != `{"error":"upstream"}` {
-		t.Errorf("want ErrorBody=%q, got %q", `{"error":"upstream"}`, got2.ErrorBody)
+	if got2.ErrorBody != "upstream" {
+		t.Errorf("want ErrorBody=%q, got %q", "upstream", got2.ErrorBody)
+	}
+	if got2.ErrorBodyKind != "json" {
+		t.Errorf("want ErrorBodyKind=%q, got %q", "json", got2.ErrorBodyKind)
 	}
 	if got2.UpstreamStatusCode == nil || *got2.UpstreamStatusCode != 503 {
 		t.Errorf("want UpstreamStatusCode=503, got %v", got2.UpstreamStatusCode)

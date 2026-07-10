@@ -75,6 +75,23 @@
       </div>
     </div>
     <div class="card usage-stats-card">
+      <div class="usage-stats-icon rounded-lg bg-rose-100 p-2 text-rose-600 dark:bg-rose-900/30">
+        <Icon name="sparkles" size="md" />
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500">{{ t('usage.cacheHitTitle') }}</p>
+        <p class="text-lg font-bold text-gray-900 dark:text-white">{{ formatPercent(stats?.cache_read_hit_ratio || 0) }}</p>
+        <p class="text-[11px] text-gray-400">
+          {{ t('usage.cacheHitRequestsLabel', { value: (stats?.cache_read_hit_requests || 0).toLocaleString() }) }}
+          <span> · </span>
+          {{ t('usage.cacheReadPerHitLabel', { value: formatTokens(stats?.average_cache_read_tokens_per_hit || 0) }) }}
+        </p>
+        <p class="text-[11px] text-gray-400">
+          {{ t('usage.avgActualInputTokensLabel', { value: formatTokens(stats?.average_actual_input_tokens || 0) }) }}
+        </p>
+      </div>
+    </div>
+    <div class="card usage-stats-card">
       <div class="usage-stats-icon rounded-lg bg-purple-100 p-2 text-purple-600 dark:bg-purple-900/30">
         <Icon name="clock" size="md" />
       </div>
@@ -105,6 +122,8 @@ const formatTokens = (value: number) => {
   return value.toLocaleString()
 }
 
+const formatPercent = (value: number) => `${(value * 100).toFixed(1)}%`
+
 const cacheLabel = () => t('usage.cacheTotal')
 const cacheDetailLabel = () => t('usage.cacheBreakdown')
 </script>
@@ -134,7 +153,7 @@ const cacheDetailLabel = () => t('usage.cacheBreakdown')
 
 @media (min-width: 1024px) {
   .usage-stats-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 

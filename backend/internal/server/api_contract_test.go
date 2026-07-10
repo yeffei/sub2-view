@@ -508,6 +508,11 @@ func TestAPIContracts(t *testing.T) {
 					"total_cache_tokens": 3,
 					"total_cache_creation_tokens": 1,
 					"total_cache_read_tokens": 2,
+					"cache_read_hit_requests": 1,
+					"cache_creation_requests": 1,
+					"cache_read_hit_ratio": 0.5,
+					"average_cache_read_tokens_per_hit": 2,
+					"average_actual_input_tokens": 7.5,
 					"total_tokens": 53,
 					"total_cost": 0.75,
 					"total_actual_cost": 0.75,
@@ -2406,6 +2411,8 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
 	var totalCacheTokens int64
 	var totalCacheCreationTokens int64
 	var totalCacheReadTokens int64
+	var cacheReadHitRequests int64
+	var cacheCreationRequests int64
 	var totalCost float64
 	var totalActualCost float64
 	var totalDuration int64
@@ -2418,6 +2425,12 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
 		totalCacheTokens += int64(log.CacheCreationTokens + log.CacheReadTokens)
 		totalCacheCreationTokens += int64(log.CacheCreationTokens)
 		totalCacheReadTokens += int64(log.CacheReadTokens)
+		if log.CacheReadTokens > 0 {
+			cacheReadHitRequests++
+		}
+		if log.CacheCreationTokens > 0 {
+			cacheCreationRequests++
+		}
 		totalCost += log.TotalCost
 		totalActualCost += log.ActualCost
 		if log.DurationMs != nil {
@@ -2431,18 +2444,22 @@ func (r *stubUsageLogRepo) GetUserStatsAggregated(ctx context.Context, userID in
 		avgDuration = float64(totalDuration) / float64(durationCount)
 	}
 
-	return &usagestats.UsageStats{
+	stats := &usagestats.UsageStats{
 		TotalRequests:            totalRequests,
 		TotalInputTokens:         totalInputTokens,
 		TotalOutputTokens:        totalOutputTokens,
 		TotalCacheTokens:         totalCacheTokens,
 		TotalCacheCreationTokens: totalCacheCreationTokens,
 		TotalCacheReadTokens:     totalCacheReadTokens,
+		CacheReadHitRequests:     cacheReadHitRequests,
+		CacheCreationRequests:    cacheCreationRequests,
 		TotalTokens:              totalInputTokens + totalOutputTokens + totalCacheTokens,
 		TotalCost:                totalCost,
 		TotalActualCost:          totalActualCost,
 		AverageDurationMs:        avgDuration,
-	}, nil
+	}
+	stats.PopulateCacheDerivedMetrics()
+	return stats, nil
 }
 
 func (r *stubUsageLogRepo) GetAPIKeyStatsAggregated(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) (*usagestats.UsageStats, error) {

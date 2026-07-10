@@ -678,6 +678,7 @@ func (s *adminServiceImpl) CreateUpstreamPool(ctx context.Context, input *Create
 		Description:                    strings.TrimSpace(input.Description),
 		Enabled:                        input.Enabled,
 		SchedulerMode:                  strings.TrimSpace(input.SchedulerMode),
+		AccountTypeStrategy:            strings.TrimSpace(input.AccountTypeStrategy),
 		DefaultRequiredCapability:      strings.TrimSpace(input.DefaultRequiredCapability),
 		DefaultRequiredTransport:       strings.TrimSpace(input.DefaultRequiredTransport),
 		StickyEnabled:                  input.StickyEnabled,
@@ -728,6 +729,9 @@ func (s *adminServiceImpl) UpdateUpstreamPool(ctx context.Context, id int64, inp
 	}
 	if input.SchedulerMode != nil {
 		pool.SchedulerMode = strings.TrimSpace(*input.SchedulerMode)
+	}
+	if input.AccountTypeStrategy != nil {
+		pool.AccountTypeStrategy = strings.TrimSpace(*input.AccountTypeStrategy)
 	}
 	if input.DefaultRequiredCapability != nil {
 		pool.DefaultRequiredCapability = strings.TrimSpace(*input.DefaultRequiredCapability)
@@ -805,9 +809,55 @@ func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID i
 			accountIDs = append(accountIDs, members[i].AccountID)
 		}
 	}
-	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	accountMap, runtimeSnapshots, monitorLatest, err := s.loadUpstreamAccountRuntimeState(ctx, accountIDs)
 	if err != nil {
 		return nil, err
+	}
+	for i := range members {
+		account := accountMap[members[i].AccountID]
+		if account == nil {
+			continue
+		}
+		s.applyUpstreamAccountRuntimeToPoolMember(&members[i], account, runtimeSnapshots[members[i].AccountID], monitorLatest[members[i].AccountID])
+	}
+	return members, nil
+}
+
+func (s *adminServiceImpl) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamAccountSetMember{}, nil
+	}
+	members, err := s.upstreamPoolRepo.ListUpstreamAccountSetMembers(ctx, setID)
+	if err != nil {
+		return nil, err
+	}
+	if s.accountRepo == nil || len(members) == 0 {
+		return members, nil
+	}
+	accountIDs := make([]int64, 0, len(members))
+	for i := range members {
+		if members[i].AccountID > 0 {
+			accountIDs = append(accountIDs, members[i].AccountID)
+		}
+	}
+	accountMap, runtimeSnapshots, monitorLatest, err := s.loadUpstreamAccountRuntimeState(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	for i := range members {
+		account := accountMap[members[i].AccountID]
+		if account == nil {
+			continue
+		}
+		s.applyUpstreamAccountRuntimeToAccountSetMember(&members[i], account, runtimeSnapshots[members[i].AccountID], monitorLatest[members[i].AccountID])
+	}
+	return members, nil
+}
+
+func (s *adminServiceImpl) loadUpstreamAccountRuntimeState(ctx context.Context, accountIDs []int64) (map[int64]*Account, map[int64]OpenAIAccountRuntimeSnapshot, map[int64][]*AccountMonitorLatest, error) {
+	accounts, err := s.accountRepo.GetByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	accountMap := make(map[int64]*Account, len(accounts))
 	for _, account := range accounts {
@@ -826,33 +876,59 @@ func (s *adminServiceImpl) ListUpstreamPoolMembers(ctx context.Context, poolID i
 			monitorLatest = latest
 		}
 	}
-	for i := range members {
-		account := accountMap[members[i].AccountID]
-		if account == nil {
-			continue
-		}
-		members[i].AccountName = account.Name
-		members[i].AccountPlatform = account.Platform
-		members[i].AccountType = account.Type
-		members[i].AccountStatus = account.Status
-		members[i].AccountSchedulable = account.IsSchedulable()
-		members[i].RuntimeLastUsedAt = account.LastUsedAt
-		members[i].RuntimeRateLimitResetAt = account.RateLimitResetAt
-		members[i].RuntimeOverloadUntil = account.OverloadUntil
-		members[i].RuntimeTempUnschedulableUntil = account.TempUnschedulableUntil
-		members[i].RuntimeStatus, members[i].RuntimeReason = summarizeUpstreamPoolMemberRuntime(account)
-		members[i].RuntimeStatus, members[i].RuntimeReason = summarizeUpstreamPoolMemberRuntimeWithMonitor(
-			members[i].RuntimeStatus,
-			members[i].RuntimeReason,
-			monitorLatest[members[i].AccountID],
-		)
-		if snapshot, ok := runtimeSnapshots[members[i].AccountID]; ok {
-			errorRate := snapshot.ErrorRate
-			members[i].RuntimeErrorRate = &errorRate
-			members[i].RuntimeTTFTMs = snapshot.TTFTMs
-		}
+	return accountMap, runtimeSnapshots, monitorLatest, nil
+}
+
+func (s *adminServiceImpl) applyUpstreamAccountRuntimeToPoolMember(member *UpstreamPoolMember, account *Account, snapshot OpenAIAccountRuntimeSnapshot, latest []*AccountMonitorLatest) {
+	if member == nil || account == nil {
+		return
 	}
-	return members, nil
+	member.AccountName = account.Name
+	member.AccountPlatform = account.Platform
+	member.AccountType = account.Type
+	member.AccountStatus = account.Status
+	member.AccountSchedulable = account.IsSchedulable()
+	member.RuntimeLastUsedAt = account.LastUsedAt
+	member.RuntimeRateLimitResetAt = account.RateLimitResetAt
+	member.RuntimeOverloadUntil = account.OverloadUntil
+	member.RuntimeTempUnschedulableUntil = account.TempUnschedulableUntil
+	member.RuntimeStatus, member.RuntimeReason = summarizeUpstreamPoolMemberRuntime(account)
+	member.RuntimeStatus, member.RuntimeReason = summarizeUpstreamPoolMemberRuntimeWithMonitor(
+		member.RuntimeStatus,
+		member.RuntimeReason,
+		latest,
+	)
+	if snapshot.TTFTMs != nil || snapshot.ErrorRate > 0 {
+		errorRate := snapshot.ErrorRate
+		member.RuntimeErrorRate = &errorRate
+		member.RuntimeTTFTMs = snapshot.TTFTMs
+	}
+}
+
+func (s *adminServiceImpl) applyUpstreamAccountRuntimeToAccountSetMember(member *UpstreamAccountSetMember, account *Account, snapshot OpenAIAccountRuntimeSnapshot, latest []*AccountMonitorLatest) {
+	if member == nil || account == nil {
+		return
+	}
+	member.AccountName = account.Name
+	member.AccountPlatform = account.Platform
+	member.AccountType = account.Type
+	member.AccountStatus = account.Status
+	member.AccountSchedulable = account.IsSchedulable()
+	member.RuntimeLastUsedAt = account.LastUsedAt
+	member.RuntimeRateLimitResetAt = account.RateLimitResetAt
+	member.RuntimeOverloadUntil = account.OverloadUntil
+	member.RuntimeTempUnschedulableUntil = account.TempUnschedulableUntil
+	member.RuntimeStatus, member.RuntimeReason = summarizeUpstreamPoolMemberRuntime(account)
+	member.RuntimeStatus, member.RuntimeReason = summarizeUpstreamPoolMemberRuntimeWithMonitor(
+		member.RuntimeStatus,
+		member.RuntimeReason,
+		latest,
+	)
+	if snapshot.TTFTMs != nil || snapshot.ErrorRate > 0 {
+		errorRate := snapshot.ErrorRate
+		member.RuntimeErrorRate = &errorRate
+		member.RuntimeTTFTMs = snapshot.TTFTMs
+	}
 }
 
 func summarizeUpstreamPoolMemberRuntime(account *Account) (string, string) {
@@ -1101,13 +1177,6 @@ func (s *adminServiceImpl) DeleteUpstreamAccountSet(ctx context.Context, id int6
 	return s.upstreamPoolRepo.DeleteUpstreamAccountSet(ctx, id)
 }
 
-func (s *adminServiceImpl) ListUpstreamAccountSetMembers(ctx context.Context, setID int64) ([]UpstreamAccountSetMember, error) {
-	if s == nil || s.upstreamPoolRepo == nil {
-		return []UpstreamAccountSetMember{}, nil
-	}
-	return s.upstreamPoolRepo.ListUpstreamAccountSetMembers(ctx, setID)
-}
-
 func (s *adminServiceImpl) AddUpstreamAccountSetMembers(ctx context.Context, setID int64, input *AddUpstreamAccountSetMembersInput) error {
 	if s == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil || input == nil {
 		return ErrUpstreamPoolNotFound
@@ -1349,6 +1418,11 @@ func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
 	if pool.PolicyJSON == nil {
 		pool.PolicyJSON = map[string]any{}
 	}
+	pool.AccountTypeStrategy = NormalizeUpstreamPoolAccountTypeStrategy(pool.AccountTypeStrategy)
+	if pool.AccountTypeStrategy == UpstreamPoolAccountTypeStrategyAll {
+		pool.AccountTypeStrategy = UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
+	}
+	pool.PolicyJSON = SetUpstreamPoolAccountTypeStrategyPolicyJSON(pool.PolicyJSON, pool.AccountTypeStrategy)
 	return nil
 }
 

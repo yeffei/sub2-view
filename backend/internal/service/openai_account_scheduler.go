@@ -29,6 +29,8 @@ const (
 	openAIAdvancedSchedulerSettingDBTimeout = 2 * time.Second
 )
 
+const openAIAccountTypePreferredSpilloverLoadThreshold = 80
+
 type cachedOpenAIAdvancedSchedulerSetting struct {
 	enabled   bool
 	expiresAt int64
@@ -54,12 +56,14 @@ type OpenAIAccountScheduleRequest struct {
 	AllowLoadBalance        bool
 	AllowFailover           bool
 	CacheAffinityEnabled    *bool
+	AccountTypeStrategy     string
 }
 
 type OpenAIAccountScheduleDecision struct {
 	Layer                         string
 	StickyPreviousHit             bool
 	StickySessionHit              bool
+	StickyAccountID               int64
 	CandidateCount                int
 	TopK                          int
 	LatencyMs                     int64
@@ -307,7 +311,7 @@ func (s *defaultOpenAIAccountScheduler) Select(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
 ) (*AccountSelectionResult, OpenAIAccountScheduleDecision, error) {
-	decision := OpenAIAccountScheduleDecision{}
+	decision := OpenAIAccountScheduleDecision{StickyAccountID: req.StickyAccountID}
 	start := time.Now()
 	defer func() {
 		decision.LatencyMs = time.Since(start).Milliseconds()
@@ -449,6 +453,22 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
 		return nil, nil, nil
 	}
+	strategy := NormalizeUpstreamPoolAccountTypeStrategy(req.AccountTypeStrategy)
+	if !openAIAccountMatchesTypeStrategy(account, strategy, false) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		return nil, nil, nil
+	}
+	if (strategy == UpstreamPoolAccountTypeStrategyOAuthPreferred || strategy == UpstreamPoolAccountTypeStrategyAPIKeyPreferred) &&
+		!openAIAccountMatchesTypeStrategy(account, strategy, true) &&
+		s.hasPreferredOpenAIAccountTypeCandidateBelowSpillover(ctx, req) {
+		_ = s.service.deleteStickySessionAccountID(ctx, req.GroupID, sessionHash)
+		slog.Info("sticky_session_bypassed_by_account_type_strategy",
+			"account_id", accountID,
+			"account_type", account.Type,
+			"strategy", strategy,
+		)
+		return nil, nil, nil
+	}
 	escapeCfg := req.StickyEscapeConfig
 	if !escapeCfg.enabled && escapeCfg.ttftMs == 0 && escapeCfg.errorRate == 0 {
 		escapeCfg, _ = s.service.openAIStickyEscapeConfig(nil)
@@ -548,6 +568,156 @@ func (s *defaultOpenAIAccountScheduler) shouldEscapeStickyAccount(accountID int6
 		return "error_rate", errorRate, ttft, true
 	}
 	return "", errorRate, ttft, false
+}
+
+func openAIAccountMatchesTypeStrategy(account *Account, strategy string, requirePreferred bool) bool {
+	if account == nil {
+		return false
+	}
+	switch NormalizeUpstreamPoolAccountTypeStrategy(strategy) {
+	case UpstreamPoolAccountTypeStrategyOAuthOnly:
+		return account.Type == AccountTypeOAuth || account.Type == AccountTypeSetupToken
+	case UpstreamPoolAccountTypeStrategyOAuthPreferred:
+		if requirePreferred {
+			return account.Type == AccountTypeOAuth || account.Type == AccountTypeSetupToken
+		}
+		return true
+	case UpstreamPoolAccountTypeStrategyAPIKeyPreferred:
+		if requirePreferred {
+			return account.Type == AccountTypeAPIKey || account.Type == AccountTypeUpstream
+		}
+		return true
+	default:
+		return true
+	}
+}
+
+func filterOpenAIAccountsByTypeStrategy(accounts []*Account, strategy string, loadMap map[int64]*AccountLoadInfo) ([]*Account, string) {
+	strategy = NormalizeUpstreamPoolAccountTypeStrategy(strategy)
+	if len(accounts) == 0 || strategy == UpstreamPoolAccountTypeStrategyAll {
+		return accounts, ""
+	}
+	preferred := make([]*Account, 0, len(accounts))
+	fallback := make([]*Account, 0, len(accounts))
+	for _, account := range accounts {
+		if openAIAccountMatchesTypeStrategy(account, strategy, true) {
+			preferred = append(preferred, account)
+		} else if openAIAccountMatchesTypeStrategy(account, strategy, false) {
+			fallback = append(fallback, account)
+		}
+	}
+	if strategy == UpstreamPoolAccountTypeStrategyOAuthOnly {
+		return preferred, "account_type_strategy_oauth_only"
+	}
+	if len(preferred) > 0 {
+		if len(fallback) > 0 && openAIPreferredAccountTypeUnderPressure(preferred, loadMap) {
+			mixed := make([]*Account, 0, len(preferred)+len(fallback))
+			mixed = append(mixed, preferred...)
+			mixed = append(mixed, fallback...)
+			return mixed, "account_type_strategy_preferred_spillover"
+		}
+		return preferred, "account_type_strategy_preferred"
+	}
+	return fallback, "account_type_strategy_fallback"
+}
+
+func openAIPreferredAccountTypeUnderPressure(preferred []*Account, loadMap map[int64]*AccountLoadInfo) bool {
+	if len(preferred) == 0 || len(loadMap) == 0 {
+		return false
+	}
+	totalCapacity := 0
+	totalLoadPercentUnits := 0
+	hasCompleteLoad := true
+	for _, account := range preferred {
+		if account == nil {
+			continue
+		}
+		loadInfo := loadMap[account.ID]
+		if loadInfo == nil {
+			hasCompleteLoad = false
+			continue
+		}
+		if loadInfo.WaitingCount > 0 {
+			return true
+		}
+		capacity := account.EffectiveLoadFactor()
+		if capacity <= 0 {
+			if loadInfo.LoadRate >= openAIAccountTypePreferredSpilloverLoadThreshold {
+				return true
+			}
+			continue
+		}
+		totalCapacity += capacity
+		loadRate := loadInfo.LoadRate
+		if loadRate <= 0 && loadInfo.CurrentConcurrency > 0 {
+			loadRate = loadInfo.CurrentConcurrency * 100 / capacity
+		}
+		totalLoadPercentUnits += capacity * loadRate
+	}
+	if !hasCompleteLoad || totalCapacity <= 0 {
+		return false
+	}
+	return totalLoadPercentUnits >= totalCapacity*openAIAccountTypePreferredSpilloverLoadThreshold
+}
+
+func openAIAccountTypeStrategySkippedReason(strategy string) string {
+	switch NormalizeUpstreamPoolAccountTypeStrategy(strategy) {
+	case UpstreamPoolAccountTypeStrategyOAuthOnly:
+		return "account_type_not_oauth"
+	case UpstreamPoolAccountTypeStrategyOAuthPreferred:
+		return "account_type_deferred_by_oauth_preferred"
+	case UpstreamPoolAccountTypeStrategyAPIKeyPreferred:
+		return "account_type_deferred_by_apikey_preferred"
+	default:
+		return ""
+	}
+}
+
+func buildOpenAIAccountLoadReq(accounts []*Account) []AccountWithConcurrency {
+	loadReq := make([]AccountWithConcurrency, 0, len(accounts))
+	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+		loadReq = append(loadReq, AccountWithConcurrency{
+			ID:             account.ID,
+			MaxConcurrency: account.EffectiveLoadFactor(),
+		})
+	}
+	return loadReq
+}
+
+func (s *defaultOpenAIAccountScheduler) hasPreferredOpenAIAccountTypeCandidateBelowSpillover(ctx context.Context, req OpenAIAccountScheduleRequest) bool {
+	strategy := NormalizeUpstreamPoolAccountTypeStrategy(req.AccountTypeStrategy)
+	if strategy != UpstreamPoolAccountTypeStrategyOAuthPreferred && strategy != UpstreamPoolAccountTypeStrategyAPIKeyPreferred {
+		return false
+	}
+	accounts, err := s.service.listSchedulableAccounts(ctx, req.GroupID)
+	if err != nil || len(accounts) == 0 {
+		return false
+	}
+	preferred := make([]*Account, 0, len(accounts))
+	for i := range accounts {
+		account := &accounts[i]
+		if !openAIAccountMatchesTypeStrategy(account, strategy, true) {
+			continue
+		}
+		if !s.isAccountInitiallySchedulable(ctx, account, req, nil) {
+			continue
+		}
+		preferred = append(preferred, account)
+	}
+	if len(preferred) == 0 {
+		return false
+	}
+	if s.service.concurrencyService == nil {
+		return true
+	}
+	loadMap, err := s.service.concurrencyService.GetAccountsLoadBatch(ctx, buildOpenAIAccountLoadReq(preferred))
+	if err != nil {
+		return true
+	}
+	return !openAIPreferredAccountTypeUnderPressure(preferred, loadMap)
 }
 
 type openAIAccountCandidateScore struct {
@@ -1114,6 +1284,9 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrder(
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
 			continue
 		}
+		if !openAIAccountMatchesTypeStrategy(fresh, req.AccountTypeStrategy, false) {
+			continue
+		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
 			compactBlocked = true
 			continue
@@ -1143,6 +1316,58 @@ func minInt(a, b int) int {
 	return b
 }
 
+func (s *defaultOpenAIAccountScheduler) isAccountInitiallySchedulable(
+	ctx context.Context,
+	account *Account,
+	req OpenAIAccountScheduleRequest,
+	schedGroup *Group,
+	incrementSkipped ...func(string),
+) bool {
+	skip := func(reason string) {
+		if len(incrementSkipped) > 0 && incrementSkipped[0] != nil {
+			incrementSkipped[0](reason)
+		}
+	}
+	if account == nil {
+		skip("nil_account")
+		return false
+	}
+	if req.ExcludedIDs != nil {
+		if _, excluded := req.ExcludedIDs[account.ID]; excluded {
+			skip("excluded_by_failover")
+			return false
+		}
+	}
+	if !account.IsOpenAI() {
+		skip("platform_mismatch")
+		return false
+	}
+	if !account.IsSchedulable() {
+		skip("not_schedulable")
+		return false
+	}
+	if s.service.isOpenAIAccountRuntimeBlocked(account) {
+		skip("runtime_blocked")
+		return false
+	}
+	if schedGroup != nil && schedGroup.RequirePrivacySet && !account.IsPrivacySet() {
+		skip("privacy_not_set")
+		s.service.BlockAccountScheduling(account, time.Time{}, "privacy_not_set")
+		_ = s.service.accountRepo.SetError(ctx, account.ID,
+			fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
+		return false
+	}
+	if !s.isAccountRequestCompatible(ctx, account, req) {
+		skip("request_incompatible")
+		return false
+	}
+	if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
+		skip("transport_incompatible")
+		return false
+	}
+	return true
+}
+
 func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	ctx context.Context,
 	req OpenAIAccountScheduleRequest,
@@ -1162,7 +1387,6 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	}
 
 	filtered := make([]*Account, 0, len(accounts))
-	loadReq := make([]AccountWithConcurrency, 0, len(accounts))
 	skipped := make(map[string]int)
 	incrementSkipped := func(reason string) {
 		if reason == "" {
@@ -1172,56 +1396,30 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	}
 	for i := range accounts {
 		account := &accounts[i]
-		if req.ExcludedIDs != nil {
-			if _, excluded := req.ExcludedIDs[account.ID]; excluded {
-				incrementSkipped("excluded_by_failover")
-				continue
-			}
-		}
-		if !account.IsOpenAI() {
-			incrementSkipped("platform_mismatch")
-			continue
-		}
-		if !account.IsSchedulable() {
-			incrementSkipped("not_schedulable")
-			continue
-		}
-		if s.service.isOpenAIAccountRuntimeBlocked(account) {
-			incrementSkipped("runtime_blocked")
-			continue
-		}
-		// require_privacy_set: 跳过 privacy 未设置的账号并标记异常
-		if schedGroup != nil && schedGroup.RequirePrivacySet && !account.IsPrivacySet() {
-			incrementSkipped("privacy_not_set")
-			s.service.BlockAccountScheduling(account, time.Time{}, "privacy_not_set")
-			_ = s.service.accountRepo.SetError(ctx, account.ID,
-				fmt.Sprintf("Privacy not set, required by group [%s]", schedGroup.Name))
-			continue
-		}
-		if !s.isAccountRequestCompatible(ctx, account, req) {
-			incrementSkipped("request_incompatible")
-			continue
-		}
-		if !s.isAccountTransportCompatible(account, req.RequiredTransport) {
-			incrementSkipped("transport_incompatible")
+		if !s.isAccountInitiallySchedulable(ctx, account, req, schedGroup, incrementSkipped) {
 			continue
 		}
 		filtered = append(filtered, account)
-		loadReq = append(loadReq, AccountWithConcurrency{
-			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
-		})
-	}
-	if len(filtered) == 0 {
-		return nil, 0, 0, 0, "", nil, skipped, noAvailableOpenAISelectionError(req.RequestedModel, false)
 	}
 
+	typeStrategyBase := append([]*Account(nil), filtered...)
+	loadReq := buildOpenAIAccountLoadReq(typeStrategyBase)
 	loadMap := map[int64]*AccountLoadInfo{}
 	if s.service.concurrencyService != nil {
 		if batchLoad, loadErr := s.service.concurrencyService.GetAccountsLoadBatch(ctx, loadReq); loadErr == nil {
 			loadMap = batchLoad
 		}
 	}
+
+	candidateCountBeforeTypeStrategy := len(typeStrategyBase)
+	filtered, strategyReason := filterOpenAIAccountsByTypeStrategy(filtered, req.AccountTypeStrategy, loadMap)
+	if strategyReason != "" && len(filtered) < candidateCountBeforeTypeStrategy {
+		incrementSkipped(openAIAccountTypeStrategySkippedReason(req.AccountTypeStrategy))
+	}
+	if len(filtered) == 0 {
+		return nil, 0, 0, 0, "", nil, skipped, noAvailableOpenAISelectionError(req.RequestedModel, false)
+	}
+	loadReq = buildOpenAIAccountLoadReq(filtered)
 
 	plan := s.buildOpenAIAccountLoadPlan(req, filtered, loadMap)
 	candidateCount := plan.candidateCount
@@ -1249,8 +1447,10 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	}
 
 	if s.service.concurrencyService != nil {
-		if freshLoadMap, loadErr := s.service.concurrencyService.GetAccountsLoadBatchFresh(ctx, loadReq); loadErr == nil {
-			freshPlan := s.buildOpenAIAccountLoadPlan(req, filtered, freshLoadMap)
+		freshLoadReq := buildOpenAIAccountLoadReq(typeStrategyBase)
+		if freshLoadMap, loadErr := s.service.concurrencyService.GetAccountsLoadBatchFresh(ctx, freshLoadReq); loadErr == nil {
+			freshFiltered, _ := filterOpenAIAccountsByTypeStrategy(typeStrategyBase, req.AccountTypeStrategy, freshLoadMap)
+			freshPlan := s.buildOpenAIAccountLoadPlan(req, freshFiltered, freshLoadMap)
 			if len(freshPlan.selectionOrder) > 0 {
 				freshResult, freshCompactBlocked, freshAcquireErr := s.tryAcquireOpenAISelectionOrder(ctx, req, freshPlan.selectionOrder)
 				if freshAcquireErr != nil {
@@ -1280,6 +1480,9 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		fresh = s.service.recheckSelectedOpenAIAccountFromDB(ctx, fresh, req.RequestedModel, false, req.RequiredCapability)
 		fresh = s.service.applyResolvedPoolMemberOverrides(ctx, req.GroupID, PlatformOpenAI, fresh)
 		if fresh == nil || !s.isAccountTransportCompatible(fresh, req.RequiredTransport) || !s.isAccountRequestCompatible(ctx, fresh, req) {
+			continue
+		}
+		if !openAIAccountMatchesTypeStrategy(fresh, req.AccountTypeStrategy, false) {
 			continue
 		}
 		if req.RequireCompact && openAICompactSupportTier(fresh) == 0 {
@@ -1619,6 +1822,7 @@ func (s *OpenAIGatewayService) selectAccountWithScheduler(
 		AllowLoadBalance:        !policy.HasBinding || policy.LoadBalanceEnabled,
 		AllowFailover:           !policy.HasBinding || policy.FailoverEnabled,
 		CacheAffinityEnabled:    boolPtr(policy.EffectiveCacheAffinityEnabled(true)),
+		AccountTypeStrategy:     policy.AccountTypeStrategy,
 	})
 	return selection, decision, err
 }

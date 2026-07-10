@@ -374,6 +374,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		account := selection.Account
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		reqLog.Debug("openai.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
+		service.RecordCacheInstrumentationRouting(c, sessionHash, scheduleDecision)
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
 		accountReleaseFunc, acquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
@@ -437,6 +438,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					}
 					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
 					h.gatewayService.RecordOpenAIAccountSwitch()
+					service.MarkCacheInstrumentationAccountSwitch(c)
 					failedAccountIDs[account.ID] = struct{}{}
 					lastFailoverErr = failoverErr
 					if switchCount < maxAccountSwitches {
@@ -510,24 +512,26 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
+		cacheInstrumentationSnapshot := service.CaptureCacheInstrumentationSnapshot(c)
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 		h.submitOpenAIUsageRecordTask(c.Request.Context(), result, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
-				Result:             result,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				APIKeyService:      h.apiKeyService,
-				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
-				CyberBlocked:       cyberBlocked,
+				Result:                       result,
+				APIKey:                       apiKey,
+				User:                         apiKey.User,
+				Account:                      account,
+				Subscription:                 subscription,
+				InboundEndpoint:              inboundEndpoint,
+				UpstreamEndpoint:             upstreamEndpoint,
+				UserAgent:                    userAgent,
+				IPAddress:                    clientIP,
+				RequestPayloadHash:           requestPayloadHash,
+				APIKeyService:                h.apiKeyService,
+				CacheInstrumentationSnapshot: cacheInstrumentationSnapshot,
+				ChannelUsageFields:           channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+				CyberBlocked:                 cyberBlocked,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.responses"),
@@ -795,7 +799,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		account := selection.Account
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		reqLog.Debug("openai_messages.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
-		_ = scheduleDecision
+		service.RecordCacheInstrumentationRouting(c, sessionHash, scheduleDecision)
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
 		accountReleaseFunc, acquired := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
@@ -850,6 +854,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					}
 					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
 					h.gatewayService.RecordOpenAIAccountSwitch()
+					service.MarkCacheInstrumentationAccountSwitch(c)
 					failedAccountIDs[account.ID] = struct{}{}
 					lastFailoverErr = failoverErr
 					if switchCount < maxAccountSwitches {
@@ -916,23 +921,25 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
+		cacheInstrumentationSnapshot := service.CaptureCacheInstrumentationSnapshot(c)
 
 		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 		h.submitOpenAIUsageRecordTask(c.Request.Context(), result, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
-				Result:             result,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				APIKeyService:      h.apiKeyService,
-				ChannelUsageFields: channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel),
-				CyberBlocked:       cyberBlocked,
+				Result:                       result,
+				APIKey:                       apiKey,
+				User:                         apiKey.User,
+				Account:                      account,
+				Subscription:                 subscription,
+				InboundEndpoint:              inboundEndpoint,
+				UpstreamEndpoint:             upstreamEndpoint,
+				UserAgent:                    userAgent,
+				IPAddress:                    clientIP,
+				RequestPayloadHash:           requestPayloadHash,
+				APIKeyService:                h.apiKeyService,
+				CacheInstrumentationSnapshot: cacheInstrumentationSnapshot,
+				ChannelUsageFields:           channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel),
+				CyberBlocked:                 cyberBlocked,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.messages"),

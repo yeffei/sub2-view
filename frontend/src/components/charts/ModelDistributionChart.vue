@@ -66,6 +66,26 @@
           >
             {{ t('admin.dashboard.metricActualCost') }}
           </button>
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            :class="metric === 'cache_hit_ratio'
+              ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            @click="emit('update:metric', 'cache_hit_ratio')"
+          >
+            {{ t('admin.dashboard.metricCacheHitRate') }}
+          </button>
+          <button
+            type="button"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            :class="metric === 'cache_read_per_hit'
+              ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            @click="emit('update:metric', 'cache_read_per_hit')"
+          >
+            {{ t('admin.dashboard.metricCacheReadPerHit') }}
+          </button>
         </div>
         <div v-if="enableRankingView" class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
           <button
@@ -135,16 +155,28 @@
                   </span>
                 </td>
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                  {{ formatNumber(model.requests) }}
+                  <div>{{ formatNumber(model.requests) }}</div>
+                  <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                    {{ t('admin.dashboard.cacheHitRequestsShort', { value: formatNumber(model.cache_read_hit_requests || 0) }) }}
+                  </div>
                 </td>
                 <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
-                  {{ formatTokens(model.total_tokens) }}
+                  <div>{{ formatTokens(model.total_tokens) }}</div>
+                  <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                    {{ t('admin.dashboard.cacheHitRateShort', { value: formatPercent(model.cache_read_hit_ratio || 0) }) }}
+                  </div>
                 </td>
                 <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  ${{ formatCost(model.actual_cost) }}
+                  <div>${{ formatCost(model.actual_cost) }}</div>
+                  <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                    {{ t('admin.dashboard.cacheReadPerHitShort', { value: formatTokens(model.average_cache_read_tokens_per_hit || 0) }) }}
+                  </div>
                 </td>
                 <td class="py-1.5 text-right text-orange-500 dark:text-orange-400">
-                  ${{ formatCost(model.account_cost) }}
+                  <div>${{ formatCost(model.account_cost) }}</div>
+                  <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                    {{ t('admin.dashboard.avgInputShort', { value: formatTokens(model.average_actual_input_tokens || 0) }) }}
+                  </div>
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(model.cost) }}
@@ -253,7 +285,7 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
 
-type DistributionMetric = 'tokens' | 'actual_cost'
+type DistributionMetric = 'tokens' | 'actual_cost' | 'cache_hit_ratio' | 'cache_read_per_hit'
 type ModelSource = 'requested' | 'upstream' | 'mapping'
 type RankingDisplayItem = UserSpendingRankingItem & { isOther?: boolean }
 const props = withDefaults(defineProps<{
@@ -353,8 +385,7 @@ const displayModelStats = computed(() => {
       : props.modelStats
   if (!sourceStats?.length) return []
 
-  const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...sourceStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
+  return [...sourceStats].sort((a, b) => getMetricValue(b, props.metric) - getMetricValue(a, props.metric))
 })
 
 const chartData = computed(() => {
@@ -364,7 +395,7 @@ const chartData = computed(() => {
     labels: displayModelStats.value.map((m) => m.model),
     datasets: [
       {
-        data: displayModelStats.value.map((m) => props.metric === 'actual_cost' ? toFiniteNumber(m.actual_cost) : toFiniteNumber(m.total_tokens)),
+        data: displayModelStats.value.map((m) => getMetricValue(m, props.metric)),
         backgroundColor: chartColors.slice(0, displayModelStats.value.length),
         borderWidth: 0
       }
@@ -440,9 +471,7 @@ const doughnutOptions = computed(() => ({
           const value = context.raw as number
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
-          const formattedValue = props.metric === 'actual_cost'
-            ? `$${formatCost(value)}`
-            : formatTokens(value)
+          const formattedValue = formatMetricValue(value, props.metric)
           return `${context.label}: ${formattedValue} (${percentage}%)`
         }
       }
@@ -474,6 +503,19 @@ const toFiniteNumber = (value: number | null | undefined): number => {
   return Number.isFinite(value) ? Number(value) : 0
 }
 
+const getMetricValue = (item: ModelStat, metric: DistributionMetric): number => {
+  switch (metric) {
+    case 'actual_cost':
+      return toFiniteNumber(item.actual_cost)
+    case 'cache_hit_ratio':
+      return toFiniteNumber(item.cache_read_hit_ratio)
+    case 'cache_read_per_hit':
+      return toFiniteNumber(item.average_cache_read_tokens_per_hit)
+    default:
+      return toFiniteNumber(item.total_tokens)
+  }
+}
+
 const formatTokens = (value: number | null | undefined): string => {
   const normalizedValue = toFiniteNumber(value)
   if (normalizedValue >= 1_000_000_000) {
@@ -488,6 +530,19 @@ const formatTokens = (value: number | null | undefined): string => {
 
 const formatNumber = (value: number | null | undefined): string => {
   return toFiniteNumber(value).toLocaleString()
+}
+
+const formatPercent = (value: number | null | undefined): string => `${(toFiniteNumber(value) * 100).toFixed(1)}%`
+
+const formatMetricValue = (value: number, metric: DistributionMetric): string => {
+  switch (metric) {
+    case 'actual_cost':
+      return `$${formatCost(value)}`
+    case 'cache_hit_ratio':
+      return formatPercent(value)
+    default:
+      return formatTokens(value)
+  }
 }
 
 const getRankingUserLabel = (item: UserSpendingRankingItem): string => {

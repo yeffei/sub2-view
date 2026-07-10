@@ -371,7 +371,7 @@ func TestUsageLogRepositoryGetModelStatsWithFiltersRequestTypePriority(t *testin
 
 	mock.ExpectQuery("AND \\(request_type = \\$3 OR \\(request_type = 0 AND openai_ws_mode = TRUE\\)\\)").
 		WithArgs(start, end, requestType).
-		WillReturnRows(sqlmock.NewRows([]string{"model", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "total_tokens", "cost", "actual_cost", "account_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"model", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost", "account_cost"}))
 
 	stats, err := repo.GetModelStatsWithFilters(context.Background(), start, end, 0, 0, 0, 0, &requestType, &stream, nil)
 	require.NoError(t, err)
@@ -397,25 +397,33 @@ func TestUsageLogRepositoryGetStatsWithFiltersRequestTypePriority(t *testing.T) 
 			"total_input_tokens",
 			"total_output_tokens",
 			"total_cache_tokens",
+			"total_cache_creation_tokens",
+			"total_cache_read_tokens",
+			"cache_read_hit_requests",
+			"cache_creation_requests",
 			"total_cost",
 			"total_actual_cost",
 			"total_account_cost",
 			"avg_duration_ms",
-		}).AddRow(int64(1), int64(2), int64(3), int64(4), 1.2, 1.0, 1.2, 20.0))
+		}).AddRow(int64(1), int64(2), int64(3), int64(4), int64(1), int64(3), int64(1), int64(1), 1.2, 1.0, 1.2, 20.0))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(inbound_endpoint\\), ''\\), 'unknown'\\) AS endpoint").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), requestType).
-		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost"}))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(upstream_endpoint\\), ''\\), 'unknown'\\) AS endpoint").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), requestType).
-		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost"}))
 	mock.ExpectQuery("SELECT CONCAT\\(").
 		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), requestType).
-		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost"}))
 
 	stats, err := repo.GetStatsWithFilters(context.Background(), filters)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), stats.TotalRequests)
 	require.Equal(t, int64(9), stats.TotalTokens)
+	require.Equal(t, int64(1), stats.CacheReadHitRequests)
+	require.Equal(t, int64(1), stats.CacheCreationRequests)
+	require.Equal(t, 3.0, stats.AverageCacheReadTokensPerHit)
+	require.Equal(t, 2.0, stats.AverageActualInputTokens)
 	require.NotNil(t, stats.TotalAccountCost, "TotalAccountCost should always be returned")
 	require.Equal(t, 1.2, *stats.TotalAccountCost)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -432,11 +440,11 @@ func TestUsageLogRepositoryGetModelStatsAccountCostColumn(t *testing.T) {
 		WithArgs(start, end).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"model", "requests", "input_tokens", "output_tokens",
-			"cache_creation_tokens", "cache_read_tokens", "total_tokens",
+			"cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens",
 			"cost", "actual_cost", "account_cost",
 		}).
-			AddRow("claude-opus-4-6", int64(10), int64(100), int64(200), int64(5), int64(3), int64(308), 2.5, 2.0, 1.8).
-			AddRow("claude-sonnet-4-6", int64(5), int64(50), int64(100), int64(0), int64(0), int64(150), 1.0, 0.8, 0.7))
+			AddRow("claude-opus-4-6", int64(10), int64(100), int64(200), int64(5), int64(3), int64(2), int64(4), int64(308), 2.5, 2.0, 1.8).
+			AddRow("claude-sonnet-4-6", int64(5), int64(50), int64(100), int64(0), int64(0), int64(0), int64(0), int64(150), 1.0, 0.8, 0.7))
 
 	results, err := repo.GetModelStatsWithFilters(context.Background(), start, end, 0, 0, 0, 0, nil, nil, nil)
 	require.NoError(t, err)
@@ -445,6 +453,8 @@ func TestUsageLogRepositoryGetModelStatsAccountCostColumn(t *testing.T) {
 	require.Equal(t, 2.5, results[0].Cost)
 	require.Equal(t, 2.0, results[0].ActualCost)
 	require.Equal(t, 1.8, results[0].AccountCost)
+	require.Equal(t, 0.2, results[0].CacheReadHitRatio)
+	require.Equal(t, 10.0, results[0].AverageActualInputTokens)
 	require.Equal(t, "claude-sonnet-4-6", results[1].Model)
 	require.Equal(t, 0.7, results[1].AccountCost)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -489,15 +499,16 @@ func TestUsageLogRepositoryGetStatsWithFiltersAlwaysReturnsAccountCost(t *testin
 	mock.ExpectQuery("FROM usage_logs").
 		WillReturnRows(sqlmock.NewRows([]string{
 			"total_requests", "total_input_tokens", "total_output_tokens",
-			"total_cache_tokens", "total_cost", "total_actual_cost",
+			"total_cache_tokens", "total_cache_creation_tokens", "total_cache_read_tokens",
+			"cache_read_hit_requests", "cache_creation_requests", "total_cost", "total_actual_cost",
 			"total_account_cost", "avg_duration_ms",
-		}).AddRow(int64(50), int64(1000), int64(2000), int64(100), 15.0, 12.5, 11.0, 100.0))
+		}).AddRow(int64(50), int64(1000), int64(2000), int64(100), int64(40), int64(60), int64(10), int64(12), 15.0, 12.5, 11.0, 100.0))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(inbound_endpoint\\)").
-		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost"}))
 	mock.ExpectQuery("SELECT COALESCE\\(NULLIF\\(TRIM\\(upstream_endpoint\\)").
-		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost"}))
 	mock.ExpectQuery("SELECT CONCAT\\(").
-		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "total_tokens", "cost", "actual_cost"}))
+		WillReturnRows(sqlmock.NewRows([]string{"endpoint", "requests", "input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_read_hit_requests", "cache_creation_requests", "total_tokens", "cost", "actual_cost"}))
 
 	stats, err := repo.GetStatsWithFilters(context.Background(), filters)
 	require.NoError(t, err)

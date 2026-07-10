@@ -18,8 +18,9 @@ This directory contains files for deploying Sub2API on Linux servers.
 | `docker-deploy.sh` | **One-click Docker deployment script (recommended)** |
 | `hotfix-redeploy.ps1` | Windows hotfix flow: typecheck, frontend build, Linux binary build, container swap, smoke check |
 | `site-smoke-check.ps1` | Windows smoke check for key routes, login, API keys, and workbench API |
+| `local-stability-check.ps1` | Windows local stability probe for `/v1/responses` with concurrent requests, docker stats, events, and logs |
 | `check-entry.ps1` | Inspect current host binding and reachable URLs for local-only vs external access |
-| `local-ops.ps1` | Unified Windows entry point for `check-entry`, `entry`, `open-entry`, `smoke`, and `redeploy` |
+| `local-ops.ps1` | Unified Windows entry point for `check-entry`, `entry`, `open-entry`, `smoke`, `stability`, and `redeploy` |
 | `local-entry.ps1` | Fixed-8080 local mode switcher for `dev`, `prod`, `status`, `stop`, and `open` |
 | `build-local-release.ps1` | Build a persistent local Docker image from the current source and recreate the service |
 | `Dockerfile.local-release` | Minimal local release image recipe that layers the rebuilt binary onto the current runtime image |
@@ -248,6 +249,28 @@ If you only want the verification step:
 
 ```powershell
 pwsh -File deploy/local-ops.ps1 smoke -BaseUrl http://127.0.0.1:8080 -Email admin@example.com -Password admin123
+```
+
+If you want a repeatable local API stability probe against the real Docker app entry on `18080`:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 stability
+```
+
+This script will:
+
+- default to `http://127.0.0.1:18080/v1/responses`
+- auto-resolve one active local `sk-*` API key from the Docker/Postgres database when `-ApiKey` is omitted
+- send concurrent `/v1/responses` probes and fail the run if any request fails
+- capture `docker stats`, `docker events`, and container logs for the run window
+- write artifacts under `output/stability/<timestamp>/`
+
+Common overrides:
+
+```powershell
+pwsh -File deploy/local-ops.ps1 stability -Concurrency 6 -RequestsPerWorker 8
+pwsh -File deploy/local-ops.ps1 stability -ApiKey sk-xxx -Model gpt-5.5
+pwsh -File deploy/local-ops.ps1 stability -NonStream
 ```
 
 For **named volumes version** (docker-compose.yml):

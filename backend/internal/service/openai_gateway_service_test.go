@@ -2554,6 +2554,59 @@ func TestOpenAIBuildUpstreamRequestOAuthMessagesBridgeUsesSessionOnly(t *testing
 	require.Empty(t, req.Header.Get("originator"))
 }
 
+func TestOpenAIBuildUpstreamRequestOAuthUsesExplicitSessionHeaderBeforePromptCacheKey(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"gpt-5.5","prompt_cache_key":"pk_cache_123","input":[{"type":"message","role":"user","content":"hello"}]}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Request.Header.Set("session_id", "header-session-123")
+	c.Request.Header.Set("conversation_id", "header-conversation-456")
+
+	svc := &OpenAIGatewayService{}
+	account := &Account{
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"},
+	}
+
+	setCacheInstrumentationOpenAIResponsesState(c, body, "pk_cache_123", false, false)
+	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, body, "token", true, "pk_cache_123", false)
+	require.NoError(t, err)
+	require.Equal(t, isolateOpenAISessionID(0, "header-session-123"), req.Header.Get("Session_Id"))
+	require.Equal(t, isolateOpenAISessionID(0, "pk_cache_123"), req.Header.Get("Conversation_Id"))
+
+	snapshot := CaptureCacheInstrumentationSnapshot(c)
+	require.NotNil(t, snapshot)
+	require.Equal(t, "header_session_id", snapshot.UpstreamSessionAnchorSource)
+}
+
+func TestOpenAIBuildUpstreamRequestOAuthUsesAutoSessionAnchorFromContentFallback(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"gpt-5.4","input":[{"role":"developer","content":[{"type":"input_text","text":"You are helpful."}]},{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	c.Set("api_key", &APIKey{ID: 99})
+
+	svc := &OpenAIGatewayService{}
+	account := &Account{
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"},
+	}
+
+	setCacheInstrumentationOpenAIResponsesState(c, body, "", false, false)
+	setOpenAIResponsesAutoUpstreamSessionAnchor(c, body, false)
+
+	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, body, "token", true, "", false)
+	require.NoError(t, err)
+	require.Equal(t, isolateOpenAISessionID(99, deriveOpenAIContentSessionSeed(body)), req.Header.Get("Session_Id"))
+	require.Empty(t, req.Header.Get("Conversation_Id"))
+
+	snapshot := CaptureCacheInstrumentationSnapshot(c)
+	require.NotNil(t, snapshot)
+	require.Equal(t, "content_fallback", snapshot.UpstreamSessionAnchorSource)
+}
+
 func TestOpenAIBuildUpstreamRequestPreservesCompactPathForAPIKeyBaseURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

@@ -85,6 +85,7 @@ type schedulerTestConcurrencyCache struct {
 	ConcurrencyCache
 	loadBatchErr    error
 	loadMap         map[int64]*AccountLoadInfo
+	loadBatchFunc   func([]AccountWithConcurrency) map[int64]*AccountLoadInfo
 	acquireResults  map[int64]bool
 	waitCounts      map[int64]int
 	skipDefaultLoad bool
@@ -106,6 +107,9 @@ func (c schedulerTestConcurrencyCache) ReleaseAccountSlot(ctx context.Context, a
 func (c schedulerTestConcurrencyCache) GetAccountsLoadBatch(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
 	if c.loadBatchErr != nil {
 		return nil, c.loadBatchErr
+	}
+	if c.loadBatchFunc != nil {
+		return c.loadBatchFunc(accounts), nil
 	}
 	out := make(map[int64]*AccountLoadInfo, len(accounts))
 	if c.skipDefaultLoad && c.loadMap != nil {
@@ -2549,4 +2553,389 @@ func TestDefaultOpenAIAccountScheduler_IsAccountTransportCompatible_Branches(t *
 
 func int64PtrForTest(v int64) *int64 {
 	return &v
+}
+
+func TestDefaultOpenAIAccountScheduler_OAuthPreferredBypassesAPIKeySticky(t *testing.T) {
+	ctx := context.Background()
+	accounts := []Account{
+		{
+			ID:          8801,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+		{
+			ID:          8802,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    10,
+		},
+	}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"oauth-preferred-session": 8801}}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:              cache,
+		cfg:                &config.Config{},
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+	scheduler := newDefaultOpenAIAccountScheduler(svc, nil)
+
+	selection, decision, err := scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+		SessionHash:          "oauth-preferred-session",
+		StickyAccountID:      8801,
+		RequestedModel:       "gpt-5.1",
+		TopK:                 2,
+		AllowLoadBalance:     true,
+		CacheAffinityEnabled: boolPtr(true),
+		AccountTypeStrategy:  UpstreamPoolAccountTypeStrategyOAuthPreferred,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(8802), selection.Account.ID)
+	require.Equal(t, AccountTypeOAuth, selection.Account.Type)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.False(t, decision.StickySessionHit)
+	require.Equal(t, 1, cache.deletedSessions["openai:oauth-preferred-session"])
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestDefaultOpenAIAccountScheduler_OAuthPreferredFallsBackToAPIKeyWhenOAuthUnavailable(t *testing.T) {
+	ctx := context.Background()
+	accounts := []Account{
+		{
+			ID:          8811,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+		{
+			ID:          8812,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusError,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:              &schedulerTestGatewayCache{sessionBindings: map[string]int64{}},
+		cfg:                &config.Config{},
+		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+	}
+	scheduler := newDefaultOpenAIAccountScheduler(svc, nil)
+
+	selection, decision, err := scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+		SessionHash:          "oauth-fallback-session",
+		RequestedModel:       "gpt-5.1",
+		TopK:                 2,
+		AllowLoadBalance:     true,
+		CacheAffinityEnabled: boolPtr(true),
+		AccountTypeStrategy:  UpstreamPoolAccountTypeStrategyOAuthPreferred,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(8811), selection.Account.ID)
+	require.Equal(t, AccountTypeAPIKey, selection.Account.Type)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestDefaultOpenAIAccountScheduler_OAuthPreferredSpillsToAPIKeyWhenOAuthLoadAtThreshold(t *testing.T) {
+	ctx := context.Background()
+	accounts := []Account{
+		{
+			ID:          8821,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+		{
+			ID:          8822,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+	}
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	concurrencyCache := schedulerTestConcurrencyCache{
+		loadMap: map[int64]*AccountLoadInfo{
+			8821: {AccountID: 8821, LoadRate: 0, WaitingCount: 0},
+			8822: {AccountID: 8822, LoadRate: openAIAccountTypePreferredSpilloverLoadThreshold, WaitingCount: 0},
+		},
+		acquireResults: map[int64]bool{
+			8821: true,
+			8822: false,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:              &schedulerTestGatewayCache{sessionBindings: map[string]int64{}},
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+	}
+	scheduler := newDefaultOpenAIAccountScheduler(svc, nil)
+
+	selection, decision, err := scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+		SessionHash:          "oauth-spillover-session",
+		RequestedModel:       "gpt-5.1",
+		TopK:                 2,
+		AllowLoadBalance:     true,
+		CacheAffinityEnabled: boolPtr(true),
+		AccountTypeStrategy:  UpstreamPoolAccountTypeStrategyOAuthPreferred,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(8821), selection.Account.ID)
+	require.Equal(t, AccountTypeAPIKey, selection.Account.Type)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, 2, decision.CandidateCount)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestDefaultOpenAIAccountScheduler_OAuthPreferredRechecksSpilloverOnFreshLoad(t *testing.T) {
+	ctx := context.Background()
+	accounts := []Account{
+		{
+			ID:          8841,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+		{
+			ID:          8842,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+	}
+	var loadMu sync.Mutex
+	loadCalls := 0
+	loadBatchFunc := func(accounts []AccountWithConcurrency) map[int64]*AccountLoadInfo {
+		loadMu.Lock()
+		defer loadMu.Unlock()
+		loadCalls++
+		oauthLoad := 10
+		if loadCalls > 1 {
+			oauthLoad = openAIAccountTypePreferredSpilloverLoadThreshold
+		}
+		out := make(map[int64]*AccountLoadInfo, len(accounts))
+		for _, account := range accounts {
+			switch account.ID {
+			case 8841:
+				out[account.ID] = &AccountLoadInfo{AccountID: account.ID, LoadRate: 0, WaitingCount: 0}
+			case 8842:
+				out[account.ID] = &AccountLoadInfo{AccountID: account.ID, LoadRate: oauthLoad, WaitingCount: 0}
+			default:
+				out[account.ID] = &AccountLoadInfo{AccountID: account.ID, LoadRate: 0, WaitingCount: 0}
+			}
+		}
+		return out
+	}
+	concurrencyCache := schedulerTestConcurrencyCache{
+		loadBatchFunc: loadBatchFunc,
+		acquireResults: map[int64]bool{
+			8841: true,
+			8842: false,
+		},
+	}
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:              &schedulerTestGatewayCache{sessionBindings: map[string]int64{}},
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+	}
+	svc.concurrencyService.SetAccountLoadBatchCacheTTL(0)
+	scheduler := newDefaultOpenAIAccountScheduler(svc, nil)
+
+	selection, decision, err := scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+		SessionHash:          "oauth-fresh-spillover-session",
+		RequestedModel:       "gpt-5.1",
+		TopK:                 2,
+		AllowLoadBalance:     true,
+		CacheAffinityEnabled: boolPtr(true),
+		AccountTypeStrategy:  UpstreamPoolAccountTypeStrategyOAuthPreferred,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(8841), selection.Account.ID)
+	require.Equal(t, AccountTypeAPIKey, selection.Account.Type)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, 2, decision.CandidateCount)
+	require.GreaterOrEqual(t, loadCalls, 2)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestDefaultOpenAIAccountScheduler_OAuthPreferredSpillsByAggregateOAuthLoad(t *testing.T) {
+	ctx := context.Background()
+	accounts := []Account{
+		{
+			ID:          8851,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 10,
+			Priority:    0,
+		},
+		{
+			ID:          8852,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 10,
+			Priority:    0,
+		},
+		{
+			ID:          8853,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 10,
+			Priority:    0,
+		},
+	}
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.SchedulerScoreWeights.Load = 1
+	concurrencyCache := schedulerTestConcurrencyCache{
+		loadMap: map[int64]*AccountLoadInfo{
+			8851: {AccountID: 8851, CurrentConcurrency: 0, LoadRate: 0},
+			8852: {AccountID: 8852, CurrentConcurrency: 9, LoadRate: 90},
+			8853: {AccountID: 8853, CurrentConcurrency: 7, LoadRate: 70},
+		},
+		acquireResults: map[int64]bool{
+			8851: true,
+			8852: false,
+			8853: false,
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:              &schedulerTestGatewayCache{sessionBindings: map[string]int64{}},
+		cfg:                cfg,
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+	}
+	scheduler := newDefaultOpenAIAccountScheduler(svc, nil)
+
+	selection, decision, err := scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+		SessionHash:          "oauth-aggregate-spillover-session",
+		RequestedModel:       "gpt-5.1",
+		TopK:                 3,
+		AllowLoadBalance:     true,
+		CacheAffinityEnabled: boolPtr(true),
+		AccountTypeStrategy:  UpstreamPoolAccountTypeStrategyOAuthPreferred,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(8851), selection.Account.ID)
+	require.Equal(t, AccountTypeAPIKey, selection.Account.Type)
+	require.Equal(t, openAIAccountScheduleLayerLoadBalance, decision.Layer)
+	require.Equal(t, 3, decision.CandidateCount)
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
+}
+
+func TestDefaultOpenAIAccountScheduler_OAuthPreferredKeepsAPIKeyStickyWhenOAuthLoadAtThreshold(t *testing.T) {
+	ctx := context.Background()
+	accounts := []Account{
+		{
+			ID:          8831,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeAPIKey,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+		{
+			ID:          8832,
+			Platform:    PlatformOpenAI,
+			Type:        AccountTypeOAuth,
+			Status:      StatusActive,
+			Schedulable: true,
+			Concurrency: 1,
+			Priority:    0,
+		},
+	}
+	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"oauth-spillover-sticky": 8831}}
+	concurrencyCache := schedulerTestConcurrencyCache{
+		loadMap: map[int64]*AccountLoadInfo{
+			8832: {AccountID: 8832, LoadRate: openAIAccountTypePreferredSpilloverLoadThreshold, WaitingCount: 0},
+		},
+	}
+	svc := &OpenAIGatewayService{
+		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: accounts},
+		cache:              cache,
+		cfg:                &config.Config{},
+		concurrencyService: NewConcurrencyService(concurrencyCache),
+	}
+	scheduler := newDefaultOpenAIAccountScheduler(svc, nil)
+
+	selection, decision, err := scheduler.Select(ctx, OpenAIAccountScheduleRequest{
+		SessionHash:          "oauth-spillover-sticky",
+		StickyAccountID:      8831,
+		RequestedModel:       "gpt-5.1",
+		TopK:                 2,
+		AllowLoadBalance:     true,
+		CacheAffinityEnabled: boolPtr(true),
+		AccountTypeStrategy:  UpstreamPoolAccountTypeStrategyOAuthPreferred,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, selection)
+	require.NotNil(t, selection.Account)
+	require.Equal(t, int64(8831), selection.Account.ID)
+	require.Equal(t, AccountTypeAPIKey, selection.Account.Type)
+	require.Equal(t, openAIAccountScheduleLayerSessionSticky, decision.Layer)
+	require.True(t, decision.StickySessionHit)
+	require.Equal(t, 0, cache.deletedSessions["openai:oauth-spillover-sticky"])
+	if selection.ReleaseFunc != nil {
+		selection.ReleaseFunc()
+	}
 }

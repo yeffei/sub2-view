@@ -56,6 +56,11 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "cache instrumentation component",
+			event: &logger.LogEvent{Level: "info", Component: "cache.instrumentation"},
+			want:  true,
+		},
+		{
 			name: "audit component from fields (real zap path)",
 			event: &logger.LogEvent{
 				Level:     "info",
@@ -70,6 +75,15 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 				Level:     "info",
 				Component: "",
 				Fields:    map[string]any{"component": "routing.explanation"},
+			},
+			want: true,
+		},
+		{
+			name: "cache instrumentation from fields (real zap path)",
+			event: &logger.LogEvent{
+				Level:     "info",
+				Component: "",
+				Fields:    map[string]any{"component": "cache.instrumentation"},
 			},
 			want: true,
 		},

@@ -106,7 +106,7 @@ func TestNotificationEmailAuthTemplatesAreListedAndPreviewable(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Contains(t, verifyPreview.Subject, "邮箱验证码")
+	require.Contains(t, verifyPreview.Subject, "请完成邮箱验证")
 	require.Contains(t, verifyPreview.HTML, "654321")
 
 	resetPreview, err := svc.PreviewTemplate(ctx, NotificationEmailPreviewInput{
@@ -118,7 +118,7 @@ func TestNotificationEmailAuthTemplatesAreListedAndPreviewable(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Contains(t, resetPreview.Subject, "Password reset")
+	require.Contains(t, resetPreview.Subject, "Reset your password")
 	require.Contains(t, resetPreview.HTML, "https://example.com/reset?token=abc")
 }
 

@@ -1356,12 +1356,22 @@ const loadStats = async () => {
 const loadCharts = async () => {
   loadingCharts.value = true
   try {
-    const [trend, models] = await Promise.all([
+    const [trendResult, modelsResult] = await Promise.allSettled([
       usageAPI.getDashboardTrend({ start_date: startDate.value, end_date: endDate.value, granularity: granularity.value }),
       usageAPI.getDashboardModels({ start_date: startDate.value, end_date: endDate.value })
     ])
-    trendData.value = trend.trend || []
-    modelStats.value = models.models || []
+
+    if (trendResult.status === 'fulfilled') {
+      trendData.value = trendResult.value.trend || []
+    } else {
+      console.error('Failed to load dashboard trend:', trendResult.reason)
+    }
+
+    if (modelsResult.status === 'fulfilled') {
+      modelStats.value = modelsResult.value.models || []
+    } else {
+      console.error('Failed to load dashboard models:', modelsResult.reason)
+    }
   } catch (error) {
     console.error('Failed to load charts:', error)
   } finally {

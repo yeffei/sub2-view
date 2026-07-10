@@ -4,6 +4,11 @@ import { opsAPI, type OpsRuntimeLogConfig, type OpsSystemLog, type OpsSystemLogS
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import { useAppStore } from '@/stores'
+import {
+  buildCacheInstrumentationSummary,
+  formatCacheInstrumentationDetail,
+  isCacheInstrumentationLog
+} from '../utils/cacheInstrumentation'
 
 const appStore = useAppStore()
 
@@ -161,6 +166,7 @@ const formatRoutingExplanationDetail = (row: OpsSystemLog) => {
 }
 
 const formatSystemLogDetail = (row: OpsSystemLog) => {
+  if (isCacheInstrumentationLog(row)) return formatCacheInstrumentationDetail(row)
   if (isRoutingExplanationLog(row)) return formatRoutingExplanationDetail(row)
 
   const parts: string[] = []
@@ -396,6 +402,62 @@ const applyFilters = () => {
   fetchLogs()
 }
 
+const showCacheInstrumentation = () => {
+  filters.time_range = '24h'
+  filters.level = ''
+  filters.component = 'cache.instrumentation'
+  filters.request_id = ''
+  filters.client_request_id = ''
+  filters.user_id = ''
+  filters.account_id = ''
+  filters.model = ''
+  filters.q = ''
+  page.value = 1
+  fetchLogs()
+}
+
+const showCacheStickyDrift = () => {
+  filters.time_range = '24h'
+  filters.level = ''
+  filters.component = 'cache.instrumentation'
+  filters.request_id = ''
+  filters.client_request_id = ''
+  filters.user_id = ''
+  filters.account_id = ''
+  filters.model = ''
+  filters.q = 'account_switch_happened'
+  page.value = 1
+  fetchLogs()
+}
+
+const showCachePreviousResponse = () => {
+  filters.time_range = '24h'
+  filters.level = ''
+  filters.component = 'cache.instrumentation'
+  filters.request_id = ''
+  filters.client_request_id = ''
+  filters.user_id = ''
+  filters.account_id = ''
+  filters.model = ''
+  filters.q = 'previous_response_id_present'
+  page.value = 1
+  fetchLogs()
+}
+
+const showCachePromptKeyGaps = () => {
+  filters.time_range = '24h'
+  filters.level = ''
+  filters.component = 'cache.instrumentation'
+  filters.request_id = ''
+  filters.client_request_id = ''
+  filters.user_id = ''
+  filters.account_id = ''
+  filters.model = ''
+  filters.q = 'prompt_cache_key_present\":false'
+  page.value = 1
+  fetchLogs()
+}
+
 const showRoutingExplanations = () => {
   filters.time_range = '24h'
   filters.level = ''
@@ -406,6 +468,88 @@ const showRoutingExplanations = () => {
 }
 
 const hasData = computed(() => logs.value.length > 0)
+const cacheMode = computed(() => filters.component.trim() === 'cache.instrumentation')
+const cacheSummary = computed(() => buildCacheInstrumentationSummary(logs.value))
+const cacheHitRateLabel = computed(() => {
+  const totalSamples = cacheSummary.value.total
+  if (totalSamples <= 0) return '-'
+  return `${Math.round((cacheSummary.value.cacheHitCount / totalSamples) * 100)}%`
+})
+const formatSummaryList = (items: Array<{ label: string; count: number }>) =>
+  items.length > 0 ? items.map((item) => `${item.label} (${item.count})`).join(' / ') : '-'
+const activeQuickView = computed(() => {
+  const component = filters.component.trim()
+  const q = filters.q.trim()
+  if (component === 'cache.instrumentation' && q === '') return 'cache_all'
+  if (component === 'cache.instrumentation' && q === 'account_switch_happened') return 'cache_switch'
+  if (component === 'cache.instrumentation' && q === 'previous_response_id_present') return 'cache_previous_response'
+  if (component === 'cache.instrumentation' && q === 'prompt_cache_key_present\":false') return 'cache_prompt_gap'
+  if (component === 'routing.explanation') return 'routing'
+  return 'custom'
+})
+const quickViews = computed(() => [
+  {
+    id: 'cache_all',
+    title: '缓存诊断总览',
+    description: '先看最近 24h 的 cache 样本，再决定是查会话漂移、key 缺失，还是 continuation 没接上。',
+    tone: 'emerald',
+    action: showCacheInstrumentation
+  },
+  {
+    id: 'cache_switch',
+    title: '会话漂移 / 切账号',
+    description: '优先看 `account_switch_happened` 和 sticky miss，判断缓存失败是不是调度层导致。',
+    tone: 'amber',
+    action: showCacheStickyDrift
+  },
+  {
+    id: 'cache_previous_response',
+    title: 'Continuation 接续',
+    description: '聚焦带 `previous_response_id` 的样本，确认 continuation 是否真的接上。',
+    tone: 'sky',
+    action: showCachePreviousResponse
+  },
+  {
+    id: 'cache_prompt_gap',
+    title: 'Prompt Cache Key 缺口',
+    description: '直接筛缺少 `prompt_cache_key` 的样本，判断问题在客户端透传还是网关注入。',
+    tone: 'rose',
+    action: showCachePromptKeyGaps
+  },
+  {
+    id: 'routing',
+    title: '调度解释回看',
+    description: '如果缓存问题像是账号选择导致，再切到路由解释看 account 为什么被选中。',
+    tone: 'slate',
+    action: showRoutingExplanations
+  }
+])
+const cacheFocusNotes = computed(() => {
+  if (!cacheMode.value || cacheSummary.value.total <= 0) return []
+  const notes: string[] = []
+  if (cacheSummary.value.accountSwitchCount > 0) notes.push(`有 ${cacheSummary.value.accountSwitchCount} 条样本发生账号切换，优先排查 sticky/session 漂移。`)
+  if (cacheSummary.value.promptCacheKeyMissingCount > 0) notes.push(`有 ${cacheSummary.value.promptCacheKeyMissingCount} 条样本缺少 prompt_cache_key，建议先看客户端透传或自动注入链路。`)
+  if (cacheSummary.value.previousResponseCount > 0) notes.push(`有 ${cacheSummary.value.previousResponseCount} 条样本带 previous_response_id，可继续核对 continuation 命中质量。`)
+  if (cacheSummary.value.cacheHitCount === 0) notes.push('当前结果页没有 cache_read 命中样本，建议优先看 signal source 和切账号情况。')
+  return notes.slice(0, 3)
+})
+const quickViewCardClass = (id: string, tone: string) => {
+  const active = activeQuickView.value === id
+  const base = 'rounded-xl border px-3 py-3 text-left transition-colors'
+  if (tone === 'emerald') {
+    return `${base} ${active ? 'border-emerald-400 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/20' : 'border-emerald-100 bg-white hover:border-emerald-300 dark:border-emerald-900/30 dark:bg-dark-900/40'}`
+  }
+  if (tone === 'amber') {
+    return `${base} ${active ? 'border-amber-400 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/20' : 'border-amber-100 bg-white hover:border-amber-300 dark:border-amber-900/30 dark:bg-dark-900/40'}`
+  }
+  if (tone === 'sky') {
+    return `${base} ${active ? 'border-sky-400 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/20' : 'border-sky-100 bg-white hover:border-sky-300 dark:border-sky-900/30 dark:bg-dark-900/40'}`
+  }
+  if (tone === 'rose') {
+    return `${base} ${active ? 'border-rose-400 bg-rose-50 dark:border-rose-700 dark:bg-rose-950/20' : 'border-rose-100 bg-white hover:border-rose-300 dark:border-rose-900/30 dark:bg-dark-900/40'}`
+  }
+  return `${base} ${active ? 'border-slate-400 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/30' : 'border-slate-200 bg-white hover:border-slate-300 dark:border-dark-700 dark:bg-dark-900/40'}`
+}
 
 onMounted(async () => {
   if (props.platformFilter) {
@@ -482,6 +626,43 @@ onMounted(async () => {
       <p v-if="health.last_error" class="mt-2 text-xs text-red-600 dark:text-red-400">最近写入错误：{{ health.last_error }}</p>
     </div>
 
+    <div class="mb-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4 dark:border-dark-700 dark:bg-dark-900/50">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div class="text-[12px] font-semibold text-gray-900 dark:text-white">预设诊断入口</div>
+          <p class="mt-1 text-[11px] leading-6 text-gray-500 dark:text-gray-400">
+            先用预置视角快速定位问题，再按下方筛选补细节。当前视角：{{ activeQuickView === 'custom' ? '自定义筛选' : quickViews.find((item) => item.id === activeQuickView)?.title }}
+          </p>
+        </div>
+        <div class="rounded-lg bg-white px-3 py-2 text-[11px] text-gray-600 shadow-sm dark:bg-dark-800 dark:text-gray-300">
+          建议顺序：总览 → 切账号/漂移 → previous_response_id → prompt_cache_key 缺口
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-3 lg:grid-cols-5">
+        <button
+          v-for="view in quickViews"
+          :key="view.id"
+          type="button"
+          :class="quickViewCardClass(view.id, view.tone)"
+          @click="view.action"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <div class="text-sm font-semibold text-gray-900 dark:text-gray-100">{{ view.title }}</div>
+            <span
+              v-if="activeQuickView === view.id"
+              class="rounded-full bg-gray-900/90 px-2 py-0.5 text-[10px] text-white dark:bg-white/90 dark:text-gray-900"
+            >
+              当前
+            </span>
+          </div>
+          <p class="mt-2 text-[11px] leading-6 text-gray-600 dark:text-gray-400">
+            {{ view.description }}
+          </p>
+        </button>
+      </div>
+    </div>
+
     <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
       <label class="text-xs text-gray-600 dark:text-gray-300">
         时间范围
@@ -535,10 +716,80 @@ onMounted(async () => {
 
     <div class="mb-3 flex flex-wrap gap-2">
       <button type="button" class="btn btn-primary btn-sm" @click="applyFilters">查询</button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="showCacheInstrumentation">只看缓存诊断</button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="showCacheStickyDrift">只看会话漂移/切账号</button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="showCachePreviousResponse">只看 previous_response_id</button>
+      <button type="button" class="btn btn-secondary btn-sm" @click="showCachePromptKeyGaps">只看缺少 prompt_cache_key</button>
       <button type="button" class="btn btn-secondary btn-sm" @click="showRoutingExplanations">只看调度解释</button>
       <button type="button" class="btn btn-secondary btn-sm" @click="resetFilters">重置</button>
       <button type="button" class="btn btn-danger btn-sm" @click="cleanupCurrentFilter">按当前筛选清理</button>
       <button type="button" class="btn btn-secondary btn-sm" @click="fetchHealth">刷新健康指标</button>
+    </div>
+
+    <div
+      v-if="cacheMode"
+      class="mb-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/40 dark:bg-amber-950/10"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div class="text-sm font-semibold text-amber-900 dark:text-amber-200">缓存诊断视角</div>
+          <p class="mt-1 max-w-3xl text-xs leading-6 text-amber-800/90 dark:text-amber-100/80">
+            这批样本来自 `cache.instrumentation` 采样事件，适合先看会不会话漂移、`prompt_cache_key` 是否缺失、以及 `previous_response_id` 是否真正接上。
+            当前表格仍按时间倒序，下面的摘要只基于当前筛选结果页。
+          </p>
+        </div>
+        <div class="rounded-lg bg-white/80 px-3 py-2 text-xs text-amber-900 shadow-sm dark:bg-amber-950/20 dark:text-amber-100">
+          当前样本 {{ cacheSummary.total }} 条
+        </div>
+      </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-6">
+        <div class="rounded-lg bg-white/80 px-3 py-2 shadow-sm dark:bg-amber-950/20">
+          <div class="text-[11px] text-gray-500 dark:text-amber-100/60">缓存读取命中</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900 dark:text-amber-50">{{ cacheSummary.cacheHitCount }} / {{ cacheHitRateLabel }}</div>
+        </div>
+        <div class="rounded-lg bg-white/80 px-3 py-2 shadow-sm dark:bg-amber-950/20">
+          <div class="text-[11px] text-gray-500 dark:text-amber-100/60">账号切换</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900 dark:text-amber-50">{{ cacheSummary.accountSwitchCount }}</div>
+        </div>
+        <div class="rounded-lg bg-white/80 px-3 py-2 shadow-sm dark:bg-amber-950/20">
+          <div class="text-[11px] text-gray-500 dark:text-amber-100/60">粘性未命中</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900 dark:text-amber-50">{{ cacheSummary.stickyMissCount }}</div>
+        </div>
+        <div class="rounded-lg bg-white/80 px-3 py-2 shadow-sm dark:bg-amber-950/20">
+          <div class="text-[11px] text-gray-500 dark:text-amber-100/60">带 previous_response_id</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900 dark:text-amber-50">{{ cacheSummary.previousResponseCount }}</div>
+        </div>
+        <div class="rounded-lg bg-white/80 px-3 py-2 shadow-sm dark:bg-amber-950/20">
+          <div class="text-[11px] text-gray-500 dark:text-amber-100/60">缺少 prompt_cache_key</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900 dark:text-amber-50">{{ cacheSummary.promptCacheKeyMissingCount }}</div>
+        </div>
+        <div class="rounded-lg bg-white/80 px-3 py-2 shadow-sm dark:bg-amber-950/20">
+          <div class="text-[11px] text-gray-500 dark:text-amber-100/60">自动派生 key</div>
+          <div class="mt-1 text-sm font-semibold text-gray-900 dark:text-amber-50">{{ cacheSummary.autoInjectedCount }}</div>
+        </div>
+      </div>
+
+      <div class="mt-3 grid gap-3 xl:grid-cols-2">
+        <div class="rounded-lg bg-white/70 px-3 py-2 text-xs text-gray-700 shadow-sm dark:bg-amber-950/15 dark:text-amber-100/80">
+          <span class="font-medium text-gray-900 dark:text-amber-50">cache_family</span>
+          <span class="ml-2">{{ formatSummaryList(cacheSummary.families) }}</span>
+        </div>
+        <div class="rounded-lg bg-white/70 px-3 py-2 text-xs text-gray-700 shadow-sm dark:bg-amber-950/15 dark:text-amber-100/80">
+          <span class="font-medium text-gray-900 dark:text-amber-50">session_signal_source</span>
+          <span class="ml-2">{{ formatSummaryList(cacheSummary.signalSources) }}</span>
+        </div>
+      </div>
+
+      <div v-if="cacheFocusNotes.length > 0" class="mt-3 grid gap-2">
+        <div
+          v-for="note in cacheFocusNotes"
+          :key="note"
+          class="rounded-lg border border-white/70 bg-white/70 px-3 py-2 text-xs text-amber-900 shadow-sm dark:border-amber-900/30 dark:bg-amber-950/15 dark:text-amber-100"
+        >
+          {{ note }}
+        </div>
+      </div>
     </div>
 
     <div class="ops-system-log-table-wrap overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
@@ -554,7 +805,14 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody class="ops-system-log-table-body divide-y divide-gray-100 dark:divide-dark-800">
-            <tr v-for="row in logs" :key="row.id" class="align-top" :class="isRoutingExplanationLog(row) ? 'bg-amber-50/60 dark:bg-amber-950/10' : ''">
+            <tr
+              v-for="row in logs"
+              :key="row.id"
+              class="align-top"
+              :class="isCacheInstrumentationLog(row)
+                ? 'bg-emerald-50/60 dark:bg-emerald-950/10'
+                : (isRoutingExplanationLog(row) ? 'bg-amber-50/60 dark:bg-amber-950/10' : '')"
+            >
               <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">{{ formatTime(row.created_at) }}</td>
               <td class="px-3 py-2 text-xs">
                 <span class="inline-flex rounded-full px-2 py-0.5 font-semibold" :class="levelBadgeClass(row.level)">

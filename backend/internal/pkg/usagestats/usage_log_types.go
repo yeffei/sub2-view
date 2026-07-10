@@ -94,25 +94,39 @@ type TrendDataPoint struct {
 
 // ModelStat represents usage statistics for a single model
 type ModelStat struct {
-	Model               string  `json:"model"`
-	Requests            int64   `json:"requests"`
-	InputTokens         int64   `json:"input_tokens"`
-	OutputTokens        int64   `json:"output_tokens"`
-	CacheCreationTokens int64   `json:"cache_creation_tokens"`
-	CacheReadTokens     int64   `json:"cache_read_tokens"`
-	TotalTokens         int64   `json:"total_tokens"`
-	Cost                float64 `json:"cost"`         // 标准计费
-	ActualCost          float64 `json:"actual_cost"`  // 实际扣除
-	AccountCost         float64 `json:"account_cost"` // 账号成本
+	Model                        string  `json:"model"`
+	Requests                     int64   `json:"requests"`
+	InputTokens                  int64   `json:"input_tokens"`
+	OutputTokens                 int64   `json:"output_tokens"`
+	CacheCreationTokens          int64   `json:"cache_creation_tokens"`
+	CacheReadTokens              int64   `json:"cache_read_tokens"`
+	CacheReadHitRequests         int64   `json:"cache_read_hit_requests"`
+	CacheCreationRequests        int64   `json:"cache_creation_requests"`
+	CacheReadHitRatio            float64 `json:"cache_read_hit_ratio"`
+	AverageCacheReadTokensPerHit float64 `json:"average_cache_read_tokens_per_hit"`
+	AverageActualInputTokens     float64 `json:"average_actual_input_tokens"`
+	TotalTokens                  int64   `json:"total_tokens"`
+	Cost                         float64 `json:"cost"`         // 标准计费
+	ActualCost                   float64 `json:"actual_cost"`  // 实际扣除
+	AccountCost                  float64 `json:"account_cost"` // 账号成本
 }
 
 // EndpointStat represents usage statistics for a single request endpoint.
 type EndpointStat struct {
-	Endpoint    string  `json:"endpoint"`
-	Requests    int64   `json:"requests"`
-	TotalTokens int64   `json:"total_tokens"`
-	Cost        float64 `json:"cost"`        // 标准计费
-	ActualCost  float64 `json:"actual_cost"` // 实际扣除
+	Endpoint                     string  `json:"endpoint"`
+	Requests                     int64   `json:"requests"`
+	InputTokens                  int64   `json:"input_tokens"`
+	OutputTokens                 int64   `json:"output_tokens"`
+	CacheCreationTokens          int64   `json:"cache_creation_tokens"`
+	CacheReadTokens              int64   `json:"cache_read_tokens"`
+	CacheReadHitRequests         int64   `json:"cache_read_hit_requests"`
+	CacheCreationRequests        int64   `json:"cache_creation_requests"`
+	CacheReadHitRatio            float64 `json:"cache_read_hit_ratio"`
+	AverageCacheReadTokensPerHit float64 `json:"average_cache_read_tokens_per_hit"`
+	AverageActualInputTokens     float64 `json:"average_actual_input_tokens"`
+	TotalTokens                  int64   `json:"total_tokens"`
+	Cost                         float64 `json:"cost"`        // 标准计费
+	ActualCost                   float64 `json:"actual_cost"` // 实际扣除
 }
 
 // GroupUsageSummary represents today's and cumulative cost for a single group.
@@ -278,20 +292,25 @@ type UsageLogFilters struct {
 
 // UsageStats represents usage statistics
 type UsageStats struct {
-	TotalRequests            int64          `json:"total_requests"`
-	TotalInputTokens         int64          `json:"total_input_tokens"`
-	TotalOutputTokens        int64          `json:"total_output_tokens"`
-	TotalCacheTokens         int64          `json:"total_cache_tokens"`
-	TotalCacheCreationTokens int64          `json:"total_cache_creation_tokens"`
-	TotalCacheReadTokens     int64          `json:"total_cache_read_tokens"`
-	TotalTokens              int64          `json:"total_tokens"`
-	TotalCost                float64        `json:"total_cost"`
-	TotalActualCost          float64        `json:"total_actual_cost"`
-	TotalAccountCost         *float64       `json:"total_account_cost,omitempty"`
-	AverageDurationMs        float64        `json:"average_duration_ms"`
-	Endpoints                []EndpointStat `json:"endpoints,omitempty"`
-	UpstreamEndpoints        []EndpointStat `json:"upstream_endpoints,omitempty"`
-	EndpointPaths            []EndpointStat `json:"endpoint_paths,omitempty"`
+	TotalRequests                int64          `json:"total_requests"`
+	TotalInputTokens             int64          `json:"total_input_tokens"`
+	TotalOutputTokens            int64          `json:"total_output_tokens"`
+	TotalCacheTokens             int64          `json:"total_cache_tokens"`
+	TotalCacheCreationTokens     int64          `json:"total_cache_creation_tokens"`
+	TotalCacheReadTokens         int64          `json:"total_cache_read_tokens"`
+	CacheReadHitRequests         int64          `json:"cache_read_hit_requests"`
+	CacheCreationRequests        int64          `json:"cache_creation_requests"`
+	CacheReadHitRatio            float64        `json:"cache_read_hit_ratio"`
+	AverageCacheReadTokensPerHit float64        `json:"average_cache_read_tokens_per_hit"`
+	AverageActualInputTokens     float64        `json:"average_actual_input_tokens"`
+	TotalTokens                  int64          `json:"total_tokens"`
+	TotalCost                    float64        `json:"total_cost"`
+	TotalActualCost              float64        `json:"total_actual_cost"`
+	TotalAccountCost             *float64       `json:"total_account_cost,omitempty"`
+	AverageDurationMs            float64        `json:"average_duration_ms"`
+	Endpoints                    []EndpointStat `json:"endpoints,omitempty"`
+	UpstreamEndpoints            []EndpointStat `json:"upstream_endpoints,omitempty"`
+	EndpointPaths                []EndpointStat `json:"endpoint_paths,omitempty"`
 }
 
 // PlatformUsage 表示某用户/某 API key 在单个"有效平台"维度的用量明细。
@@ -312,10 +331,10 @@ type BatchUserUsageStats struct {
 
 // BatchAPIKeyUsageStats represents usage stats for a single API key
 type BatchAPIKeyUsageStats struct {
-	APIKeyID          int64   `json:"api_key_id"`
-	TodayActualCost   float64 `json:"today_actual_cost"`
-	TotalActualCost   float64 `json:"total_actual_cost"`
-	SuccessRequests24h int64  `json:"success_requests_24h"`
+	APIKeyID           int64   `json:"api_key_id"`
+	TodayActualCost    float64 `json:"today_actual_cost"`
+	TotalActualCost    float64 `json:"total_actual_cost"`
+	SuccessRequests24h int64   `json:"success_requests_24h"`
 }
 
 // AccountUsageHistory represents daily usage history for an account

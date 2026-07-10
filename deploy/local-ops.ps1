@@ -1,12 +1,19 @@
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('check-entry', 'entry', 'open-entry', 'smoke', 'redeploy', 'release-image')]
+    [ValidateSet('check-entry', 'entry', 'open-entry', 'smoke', 'redeploy', 'release-image', 'stability')]
     [string]$Action,
     [string]$BaseUrl = 'http://127.0.0.1:8080',
     [string]$Email = '',
     [string]$Password = '',
     [string]$ContainerName = 'sub2api',
     [string]$EnvFile = '',
+    [string]$ApiKey = '',
+    [string]$Model = 'gpt-5.4',
+    [int]$Concurrency = 4,
+    [int]$RequestsPerWorker = 5,
+    [int]$RequestTimeoutSec = 120,
+    [int]$StatsIntervalSec = 2,
+    [switch]$NonStream,
     [switch]$SkipTypecheck,
     [switch]$SkipFrontendBuild,
     [switch]$SkipSmoke
@@ -106,6 +113,28 @@ switch ($Action) {
             $params.SkipSmoke = $true
         }
         & (Join-Path $scriptRoot 'build-local-release.ps1') @params
+        break
+    }
+    'stability' {
+        $params = @{
+            BaseUrl = if ($PSBoundParameters.ContainsKey('BaseUrl')) { $BaseUrl } else { 'http://127.0.0.1:18080' }
+            ContainerName = $ContainerName
+            Model = $Model
+            Concurrency = $Concurrency
+            RequestsPerWorker = $RequestsPerWorker
+            RequestTimeoutSec = $RequestTimeoutSec
+            StatsIntervalSec = $StatsIntervalSec
+        }
+        if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
+            $params.EnvFile = $EnvFile
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ApiKey)) {
+            $params.ApiKey = $ApiKey
+        }
+        if ($NonStream) {
+            $params.NonStream = $true
+        }
+        & (Join-Path $scriptRoot 'local-stability-check.ps1') @params
         break
     }
 }

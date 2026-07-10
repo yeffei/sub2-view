@@ -66,8 +66,9 @@ const (
 	// 配额自动暂停时，超过该时长仍未刷新的 used% 快照视为陈旧，不再据此暂停账号。
 	// 被暂停的账号收不到流量，其快照永远不会从上游响应头刷新；该兜底让账号在快照
 	// 陈旧时放行一次请求，从而通过正常响应头自愈，而无需等待整个窗口（5h/7d）重置。
-	openAICodexAutoPauseStaleAfter = 2 * time.Hour
-	openAIRoutingMemberCacheTTL    = 5 * time.Second
+	openAICodexAutoPauseStaleAfter                        = 2 * time.Hour
+	openAIRoutingMemberCacheTTL                           = 5 * time.Second
+	openAIResponsesAutoUpstreamSessionAnchorGinContextKey = "__openai_responses_auto_upstream_session_anchor"
 )
 
 // OpenAI allowed headers whitelist (for non-passthrough).
@@ -1003,6 +1004,57 @@ func isolateOpenAISessionID(apiKeyID int64, raw string) string {
 	_, _ = fmt.Fprintf(h, "k%d:", apiKeyID)
 	_, _ = h.WriteString(raw)
 	return fmt.Sprintf("%016x", h.Sum64())
+}
+
+type openAIUpstreamSessionAnchor struct {
+	SessionID string
+	Source    string
+}
+
+func setOpenAIResponsesAutoUpstreamSessionAnchor(c *gin.Context, body []byte, previousResponseIDPresent bool) {
+	if c == nil || previousResponseIDPresent {
+		return
+	}
+	if strings.TrimSpace(explicitOpenAISessionID(c, body)) != "" {
+		return
+	}
+	seed := strings.TrimSpace(deriveOpenAIContentSessionSeed(body))
+	if seed == "" {
+		return
+	}
+	c.Set(openAIResponsesAutoUpstreamSessionAnchorGinContextKey, openAIUpstreamSessionAnchor{
+		SessionID: seed,
+		Source:    "content_fallback",
+	})
+}
+
+func getOpenAIResponsesAutoUpstreamSessionAnchor(c *gin.Context) openAIUpstreamSessionAnchor {
+	if c == nil {
+		return openAIUpstreamSessionAnchor{}
+	}
+	raw, ok := c.Get(openAIResponsesAutoUpstreamSessionAnchorGinContextKey)
+	if !ok {
+		return openAIUpstreamSessionAnchor{}
+	}
+	anchor, _ := raw.(openAIUpstreamSessionAnchor)
+	anchor.SessionID = strings.TrimSpace(anchor.SessionID)
+	anchor.Source = strings.TrimSpace(anchor.Source)
+	return anchor
+}
+
+func resolveOpenAIUpstreamSessionAnchor(c *gin.Context, promptCacheKey string) openAIUpstreamSessionAnchor {
+	if c != nil {
+		if sessionID := strings.TrimSpace(c.GetHeader("session_id")); sessionID != "" {
+			return openAIUpstreamSessionAnchor{SessionID: sessionID, Source: "header_session_id"}
+		}
+		if conversationID := strings.TrimSpace(c.GetHeader("conversation_id")); conversationID != "" {
+			return openAIUpstreamSessionAnchor{SessionID: conversationID, Source: "header_conversation_id"}
+		}
+	}
+	if trimmedPromptCacheKey := strings.TrimSpace(promptCacheKey); trimmedPromptCacheKey != "" {
+		return openAIUpstreamSessionAnchor{SessionID: trimmedPromptCacheKey, Source: "prompt_cache_key"}
+	}
+	return getOpenAIResponsesAutoUpstreamSessionAnchor(c)
 }
 
 func logCodexCLIOnlyDetection(ctx context.Context, c *gin.Context, account *Account, apiKeyID int64, result CodexClientRestrictionDetectionResult, body []byte) {
@@ -2647,6 +2699,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	requestView := newOpenAIRequestView(body)
 	reqModel, reqStream, promptCacheKey := requestView.Model, requestView.Stream, requestView.PromptCacheKey
 	originalModel := reqModel
+	originalPromptCacheKey := promptCacheKey
+	previousResponseIDPresent := gjson.GetBytes(body, "previous_response_id").Exists()
+	setOpenAIResponsesAutoUpstreamSessionAnchor(c, originalBody, previousResponseIDPresent)
 
 	if account.Type == AccountTypeAPIKey && !openai_compat.ShouldUseResponsesAPI(account.Extra) {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body)
@@ -2690,6 +2745,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 	passthroughEnabled := account.IsOpenAIPassthroughEnabled()
 	if passthroughEnabled {
+		setCacheInstrumentationOpenAIResponsesState(
+			c,
+			originalBody,
+			promptCacheKey,
+			false,
+			previousResponseIDPresent,
+		)
 		// 透传分支只需要轻量提取字段，避免热路径全量 Unmarshal。
 		reasoningEffort := extractOpenAIReasoningEffortFromBody(body, reqModel)
 		// 国产模型默认 effort 补充：也要用 mappedModel 判定是否是 passback-required 上游。
@@ -2887,6 +2949,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			promptCacheKey = codexResult.PromptCacheKey
 		}
 	}
+	setCacheInstrumentationOpenAIResponsesState(c, originalBody, promptCacheKey, strings.TrimSpace(originalPromptCacheKey) == "" && strings.TrimSpace(promptCacheKey) != "", previousResponseIDPresent)
 
 	if !SupportsVerbosity(upstreamModel) && gjson.GetBytes(body, "text.verbosity").Exists() {
 		markPatchDelete("text.verbosity")
@@ -3701,6 +3764,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		// 先保存客户端原始值，再做 compact 补充，避免后续统一隔离时读到已处理的值。
 		clientSessionID := strings.TrimSpace(req.Header.Get("session_id"))
 		clientConversationID := strings.TrimSpace(req.Header.Get("conversation_id"))
+		anchorSource := ""
 		if isOpenAIResponsesCompactPath(c) {
 			req.Header.Set("accept", "application/json")
 			if req.Header.Get("version") == "" {
@@ -3708,6 +3772,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 			}
 			if clientSessionID == "" {
 				clientSessionID = resolveOpenAICompactSessionID(c)
+				anchorSource = "compact_session"
 			}
 		} else if req.Header.Get("accept") == "" {
 			req.Header.Set("accept", "text/event-stream")
@@ -3720,13 +3785,18 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		}
 		// 用隔离后的 session 标识符覆盖客户端透传值，防止跨用户会话碰撞。
 		if clientSessionID == "" {
-			clientSessionID = promptCacheKey
+			anchor := resolveOpenAIUpstreamSessionAnchor(c, promptCacheKey)
+			clientSessionID = anchor.SessionID
+			anchorSource = anchor.Source
+		} else if anchorSource == "" {
+			anchorSource = "header_session_id"
 		}
 		if clientConversationID == "" {
 			clientConversationID = promptCacheKey
 		}
 		if clientSessionID != "" {
 			req.Header.Set("session_id", isolateOpenAISessionID(apiKeyID, clientSessionID))
+			RecordCacheInstrumentationUpstreamSessionAnchor(c, anchorSource)
 		}
 		if clientConversationID != "" {
 			req.Header.Set("conversation_id", isolateOpenAISessionID(apiKeyID, clientConversationID))
@@ -4474,6 +4544,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 			req.Header.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI))
 		}
 		apiKeyID := getAPIKeyIDFromContext(c)
+		anchorSource := ""
 		if isOpenAIResponsesCompactPath(c) {
 			req.Header.Set("accept", "application/json")
 			if req.Header.Get("version") == "" {
@@ -4481,15 +4552,25 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 			}
 			compactSession := resolveOpenAICompactSessionID(c)
 			req.Header.Set("session_id", isolateOpenAISessionID(apiKeyID, compactSession))
+			anchorSource = "compact_session"
 		} else {
 			req.Header.Set("accept", "text/event-stream")
 		}
+		if anchorSource == "" {
+			anchor := resolveOpenAIUpstreamSessionAnchor(c, promptCacheKey)
+			if anchor.SessionID != "" {
+				req.Header.Set("session_id", isolateOpenAISessionID(apiKeyID, anchor.SessionID))
+				anchorSource = anchor.Source
+			}
+		}
 		if promptCacheKey != "" {
 			isolated := isolateOpenAISessionID(apiKeyID, promptCacheKey)
-			req.Header.Set("session_id", isolated)
 			if !compatMessagesBridge || clientConversationID != "" {
 				req.Header.Set("conversation_id", isolated)
 			}
+		}
+		if anchorSource != "" {
+			RecordCacheInstrumentationUpstreamSessionAnchor(c, anchorSource)
 		}
 	}
 
@@ -6080,17 +6161,18 @@ func (s *OpenAIGatewayService) replaceModelInResponseBody(body []byte, fromModel
 
 // OpenAIRecordUsageInput input for recording usage
 type OpenAIRecordUsageInput struct {
-	Result             *OpenAIForwardResult
-	APIKey             *APIKey
-	User               *User
-	Account            *Account
-	Subscription       *UserSubscription
-	InboundEndpoint    string
-	UpstreamEndpoint   string
-	UserAgent          string // 请求的 User-Agent
-	IPAddress          string // 请求的客户端 IP 地址
-	RequestPayloadHash string
-	APIKeyService      APIKeyQuotaUpdater
+	Result                       *OpenAIForwardResult
+	APIKey                       *APIKey
+	User                         *User
+	Account                      *Account
+	Subscription                 *UserSubscription
+	InboundEndpoint              string
+	UpstreamEndpoint             string
+	UserAgent                    string // 请求的 User-Agent
+	IPAddress                    string // 请求的客户端 IP 地址
+	RequestPayloadHash           string
+	APIKeyService                APIKeyQuotaUpdater
+	CacheInstrumentationSnapshot *CacheInstrumentationSnapshot
 	// CyberBlocked 为 true 时把该用量行标记为 cyber（request_type=cyber），计费逻辑不变。
 	CyberBlocked bool
 	ChannelUsageFields
@@ -6360,6 +6442,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
 		writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+		emitCacheInstrumentationForOpenAI(input, usageLog)
 		logger.LegacyPrintf("service.openai_gateway", "[SIMPLE MODE] Usage recorded (not billed): user=%d, tokens=%d", usageLog.UserID, usageLog.TotalTokens())
 		s.deferredService.ScheduleLastUsedUpdate(account.ID)
 		return nil
@@ -6385,6 +6468,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		return billingErr
 	}
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
+	emitCacheInstrumentationForOpenAI(input, usageLog)
 
 	return nil
 }

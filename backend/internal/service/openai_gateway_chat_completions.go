@@ -202,6 +202,7 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 			}
 		}
 	}
+	setCacheInstrumentationOpenAIChatState(c, body, promptCacheKey, compatPromptCacheInjected)
 
 	// 4b. Apply OpenAI fast policy (may filter service_tier or block the request).
 	updatedBody, policyErr := s.applyOpenAIFastPolicyToBody(ctx, account, upstreamModel, responsesBody)

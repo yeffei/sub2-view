@@ -223,6 +223,7 @@ import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat,
 const { t } = useI18n()
 const appStore = useAppStore()
 type DistributionMetric = 'tokens' | 'actual_cost'
+type CacheDistributionMetric = DistributionMetric | 'cache_hit_ratio' | 'cache_read_per_hit'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
 type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
 const route = useRoute()
@@ -230,7 +231,7 @@ const usageStats = ref<AdminUsageStatsResponse | null>(null); const usageLogs = 
 const trendData = ref<TrendDataPoint[]>([]); const requestedModelStats = ref<ModelStat[]>([]); const upstreamModelStats = ref<ModelStat[]>([]); const mappingModelStats = ref<ModelStat[]>([]); const groupStats = ref<GroupStat[]>([]); const chartsLoading = ref(false); const modelStatsLoading = ref(false); const granularity = ref<'day' | 'hour'>('hour')
 const modelChartSectionRef = ref<HTMLElement | null>(null)
 
-const modelDistributionMetric = ref<DistributionMetric>('tokens')
+const modelDistributionMetric = ref<CacheDistributionMetric>('tokens')
 const modelDistributionSource = ref<ModelDistributionSource>('requested')
 const loadedModelSources = reactive<Record<ModelDistributionSource, boolean>>({
   requested: false,
@@ -238,7 +239,7 @@ const loadedModelSources = reactive<Record<ModelDistributionSource, boolean>>({
   mapping: false,
 })
 const groupDistributionMetric = ref<DistributionMetric>('tokens')
-const endpointDistributionMetric = ref<DistributionMetric>('tokens')
+const endpointDistributionMetric = ref<CacheDistributionMetric>('tokens')
 const endpointDistributionSource = ref<EndpointSource>('inbound')
 const inboundEndpointStats = ref<EndpointStat[]>([])
 const upstreamEndpointStats = ref<EndpointStat[]>([])
