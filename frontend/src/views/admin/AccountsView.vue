@@ -392,18 +392,30 @@
             </div>
           </template>
           <template #cell-rate_multiplier="{ row }">
-            <button
-              v-if="canSyncUpstreamRate(row)"
-              type="button"
-              class="rounded px-1 py-0.5 font-mono text-sm text-teal-700 transition-colors hover:bg-teal-50 hover:text-teal-800 dark:text-teal-300 dark:hover:bg-teal-900/20"
-              :title="t('admin.accounts.viewCostRateHistory')"
-              @click="openCostRateHistory(row)"
-            >
-              {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
-            </button>
-            <span v-else class="text-sm font-mono text-gray-700 dark:text-gray-300">
-              {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
-            </span>
+            <div class="flex items-center gap-1 whitespace-nowrap">
+              <button
+                v-if="canSyncUpstreamRate(row)"
+                type="button"
+                class="rounded px-1 py-0.5 font-mono text-sm text-teal-700 transition-colors hover:bg-teal-50 hover:text-teal-800 dark:text-teal-300 dark:hover:bg-teal-900/20"
+                :title="t('admin.accounts.viewCostRateHistory')"
+                @click="openCostRateHistory(row)"
+              >
+                {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
+              </button>
+              <span v-else class="text-sm font-mono text-gray-700 dark:text-gray-300">
+                {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
+              </span>
+              <Transition name="rate-sync-notice">
+                <span
+                  v-if="upstreamRateSyncNotices[row.id]"
+                  class="inline-flex rounded-md px-1.5 py-0.5 font-mono text-[0.68rem] font-medium leading-none"
+                  :class="upstreamRateSyncNoticeClass(upstreamRateSyncNotices[row.id])"
+                  :title="upstreamRateSyncNoticeTitle(upstreamRateSyncNotices[row.id])"
+                >
+                  {{ formatUpstreamRateSyncDelta(upstreamRateSyncNotices[row.id]) }}
+                </span>
+              </Transition>
+            </div>
           </template>
           <template #cell-priority="{ value }">
             <span class="text-sm text-gray-700 dark:text-gray-300">{{ value }}</span>
@@ -434,7 +446,7 @@
             </div>
           </template>
           <template #cell-actions="{ row }">
-            <div class="flex items-center gap-0.5 whitespace-nowrap">
+            <div class="flex items-center gap-0 whitespace-nowrap">
               <button @click="handleEdit(row)" :title="t('common.edit')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
               </button>
@@ -444,21 +456,18 @@
               <button @click="handleTest(row)" :title="t('admin.accounts.testAccountConnection')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-emerald-600 transition-colors hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 5v14l11-7-11-7z" /></svg>
               </button>
-              <button @click="handleViewStats(row)" :title="t('admin.accounts.usageStatistics')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 16.5v-9m4.5 9v-6m4.5 6V4.5m-12 12h15" /></svg>
-              </button>
-              <button @click="handleSchedule(row)" :title="t('admin.scheduledTests.schedule')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-600 transition-colors hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-900/20">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m5-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              </button>
               <button
                 v-if="canSyncUpstreamRate(row)"
                 @click="handleSyncUpstreamRate(row)"
                 :title="t('admin.accounts.syncUpstreamRateMultiplier')"
-                :disabled="syncingRateAccountId === row.id"
+                :disabled="isSyncingUpstreamRate(row.id)"
                 class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-teal-600 transition-colors hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-teal-300 dark:hover:bg-teal-900/20"
               >
-                <svg v-if="syncingRateAccountId === row.id" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" /></svg>
+                <svg v-if="isSyncingUpstreamRate(row.id)" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" /><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v3a5 5 0 00-5 5H4z" /></svg>
                 <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v3m0 12v3m7.8-9h-3M7.2 12h-3m13.3-5.5-2.1 2.1M8.6 15.4l-2.1 2.1m0-11 2.1 2.1m6.8 6.8 2.1 2.1" /></svg>
+              </button>
+              <button @click="handleViewStats(row)" :title="t('admin.accounts.usageStatistics')" class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-900/20">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 16.5v-9m4.5 9v-6m4.5 6V4.5m-12 12h15" /></svg>
               </button>
             </div>
           </template>
@@ -473,7 +482,6 @@
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
     <AccountStatsModal :show="showStats" :account="statsAcc" @close="closeStatsModal" />
-    <ScheduledTestsPanel :show="showSchedulePanel" :account-id="scheduleAcc?.id ?? null" :model-options="scheduleModelOptions" @close="closeSchedulePanel" />
     <SyncFromCrsModal :show="showSync" @close="showSync = false" @synced="reload" />
     <BaseDialog
       :show="showImportChooser"
@@ -699,8 +707,6 @@ import ImportDataModal from '@/components/admin/account/ImportDataModal.vue'
 import ReAuthAccountModal from '@/components/admin/account/ReAuthAccountModal.vue'
 import AccountTestModal from '@/components/admin/account/AccountTestModal.vue'
 import AccountStatsModal from '@/components/admin/account/AccountStatsModal.vue'
-import ScheduledTestsPanel from '@/components/admin/account/ScheduledTestsPanel.vue'
-import type { SelectOption } from '@/components/common/Select.vue'
 import AccountStatusIndicator from '@/components/account/AccountStatusIndicator.vue'
 import AccountUsageCell from '@/components/account/AccountUsageCell.vue'
 import AccountTodayStatsCell from '@/components/account/AccountTodayStatsCell.vue'
@@ -714,7 +720,7 @@ import { accountAnomalyReasonFilterOrder, deriveAccountAnomalyReason, type Accou
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateOnly, formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
-import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats } from '@/types'
 import type { BatchSyncUpstreamRateMultiplierResult } from '@/api/admin/accounts'
 import type { OpsSystemLog } from '@/api/admin/ops'
 
@@ -792,11 +798,15 @@ const deletingAcc = ref<Account | null>(null)
 const reAuthAcc = ref<Account | null>(null)
 const testingAcc = ref<Account | null>(null)
 const statsAcc = ref<Account | null>(null)
-const showSchedulePanel = ref(false)
-const scheduleAcc = ref<Account | null>(null)
-const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
-const syncingRateAccountId = ref<number | null>(null)
+const syncingRateAccountIds = ref<Set<number>>(new Set())
+interface UpstreamRateSyncNotice {
+  previous: number
+  current: number
+}
+const upstreamRateSyncNotices = ref<Record<number, UpstreamRateSyncNotice>>({})
+const upstreamRateSyncNoticeTimers = new Map<number, ReturnType<typeof setTimeout>>()
+const UPSTREAM_RATE_SYNC_NOTICE_DURATION_MS = 10_000
 const syncingRateBatch = ref(false)
 const syncingAllUpstreamRates = ref(false)
 const failedUpstreamRateAccountIds = ref<number[]>([])
@@ -816,6 +826,41 @@ const upstreamRateSyncSignificantCount = computed(() => (
   lastUpstreamRateSyncResult.value?.results.filter(item => item.success && item.significant_change).length || 0
 ))
 const formatRateMultiplier = (value?: number) => `${(value ?? 1).toFixed(4)}x`
+const upstreamRateSyncNoticeTitle = (notice: UpstreamRateSyncNotice) => (
+  `${formatRateMultiplier(notice.previous)} → ${formatRateMultiplier(notice.current)}`
+)
+const formatUpstreamRateSyncDelta = (notice: UpstreamRateSyncNotice) => {
+  const delta = notice.current - notice.previous
+  const sign = delta > 0 ? '+' : delta < 0 ? '−' : '±'
+  return `${sign}${Math.abs(delta).toFixed(2)}x`
+}
+const upstreamRateSyncNoticeClass = (notice: UpstreamRateSyncNotice) => {
+  const delta = notice.current - notice.previous
+  if (delta > 0) return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-300'
+  if (delta < 0) return 'bg-rose-50 text-rose-700 dark:bg-rose-900/25 dark:text-rose-300'
+  return 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+}
+const showUpstreamRateSyncNotice = (accountId: number, previous: number, current: number) => {
+  const existingTimer = upstreamRateSyncNoticeTimers.get(accountId)
+  if (existingTimer) clearTimeout(existingTimer)
+  upstreamRateSyncNotices.value = {
+    ...upstreamRateSyncNotices.value,
+    [accountId]: { previous, current }
+  }
+  upstreamRateSyncNoticeTimers.set(accountId, setTimeout(() => {
+    const next = { ...upstreamRateSyncNotices.value }
+    delete next[accountId]
+    upstreamRateSyncNotices.value = next
+    upstreamRateSyncNoticeTimers.delete(accountId)
+  }, UPSTREAM_RATE_SYNC_NOTICE_DURATION_MS))
+}
+const showUpstreamRateSyncResultNotices = (result: BatchSyncUpstreamRateMultiplierResult) => {
+  result.results.forEach((item) => {
+    if (item.success) {
+      showUpstreamRateSyncNotice(item.account_id, item.previous_rate_multiplier, item.rate_multiplier)
+    }
+  })
+}
 const upstreamRateSyncAccountLabel = (item: BatchSyncUpstreamRateMultiplierResult['results'][number]) => (
   item.account?.name || item.account_name || t('admin.accounts.upstreamRateSyncResultUnknownAccount')
 )
@@ -1139,7 +1184,7 @@ const {
   handlePageSizeChange: baseHandlePageSizeChange
 } = useTableLoader<Account, any>({
   fetchFn: adminAPI.accounts.list,
-  pageSize: 10,
+  pageSize: 20,
   initialParams: {
     platform: '',
     type: '',
@@ -1283,7 +1328,6 @@ const isAnyModalOpen = computed(() => {
     showReAuth.value ||
     showTest.value ||
     showStats.value ||
-    showSchedulePanel.value ||
     showErrorPassthrough.value ||
     showTLSFingerprintProfiles.value
   )
@@ -1663,12 +1707,12 @@ const ACCOUNT_COLUMN_CLASS_MAP: Record<string, string> = {
   usage: 'w-[8.25rem] min-w-[8.25rem]',
   proxy: 'w-[7.75rem] min-w-[7.75rem]',
   priority: 'w-[4rem] min-w-[4rem]',
-  rate_multiplier: 'w-[5.25rem] min-w-[5.25rem]',
+  rate_multiplier: 'w-[7.75rem] min-w-[7.75rem] !px-2',
   last_used_at: 'w-[8rem] min-w-[8rem]',
   created_at: 'w-[6.5rem] min-w-[6.5rem]',
   expires_at: 'w-[8.25rem] min-w-[8.25rem]',
   notes: 'w-[8rem] min-w-[8rem]',
-  actions: 'w-[12rem] min-w-[12rem]'
+  actions: 'w-[10.5rem] min-w-[10.5rem] !px-1'
 }
 
 const getAccountColumnClass = (key: string) => ACCOUNT_COLUMN_CLASS_MAP[key] ?? ''
@@ -1761,10 +1805,10 @@ const handleBulkSyncUpstreamRate = async () => {
       .map(item => item.account)
       .filter((account): account is Account => Boolean(account))
     if (updated.length > 0) {
-      updated.forEach(syncAccountRefs)
-      mergeAccountsIncrementally(updated)
+      updated.forEach(patchAccountInList)
     }
-		recordUpstreamRateSyncResult(result)
+		showUpstreamRateSyncResultNotices(result)
+		recordUpstreamRateSyncResult(result, result.failed > 0)
     if (result.failed > 0) {
       appStore.showError(t('admin.accounts.bulkActions.syncUpstreamRatePartial', {
         success: result.success,
@@ -1790,9 +1834,9 @@ const handleSyncAllUpstreamRates = async () => {
     const updated = result.results
       .map(item => item.account)
       .filter((account): account is Account => Boolean(account))
-    updated.forEach(syncAccountRefs)
-    mergeAccountsIncrementally(updated)
-		recordUpstreamRateSyncResult(result)
+    updated.forEach(patchAccountInList)
+		showUpstreamRateSyncResultNotices(result)
+		recordUpstreamRateSyncResult(result, result.failed > 0)
     failedUpstreamRateAccountIds.value = result.results
       .filter(item => !item.success && item.account_id > 0)
       .map(item => item.account_id)
@@ -1821,9 +1865,9 @@ const handleRetryFailedUpstreamRates = async () => {
     const updated = result.results
       .map(item => item.account)
       .filter((account): account is Account => Boolean(account))
-    updated.forEach(syncAccountRefs)
-    mergeAccountsIncrementally(updated)
-		recordUpstreamRateSyncResult(result)
+    updated.forEach(patchAccountInList)
+		showUpstreamRateSyncResultNotices(result)
+		recordUpstreamRateSyncResult(result, result.failed > 0)
     failedUpstreamRateAccountIds.value = result.results
       .filter(item => !item.success && item.account_id > 0)
       .map(item => item.account_id)
@@ -1998,13 +2042,20 @@ const handleBulkUpdated = () => {
 }
 const handleDataImported = () => { showImportData.value = false; reload() }
 const canSyncUpstreamRate = (account: Account) => account.type === 'apikey'
+const isSyncingUpstreamRate = (accountId: number) => syncingRateAccountIds.value.has(accountId)
+const setSyncingUpstreamRate = (accountId: number, syncing: boolean) => {
+  const next = new Set(syncingRateAccountIds.value)
+  if (syncing) next.add(accountId)
+  else next.delete(accountId)
+  syncingRateAccountIds.value = next
+}
 const handleSyncUpstreamRate = async (account: Account) => {
-  if (syncingRateAccountId.value !== null) return
-  syncingRateAccountId.value = account.id
+  if (isSyncingUpstreamRate(account.id)) return
+  setSyncingUpstreamRate(account.id, true)
   try {
     const result = await adminAPI.accounts.syncUpstreamRateMultiplier(account.id)
-    syncAccountRefs(result.account)
-    mergeAccountsIncrementally([result.account])
+    patchAccountInList(result.account)
+		showUpstreamRateSyncNotice(account.id, result.previous_rate_multiplier, result.rate_multiplier)
 		recordUpstreamRateSyncResult({
 			total: 1,
 			success: 1,
@@ -2020,7 +2071,7 @@ const handleSyncUpstreamRate = async (account: Account) => {
 				account: result.account,
 				source: result.source,
 			}],
-		}, result.significant_change)
+		}, false)
     appStore.showSuccess(t('admin.accounts.syncUpstreamRateMultiplierSuccessWithChange', {
       previous: result.previous_rate_multiplier.toFixed(4),
 	  rate: result.rate_multiplier.toFixed(4)
@@ -2032,7 +2083,7 @@ const handleSyncUpstreamRate = async (account: Account) => {
       : (error?.message || error?.response?.data?.message || t('admin.accounts.syncUpstreamRateMultiplierFailed'))
     appStore.showError(message)
   } finally {
-    syncingRateAccountId.value = null
+    setSyncingUpstreamRate(account.id, false)
   }
 }
 const ACCOUNT_UNGROUPED_GROUP_QUERY_VALUE = 'ungrouped'
@@ -2194,18 +2245,6 @@ const closeStatsModal = () => { showStats.value = false; statsAcc.value = null }
 const closeReAuthModal = () => { showReAuth.value = false; reAuthAcc.value = null }
 const handleTest = (a: Account) => { testingAcc.value = a; showTest.value = true }
 const handleViewStats = (a: Account) => { statsAcc.value = a; showStats.value = true }
-const handleSchedule = async (a: Account) => {
-  scheduleAcc.value = a
-  scheduleModelOptions.value = []
-  showSchedulePanel.value = true
-  try {
-    const models = await adminAPI.accounts.getAvailableModels(a.id)
-    scheduleModelOptions.value = models.map((m: ClaudeModel) => ({ value: m.id, label: m.display_name || m.id }))
-  } catch {
-    scheduleModelOptions.value = []
-  }
-}
-const closeSchedulePanel = () => { showSchedulePanel.value = false; scheduleAcc.value = null; scheduleModelOptions.value = [] }
 const onRevertFallback = async (a: Account) => {
   try {
     await adminAPI.accounts.revertProxyFallback(a.id)
@@ -2298,6 +2337,8 @@ onMounted(async () => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  upstreamRateSyncNoticeTimers.forEach(timer => clearTimeout(timer))
+  upstreamRateSyncNoticeTimers.clear()
 })
 </script>
 
@@ -2453,6 +2494,17 @@ onUnmounted(() => {
 .account-health-pill-critical {
   color: #9b3f31;
   background: rgba(248, 225, 217, 0.82);
+}
+
+.rate-sync-notice-enter-active,
+.rate-sync-notice-leave-active {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.rate-sync-notice-enter-from,
+.rate-sync-notice-leave-to {
+  opacity: 0;
+  transform: translateX(-0.2rem);
 }
 
 </style>

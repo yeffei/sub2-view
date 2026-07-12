@@ -11,6 +11,7 @@ const {
   getAllGroups,
   syncAllUpstreamRateMultipliers,
   batchSyncUpstreamRateMultiplier,
+  syncUpstreamRateMultiplier,
   listSystemLogs,
   getSettings,
   updateSettings,
@@ -25,6 +26,7 @@ const {
   getAllGroups: vi.fn(),
   syncAllUpstreamRateMultipliers: vi.fn(),
   batchSyncUpstreamRateMultiplier: vi.fn(),
+  syncUpstreamRateMultiplier: vi.fn(),
   listSystemLogs: vi.fn(),
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
@@ -44,7 +46,8 @@ vi.mock('@/api/admin', () => ({
       batchRefresh: vi.fn(),
       toggleSchedulable: vi.fn(),
       syncAllUpstreamRateMultipliers,
-      batchSyncUpstreamRateMultiplier
+      batchSyncUpstreamRateMultiplier,
+      syncUpstreamRateMultiplier
     },
     proxies: {
       getAll: getAllProxies
@@ -95,6 +98,7 @@ const DataTableStub = {
       <div v-for="row in data" :key="row.id">
         <slot name="cell-created_at" :value="row.created_at" :row="row" />
         <slot name="cell-rate_multiplier" :value="row.rate_multiplier" :row="row" />
+        <slot name="cell-actions" :row="row" />
       </div>
     </div>
   `
@@ -165,6 +169,7 @@ describe('admin AccountsView bulk edit scope', () => {
     getAllGroups.mockReset()
 		syncAllUpstreamRateMultipliers.mockReset()
 		batchSyncUpstreamRateMultiplier.mockReset()
+		syncUpstreamRateMultiplier.mockReset()
 		listSystemLogs.mockReset()
 		getSettings.mockReset()
 		updateSettings.mockReset()
@@ -189,6 +194,7 @@ describe('admin AccountsView bulk edit scope', () => {
     getAllGroups.mockResolvedValue([])
 		syncAllUpstreamRateMultipliers.mockResolvedValue({ total: 0, success: 0, failed: 0, results: [] })
 		batchSyncUpstreamRateMultiplier.mockResolvedValue({ total: 0, success: 0, failed: 0, results: [] })
+		syncUpstreamRateMultiplier.mockResolvedValue({})
 		listSystemLogs.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 50, pages: 0 })
 		getSettings.mockResolvedValue({ upstream_rate_sync_enabled: false })
 		updateSettings.mockImplementation(async payload => payload)
@@ -299,6 +305,8 @@ describe('admin AccountsView bulk edit scope', () => {
 
     await flushPromises()
 
+    expect(listAccounts.mock.calls[0]?.[1]).toBe(20)
+
     const columnKeys = wrapper.findAll('[data-test="column-key"]').map(node => node.text())
     expect(columnKeys).toContain('created_at')
     const columns = wrapper.getComponent(DataTableStub).props('columns') as Array<{ key: string; label: string; sortable: boolean }>
@@ -353,6 +361,128 @@ describe('admin AccountsView bulk edit scope', () => {
 		expect(batchSyncUpstreamRateMultiplier).toHaveBeenCalledWith([7])
 		expect(wrapper.findAll('button').some(button => button.text().includes('admin.accounts.retryFailedUpstreamRates'))).toBe(false)
 	})
+
+  it('syncs multiple account rates concurrently and keeps the current account list visible', async () => {
+    const timeoutSpy = vi.spyOn(globalThis, 'setTimeout')
+    localStorage.setItem('account-hidden-columns', JSON.stringify([]))
+    const accounts = [
+      {
+        id: 21,
+        name: 'relay-21',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        rate_multiplier: 0.04,
+        created_at: '2026-07-12T00:00:00Z',
+        updated_at: '2026-07-12T00:00:00Z'
+      },
+      {
+        id: 22,
+        name: 'relay-22',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        rate_multiplier: 0.05,
+        created_at: '2026-07-12T00:00:00Z',
+        updated_at: '2026-07-12T00:00:00Z'
+      }
+    ]
+    listAccounts.mockResolvedValue({ items: accounts, total: 2, page: 1, page_size: 20, pages: 1 })
+
+    let resolveFirst!: (value: any) => void
+    let resolveSecond!: (value: any) => void
+    syncUpstreamRateMultiplier.mockImplementation((accountId: number) => new Promise(resolve => {
+      if (accountId === 21) resolveFirst = resolve
+      else resolveSecond = resolve
+    }))
+
+    const wrapper = mountAccountsView()
+    await flushPromises()
+
+    const syncButtons = wrapper.findAll('button[title="admin.accounts.syncUpstreamRateMultiplier"]')
+    expect(syncButtons).toHaveLength(2)
+    await syncButtons[0].trigger('click')
+    await syncButtons[1].trigger('click')
+
+    expect(syncUpstreamRateMultiplier).toHaveBeenCalledTimes(2)
+    expect(syncUpstreamRateMultiplier).toHaveBeenNthCalledWith(1, 21)
+    expect(syncUpstreamRateMultiplier).toHaveBeenNthCalledWith(2, 22)
+    expect(syncButtons[0].attributes('disabled')).toBeDefined()
+    expect(syncButtons[1].attributes('disabled')).toBeDefined()
+
+    resolveSecond({
+      previous_rate_multiplier: 0.05,
+      rate_multiplier: 0.08,
+      changed: true,
+      significant_change: true,
+      source: 'user_group_override',
+      account: { ...accounts[1], rate_multiplier: 0.08 }
+    })
+    await flushPromises()
+
+    const rowsAfterSecondSync = wrapper.getComponent(DataTableStub).props('data') as Array<{ id: number; rate_multiplier: number }>
+    expect(rowsAfterSecondSync).toHaveLength(2)
+    expect(rowsAfterSecondSync.find(account => account.id === 22)?.rate_multiplier).toBe(0.08)
+    expect(wrapper.text()).toContain('+0.03x')
+    const resultDialog = wrapper.findAllComponents({ name: 'BaseDialog' })
+      .find(component => component.props('title') === 'admin.accounts.upstreamRateSyncResultTitle')
+    expect(resultDialog?.props('show')).toBe(false)
+
+    resolveFirst({
+      previous_rate_multiplier: 0.04,
+      rate_multiplier: 0.06,
+      changed: true,
+      significant_change: false,
+      source: 'user_group_override',
+      account: { ...accounts[0], rate_multiplier: 0.06 }
+    })
+    await flushPromises()
+
+    const finalRows = wrapper.getComponent(DataTableStub).props('data') as Array<{ id: number; rate_multiplier: number }>
+    expect(finalRows).toHaveLength(2)
+    expect(finalRows.find(account => account.id === 21)?.rate_multiplier).toBe(0.06)
+    expect(finalRows.find(account => account.id === 22)?.rate_multiplier).toBe(0.08)
+    expect(wrapper.text()).toContain('+0.02x')
+    expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 10_000)
+    wrapper.unmount()
+    timeoutSpy.mockRestore()
+  })
+
+  it('places upstream rate sync before usage stats and hides the row schedule action', async () => {
+    localStorage.setItem('account-hidden-columns', JSON.stringify([]))
+    listAccounts.mockResolvedValue({
+      items: [{
+        id: 31,
+        name: 'relay-31',
+        platform: 'openai',
+        type: 'apikey',
+        status: 'active',
+        schedulable: true,
+        rate_multiplier: 0.03,
+        created_at: '2026-07-12T00:00:00Z',
+        updated_at: '2026-07-12T00:00:00Z'
+      }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+
+    const wrapper = mountAccountsView()
+    await flushPromises()
+
+    const actionTitles = wrapper.findAll('[data-test="data-table"] button')
+      .map(button => button.attributes('title'))
+      .filter((title): title is string => Boolean(title))
+    expect(actionTitles).not.toContain('admin.scheduledTests.schedule')
+    expect(actionTitles.indexOf('admin.accounts.syncUpstreamRateMultiplier'))
+      .toBeLessThan(actionTitles.indexOf('admin.accounts.usageStatistics'))
+    const columns = wrapper.getComponent(DataTableStub).props('columns') as Array<{ key: string; class?: string }>
+    expect(columns.find(column => column.key === 'rate_multiplier')?.class).toContain('w-[7.75rem]')
+    expect(columns.find(column => column.key === 'actions')?.class).toContain('w-[10.5rem]')
+  })
 
   it('loads the selected API-key account cost rate history', async () => {
     localStorage.setItem('account-hidden-columns', JSON.stringify([]))

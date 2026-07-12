@@ -168,9 +168,9 @@ const platforms = [
 
 const codexModels: ModelRow[] = [
   { name: 'gpt-5.5', inputPrice: 5e-6, outputPrice: 30e-6, cacheReadPrice: 0.5e-6 },
-  { name: 'gpt-5.4', inputPrice: 2.5e-6, outputPrice: 15e-6, cacheReadPrice: 0.25e-6 },
-  { name: 'gpt-5.4-mini', inputPrice: 7.5e-7, outputPrice: 4.5e-6, cacheReadPrice: 7.5e-8 },
-  { name: 'gpt-4o', inputPrice: 2.5e-6, outputPrice: 1e-5, cacheReadPrice: 1.25e-6 },
+  { name: 'gpt-5.6-sol', inputPrice: 5e-6, outputPrice: 30e-6, cacheReadPrice: 0.5e-6 },
+  { name: 'gpt-5.6-terra', inputPrice: 2.5e-6, outputPrice: 15e-6, cacheReadPrice: 0.25e-6 },
+  { name: 'gpt-5.6-luna', inputPrice: 1e-6, outputPrice: 6e-6, cacheReadPrice: 0.1e-6 },
 ]
 
 const codexGroups: GroupRow[] = [
