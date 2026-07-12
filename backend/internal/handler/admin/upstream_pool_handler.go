@@ -148,6 +148,7 @@ func (h *UpstreamPoolHandler) Create(c *gin.Context) {
 			StickyEscapeErrorRateThreshold: float64Value(req.StickyEscapeErrorRateThreshold, 0.3000),
 			StickyEscapeTTFTMSThreshold:    intValue(req.StickyEscapeTTFTMSThreshold, 6000),
 			LoadBalanceEnabled:             boolValue(req.LoadBalanceEnabled, true),
+			AutoWeightEnabled:              boolValue(req.AutoWeightEnabled, false),
 			FailoverEnabled:                boolValue(req.FailoverEnabled, true),
 			TopK:                           intValue(req.TopK, 2),
 			MaxFailoverHops:                intValue(req.MaxFailoverHops, 3),
@@ -191,6 +192,7 @@ func (h *UpstreamPoolHandler) Update(c *gin.Context) {
 			StickyEscapeErrorRateThreshold: req.StickyEscapeErrorRateThreshold,
 			StickyEscapeTTFTMSThreshold:    req.StickyEscapeTTFTMSThreshold,
 			LoadBalanceEnabled:             req.LoadBalanceEnabled,
+			AutoWeightEnabled:              req.AutoWeightEnabled,
 			FailoverEnabled:                req.FailoverEnabled,
 			TopK:                           req.TopK,
 			MaxFailoverHops:                req.MaxFailoverHops,
@@ -578,6 +580,7 @@ type upstreamPoolWriteRequest struct {
 	StickyEscapeErrorRateThreshold *float64       `json:"sticky_escape_error_rate_threshold"`
 	StickyEscapeTTFTMSThreshold    *int           `json:"sticky_escape_ttft_ms_threshold"`
 	LoadBalanceEnabled             *bool          `json:"load_balance_enabled"`
+	AutoWeightEnabled              *bool          `json:"auto_weight_enabled"`
 	FailoverEnabled                *bool          `json:"failover_enabled"`
 	TopK                           *int           `json:"top_k"`
 	MaxFailoverHops                *int           `json:"max_failover_hops"`

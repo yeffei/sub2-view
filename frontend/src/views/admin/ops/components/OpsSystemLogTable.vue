@@ -122,6 +122,50 @@ const isRoutingExplanationLog = (row: OpsSystemLog) => {
   return component === 'routing.explanation' || String(row.message || '').trim() === 'routing_explanation'
 }
 
+const isUpstreamHealthAlertLog = (row: OpsSystemLog) => {
+  const component = String(row.component || row.extra?.component || '').trim()
+  return component === 'upstream.health_alert'
+}
+
+const upstreamAlertTypeLabels: Record<string, string> = {
+  pool_capacity_low: '池可用账号不足',
+  pool_unavailable: '池无可用账号',
+  account_rate_limited: '账号持续限流',
+  account_error_rate_high: '账号错误率偏高',
+  account_probe_failed: '账号探测失败',
+  account_latency_degraded: '账号延迟恶化',
+  account_runtime_weight_low: '自动权重持续偏低',
+  cost_multiplier_jump: '成本倍率大幅变化'
+}
+
+const formatUpstreamHealthAlertDetail = (row: OpsSystemLog) => {
+  const extra = row.extra || {}
+  const alertType = getExtraString(extra, 'alert_type')
+  const alertStatus = getExtraString(extra, 'alert_status')
+  const poolName = getExtraString(extra, 'pool_name') || getExtraString(extra, 'pool_code')
+  const accountName = getExtraString(extra, 'account_name')
+  const available = getExtraString(extra, 'available_members')
+  const total = getExtraString(extra, 'total_members')
+  const errorRate = Number(extra.error_rate)
+  const latency = getExtraString(extra, 'latency_ms')
+  const medianLatency = getExtraString(extra, 'pool_median_latency_ms')
+  const factor = getExtraString(extra, 'runtime_weight_factor')
+  const previousRate = getExtraString(extra, 'previous_rate_multiplier')
+  const nextRate = getExtraString(extra, 'rate_multiplier')
+
+  const parts = [upstreamAlertTypeLabels[alertType] || row.message || '上游异常预警']
+  if (alertStatus === 'resolved') parts.push('已恢复')
+  else if (alertStatus === 'reminder') parts.push('仍在持续')
+  if (poolName) parts.push(`池=${poolName}`)
+  if (accountName) parts.push(`账号=${accountName}`)
+  if (available && total) parts.push(`可用=${available}/${total}`)
+  if (Number.isFinite(errorRate)) parts.push(`错误率=${(errorRate * 100).toFixed(1)}%`)
+  if (latency) parts.push(`延迟=${latency}ms${medianLatency ? `（池中位数 ${medianLatency}ms）` : ''}`)
+  if (factor) parts.push(`运行因子=${factor}`)
+  if (previousRate && nextRate) parts.push(`成本倍率=${previousRate} → ${nextRate}`)
+  return parts.join('  ')
+}
+
 const formatRoutingExplanationDetail = (row: OpsSystemLog) => {
   const extra = row.extra || {}
   const reason = getExtraString(extra, 'reason') || 'selection'
@@ -168,6 +212,7 @@ const formatRoutingExplanationDetail = (row: OpsSystemLog) => {
 const formatSystemLogDetail = (row: OpsSystemLog) => {
   if (isCacheInstrumentationLog(row)) return formatCacheInstrumentationDetail(row)
   if (isRoutingExplanationLog(row)) return formatRoutingExplanationDetail(row)
+  if (isUpstreamHealthAlertLog(row)) return formatUpstreamHealthAlertDetail(row)
 
   const parts: string[] = []
   const msg = String(row.message || '').trim()

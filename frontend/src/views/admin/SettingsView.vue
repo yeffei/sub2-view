@@ -7955,6 +7955,7 @@ const form = reactive<SettingsForm>({
   // Upstream pool status probe feature switch
   channel_monitor_enabled: true,
   channel_monitor_default_interval_seconds: 300,
+  upstream_rate_sync_enabled: false,
   // Available Channels feature switch
   available_channels_enabled: false,
   // Affiliate (邀请返利) feature switch
@@ -9129,6 +9130,7 @@ async function saveSettings() {
       channel_monitor_enabled: form.channel_monitor_enabled,
       channel_monitor_default_interval_seconds:
         Number(form.channel_monitor_default_interval_seconds) || 60,
+      upstream_rate_sync_enabled: form.upstream_rate_sync_enabled,
       // Available Channels feature switch
       available_channels_enabled: form.available_channels_enabled,
       // Affiliate (邀请返利) feature switch

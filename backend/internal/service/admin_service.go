@@ -689,6 +689,7 @@ func (s *adminServiceImpl) CreateUpstreamPool(ctx context.Context, input *Create
 		StickyEscapeErrorRateThreshold: input.StickyEscapeErrorRateThreshold,
 		StickyEscapeTTFTMSThreshold:    input.StickyEscapeTTFTMSThreshold,
 		LoadBalanceEnabled:             input.LoadBalanceEnabled,
+		AutoWeightEnabled:              input.AutoWeightEnabled,
 		FailoverEnabled:                input.FailoverEnabled,
 		TopK:                           input.TopK,
 		MaxFailoverHops:                input.MaxFailoverHops,
@@ -764,6 +765,9 @@ func (s *adminServiceImpl) UpdateUpstreamPool(ctx context.Context, id int64, inp
 	}
 	if input.LoadBalanceEnabled != nil {
 		pool.LoadBalanceEnabled = *input.LoadBalanceEnabled
+	}
+	if input.AutoWeightEnabled != nil {
+		pool.AutoWeightEnabled = *input.AutoWeightEnabled
 	}
 	if input.FailoverEnabled != nil {
 		pool.FailoverEnabled = *input.FailoverEnabled
@@ -1617,6 +1621,9 @@ func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
 	if pool.Platform == "" {
 		return errors.New("platform is required")
 	}
+	if pool.AutoWeightEnabled && !strings.EqualFold(pool.Platform, PlatformOpenAI) {
+		return NewUpstreamPoolBadRequest("INVALID_UPSTREAM_POOL_AUTO_WEIGHT_PLATFORM", "auto weight currently supports OpenAI pools only")
+	}
 	if pool.SchedulerMode == "" {
 		pool.SchedulerMode = UpstreamPoolSchedulerModeAdvanced
 	}
@@ -1649,6 +1656,7 @@ func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
 		pool.AccountTypeStrategy = UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
 	}
 	pool.PolicyJSON = SetUpstreamPoolAccountTypeStrategyPolicyJSON(pool.PolicyJSON, pool.AccountTypeStrategy)
+	pool.PolicyJSON = SetUpstreamPoolAutoWeightPolicyJSON(pool.PolicyJSON, pool.AutoWeightEnabled)
 	return nil
 }
 

@@ -25,6 +25,7 @@ type UpstreamPool struct {
 	StickyEscapeErrorRateThreshold float64        `json:"sticky_escape_error_rate_threshold"`
 	StickyEscapeTTFTMSThreshold    int            `json:"sticky_escape_ttft_ms_threshold"`
 	LoadBalanceEnabled             bool           `json:"load_balance_enabled"`
+	AutoWeightEnabled              bool           `json:"auto_weight_enabled"`
 	FailoverEnabled                bool           `json:"failover_enabled"`
 	TopK                           int            `json:"top_k"`
 	MaxFailoverHops                int            `json:"max_failover_hops"`
@@ -52,6 +53,10 @@ type UpstreamPoolMember struct {
 	RuntimeRateLimitResetAt       *string  `json:"runtime_rate_limit_reset_at"`
 	RuntimeOverloadUntil          *string  `json:"runtime_overload_until"`
 	RuntimeTempUnschedulableUntil *string  `json:"runtime_temp_unschedulable_until"`
+	RuntimeWeightFactor           float64  `json:"runtime_weight_factor"`
+	EffectiveWeight               int      `json:"effective_weight"`
+	RuntimeWeightReason           string   `json:"runtime_weight_reason"`
+	RuntimeWeightUpdatedAt        *string  `json:"runtime_weight_updated_at"`
 	Enabled                       bool     `json:"enabled"`
 	SchedulableOverride           *bool    `json:"schedulable_override"`
 	ManualDrained                 bool     `json:"manual_drained"`
@@ -171,6 +176,7 @@ func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
 		StickyEscapeErrorRateThreshold: pool.StickyEscapeErrorRateThreshold,
 		StickyEscapeTTFTMSThreshold:    pool.StickyEscapeTTFTMSThreshold,
 		LoadBalanceEnabled:             pool.LoadBalanceEnabled,
+		AutoWeightEnabled:              pool.AutoWeightEnabled,
 		FailoverEnabled:                pool.FailoverEnabled,
 		TopK:                           pool.TopK,
 		MaxFailoverHops:                pool.MaxFailoverHops,
@@ -203,6 +209,10 @@ func UpstreamPoolMemberFromService(member *service.UpstreamPoolMember) *Upstream
 		RuntimeRateLimitResetAt:       formatOptionalTime(member.RuntimeRateLimitResetAt),
 		RuntimeOverloadUntil:          formatOptionalTime(member.RuntimeOverloadUntil),
 		RuntimeTempUnschedulableUntil: formatOptionalTime(member.RuntimeTempUnschedulableUntil),
+		RuntimeWeightFactor:           member.RuntimeWeightFactor,
+		EffectiveWeight:               member.EffectiveWeight,
+		RuntimeWeightReason:           member.RuntimeWeightReason,
+		RuntimeWeightUpdatedAt:        formatOptionalTime(member.RuntimeWeightUpdatedAt),
 		Enabled:                       member.Enabled,
 		SchedulableOverride:           member.SchedulableOverride,
 		ManualDrained:                 member.ManualDrained,

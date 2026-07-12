@@ -5,6 +5,7 @@ import {
   buildDeleteMemberSetConfirmMessage,
   buildDeletePoolConfirmMessage,
   filterAccountsForPoolCompletion,
+  getLatestPoolHealthAlertStates,
   getPoolRoutingPaginationInfo,
 } from '../upstreamPoolInteractions'
 
@@ -100,6 +101,16 @@ describe('upstream pool interaction helpers', () => {
       hasMore: false,
       disabled: true,
     })
+  })
+
+  it('keeps only the latest state for each pool health alert', () => {
+    const logs = [
+      { id: 3, created_at: '2026-07-12T10:10:00Z', extra: { alert_key: 'probe:1', alert_status: 'resolved' } },
+      { id: 2, created_at: '2026-07-12T10:05:00Z', extra: { alert_key: 'capacity:1', alert_status: 'firing' } },
+      { id: 1, created_at: '2026-07-12T10:00:00Z', extra: { alert_key: 'probe:1', alert_status: 'firing' } },
+    ]
+
+    expect(getLatestPoolHealthAlertStates(logs).map(log => log.id)).toEqual([3, 2])
   })
 
   it('filters completion accounts by enabled pool binding groups', () => {

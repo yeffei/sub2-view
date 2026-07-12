@@ -255,7 +255,16 @@ WITH direct_members AS (
     m.enabled,
     m.schedulable_override,
     m.manual_drained,
-    m.weight,
+	m.weight,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
+	     THEN rw.factor ELSE 1.00 END AS runtime_weight_factor,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
+	     THEN GREATEST(1, ROUND(m.weight * rw.factor)::INTEGER)
+	     ELSE m.weight END AS effective_weight,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN COALESCE(rw.reason, '') ELSE '' END AS runtime_weight_reason,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN rw.updated_at ELSE NULL END AS runtime_weight_updated_at,
     m.priority_override,
     m.max_concurrency_override,
     m.notes,
@@ -267,6 +276,8 @@ WITH direct_members AS (
     TRUE AS editable,
     0 AS source_priority
   FROM upstream_pool_members m
+	JOIN upstream_pools p ON p.id = m.pool_id
+	LEFT JOIN upstream_pool_runtime_weights rw ON rw.pool_id = m.pool_id AND rw.account_id = m.account_id
   LEFT JOIN accounts a ON a.id = m.account_id AND a.deleted_at IS NULL
   WHERE m.pool_id = $1
 ), set_members AS (
@@ -281,6 +292,15 @@ WITH direct_members AS (
     NULL::BOOLEAN AS schedulable_override,
     FALSE AS manual_drained,
     100 AS weight,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
+	     THEN rw.factor ELSE 1.00 END AS runtime_weight_factor,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
+	     THEN GREATEST(1, ROUND(100 * rw.factor)::INTEGER)
+	     ELSE 100 END AS effective_weight,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN COALESCE(rw.reason, '') ELSE '' END AS runtime_weight_reason,
+	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN rw.updated_at ELSE NULL END AS runtime_weight_updated_at,
     NULL::INTEGER AS priority_override,
     NULL::INTEGER AS max_concurrency_override,
     pms.notes,
@@ -292,16 +312,19 @@ WITH direct_members AS (
     FALSE AS editable,
     1 AS source_priority
   FROM upstream_pool_member_sets pms
+	JOIN upstream_pools p ON p.id = pms.pool_id
   JOIN upstream_account_sets uas ON uas.id = pms.set_id
   JOIN upstream_account_set_members uasm ON uasm.set_id = uas.id
   JOIN accounts a ON a.id = uasm.account_id
+	LEFT JOIN upstream_pool_runtime_weights rw ON rw.pool_id = pms.pool_id AND rw.account_id = uasm.account_id
   WHERE pms.pool_id = $1
     AND a.deleted_at IS NULL
 ), ranked AS (
   SELECT DISTINCT ON (account_id)
     id, pool_id, account_id, account_name, account_platform, account_type, enabled,
-    schedulable_override, manual_drained, weight, priority_override,
-    max_concurrency_override, notes, joined_at, updated_at,
+	schedulable_override, manual_drained, weight, runtime_weight_factor, effective_weight,
+	runtime_weight_reason, runtime_weight_updated_at, priority_override,
+	max_concurrency_override, notes, joined_at, updated_at,
     source_type, source_set_id, source_set_name, editable
   FROM (
     SELECT * FROM direct_members
@@ -313,7 +336,8 @@ WITH direct_members AS (
 SELECT
   id, pool_id, account_id, account_name, account_platform, account_type,
   enabled, schedulable_override, manual_drained,
-  weight, priority_override, max_concurrency_override, notes, joined_at, updated_at,
+	weight, runtime_weight_factor, effective_weight, runtime_weight_reason, runtime_weight_updated_at,
+	priority_override, max_concurrency_override, notes, joined_at, updated_at,
   source_type, source_set_id, source_set_name, editable
 FROM ranked
 ORDER BY account_name ASC, account_id ASC`
@@ -330,6 +354,7 @@ ORDER BY account_name ASC, account_id ASC`
 		var schedulableOverride sql.NullBool
 		var priorityOverride sql.NullInt64
 		var maxConcurrencyOverride sql.NullInt64
+		var runtimeWeightUpdatedAt sql.NullTime
 		var sourceSetID sql.NullInt64
 		if err := rows.Scan(
 			&member.ID,
@@ -342,6 +367,10 @@ ORDER BY account_name ASC, account_id ASC`
 			&schedulableOverride,
 			&member.ManualDrained,
 			&member.Weight,
+			&member.RuntimeWeightFactor,
+			&member.EffectiveWeight,
+			&member.RuntimeWeightReason,
+			&runtimeWeightUpdatedAt,
 			&priorityOverride,
 			&maxConcurrencyOverride,
 			&member.Notes,
@@ -364,6 +393,10 @@ ORDER BY account_name ASC, account_id ASC`
 		if maxConcurrencyOverride.Valid {
 			v := int(maxConcurrencyOverride.Int64)
 			member.MaxConcurrencyOverride = &v
+		}
+		if runtimeWeightUpdatedAt.Valid {
+			value := runtimeWeightUpdatedAt.Time
+			member.RuntimeWeightUpdatedAt = &value
 		}
 		if sourceSetID.Valid {
 			value := sourceSetID.Int64
@@ -1301,6 +1334,7 @@ LIMIT 1`
 	binding.RequestPathScope = cloneStringSliceJSON(requestPathScopeJSON)
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
 	pool.AccountTypeStrategy = service.UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
+	pool.AutoWeightEnabled = service.UpstreamPoolAutoWeightEnabledFromPolicyJSON(pool.PolicyJSON)
 
 	if !pool.Enabled {
 		return &service.UpstreamPoolResolvedBinding{
@@ -1322,13 +1356,16 @@ FROM (
   SELECT
     m.account_id,
     m.schedulable_override,
-    m.weight,
+	CASE WHEN $2 AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
+	     THEN GREATEST(1, ROUND(m.weight * rw.factor)::INTEGER)
+	     ELSE m.weight END AS weight,
     m.priority_override,
     m.max_concurrency_override,
     0 AS source_priority,
     NULL::BIGINT AS source_set_id
   FROM upstream_pool_members m
   JOIN accounts a ON a.id = m.account_id
+	LEFT JOIN upstream_pool_runtime_weights rw ON rw.pool_id = m.pool_id AND rw.account_id = m.account_id
   WHERE m.pool_id = $1
     AND m.enabled = TRUE
     AND m.manual_drained = FALSE
@@ -1337,7 +1374,9 @@ FROM (
   SELECT
     uasm.account_id,
     NULL::BOOLEAN AS schedulable_override,
-    100 AS weight,
+	CASE WHEN $2 AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
+	     THEN GREATEST(1, ROUND(100 * rw.factor)::INTEGER)
+	     ELSE 100 END AS weight,
     NULL::INTEGER AS priority_override,
     NULL::INTEGER AS max_concurrency_override,
     1 AS source_priority,
@@ -1346,6 +1385,7 @@ FROM (
   JOIN upstream_account_sets uas ON uas.id = pms.set_id
   JOIN upstream_account_set_members uasm ON uasm.set_id = uas.id
   JOIN accounts a ON a.id = uasm.account_id
+	LEFT JOIN upstream_pool_runtime_weights rw ON rw.pool_id = pms.pool_id AND rw.account_id = uasm.account_id
   WHERE pms.pool_id = $1
     AND pms.enabled = TRUE
     AND uas.enabled = TRUE
@@ -1353,7 +1393,7 @@ FROM (
 ) members
 ORDER BY account_id, source_priority ASC, source_set_id ASC NULLS FIRST`
 
-	rows, err := r.db.QueryContext(ctx, membersQuery, pool.ID)
+	rows, err := r.db.QueryContext(ctx, membersQuery, pool.ID, pool.AutoWeightEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("query upstream pool members: %w", err)
 	}
@@ -1475,6 +1515,7 @@ func scanUpstreamPoolRow(scanner interface {
 	}
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
 	pool.AccountTypeStrategy = service.UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
+	pool.AutoWeightEnabled = service.UpstreamPoolAutoWeightEnabledFromPolicyJSON(pool.PolicyJSON)
 	return pool, nil
 }
 

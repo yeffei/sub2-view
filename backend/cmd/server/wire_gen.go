@@ -290,8 +290,10 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	channelMonitorRunner := service.ProvideChannelMonitorRunner(channelMonitorService, settingService)
 	accountMonitorRunner := service.ProvideAccountMonitorRunner(accountMonitorService, settingService)
+	upstreamRateSyncService := service.ProvideUpstreamRateSyncService(adminService, accountTestService)
+	upstreamRateSyncRunner := service.ProvideUpstreamRateSyncRunner(upstreamRateSyncService, settingService)
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
-	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, upstreamPoolRecoveryProbeRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, accountMonitorRunner, userPlatformQuotaUsageFlusher)
+	v := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, openAIGatewayService, scheduledTestRunnerService, upstreamPoolRecoveryProbeRunnerService, backupService, paymentOrderExpiryService, channelMonitorRunner, accountMonitorRunner, userPlatformQuotaUsageFlusher, upstreamRateSyncRunner)
 	application := &Application{
 		Server:  httpServer,
 		Cleanup: v,
@@ -350,6 +352,7 @@ func provideCleanup(
 	channelMonitorRunner *service.ChannelMonitorRunner,
 	accountMonitorRunner *service.AccountMonitorRunner,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
+	upstreamRateSyncRunner *service.UpstreamRateSyncRunner,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -516,6 +519,12 @@ func provideCleanup(
 			{"UserPlatformQuotaUsageFlusher", func() error {
 				if quotaFlusher != nil {
 					quotaFlusher.Stop()
+				}
+				return nil
+			}},
+			{"UpstreamRateSyncRunner", func() error {
+				if upstreamRateSyncRunner != nil {
+					upstreamRateSyncRunner.Stop()
 				}
 				return nil
 			}},

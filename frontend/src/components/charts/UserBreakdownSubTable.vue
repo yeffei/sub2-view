@@ -28,6 +28,12 @@
           <td class="py-1 text-right text-orange-500 dark:text-orange-400">
             ${{ formatCost(user.account_cost) }}
           </td>
+		  <td
+			class="py-1 text-right"
+			:class="grossProfit(user) < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'"
+		  >
+			${{ formatCost(grossProfit(user)) }}
+		  </td>
           <td class="py-1 pr-1 text-right text-gray-400 dark:text-gray-500">
             ${{ formatCost(user.cost) }}
           </td>
@@ -62,4 +68,6 @@ const formatCost = (value: number): string => {
   if (value >= 0.01) return value.toFixed(3)
   return value.toFixed(4)
 }
+
+const grossProfit = (user: UserBreakdownItem) => user.actual_cost - user.account_cost
 </script>

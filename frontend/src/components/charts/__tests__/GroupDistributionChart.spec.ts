@@ -13,6 +13,11 @@ const messages: Record<string, string> = {
   'admin.dashboard.standard': 'Standard',
   'admin.dashboard.metricTokens': 'By Tokens',
   'admin.dashboard.metricActualCost': 'By Actual Cost',
+  'admin.dashboard.metricGrossProfit': 'By Gross Profit',
+  'admin.dashboard.inspectNegativeMargin': 'Inspect',
+  'admin.dashboard.inspectNegativeMarginHint': 'Filter negative margin group',
+  'admin.dashboard.accountCost': 'Cost',
+  'usage.grossProfit': 'Gross Profit',
   'admin.dashboard.noDataAvailable': 'No data available',
 }
 
@@ -42,6 +47,7 @@ describe('GroupDistributionChart', () => {
       total_tokens: 1200,
       cost: 1.8,
       actual_cost: 0.1,
+      account_cost: 0.08,
     },
     {
       group_id: 2,
@@ -50,6 +56,20 @@ describe('GroupDistributionChart', () => {
       total_tokens: 600,
       cost: 0.7,
       actual_cost: 0.9,
+      account_cost: 0.2,
+    },
+  ]
+
+  const negativeGroupStats = [
+    ...groupStats,
+    {
+      group_id: 3,
+      group_name: 'loss-group',
+      requests: 2,
+      total_tokens: 300,
+      cost: 0.4,
+      actual_cost: 0.1,
+      account_cost: 0.2,
     },
   ]
 
@@ -110,5 +130,29 @@ describe('GroupDistributionChart', () => {
       dataset: { data: [0.9, 0.1] },
     })
     expect(label).toBe('group-b: $0.900 (90.0%)')
+  })
+
+  it('uses gross profit and reorders rows in gross profit mode', () => {
+    const wrapper = mount(GroupDistributionChart, {
+      props: { groupStats: negativeGroupStats, metric: 'gross_profit' },
+      global: { stubs: { LoadingSpinner: true } },
+    })
+
+    const chartData = JSON.parse(wrapper.find('.chart-data').text())
+    expect(chartData.labels).toEqual(['group-b', 'group-a', 'loss-group'])
+    expect(chartData.datasets[0].data[0]).toBeCloseTo(0.7)
+    expect(chartData.datasets[0].data[1]).toBeCloseTo(0.02)
+    expect(chartData.datasets[0].data[2]).toBe(0)
+  })
+
+  it('emits a focused inspection action for negative-margin groups', async () => {
+    const wrapper = mount(GroupDistributionChart, {
+      props: { groupStats: negativeGroupStats, metric: 'gross_profit' },
+      global: { stubs: { LoadingSpinner: true } },
+    })
+
+    const inspectButton = wrapper.get('button[title="Filter negative margin group"]')
+    await inspectButton.trigger('click')
+    expect(wrapper.emitted('inspectGroup')).toEqual([[3]])
   })
 })

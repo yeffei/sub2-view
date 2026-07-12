@@ -33,6 +33,7 @@ type stubAdminService struct {
 	getUserErr             error
 	createAccountErr       error
 	updateAccountErr       error
+	getAccountsByIDsFunc   func(context.Context, []int64) ([]*service.Account, error)
 	bulkUpdateAccountErr   error
 	checkMixedErr          error
 	lastMixedCheck         struct {
@@ -659,6 +660,9 @@ func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.A
 }
 
 func (s *stubAdminService) GetAccountsByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
+	if s.getAccountsByIDsFunc != nil {
+		return s.getAccountsByIDsFunc(ctx, ids)
+	}
 	out := make([]*service.Account, 0, len(ids))
 	for _, id := range ids {
 		account := service.Account{ID: id, Name: "account", Status: service.StatusActive}

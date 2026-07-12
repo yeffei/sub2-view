@@ -56,6 +56,16 @@ func TestOpsSystemLogSink_ShouldIndex(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "upstream health alert recovery component",
+			event: &logger.LogEvent{Level: "info", Component: "upstream.health_alert"},
+			want:  true,
+		},
+		{
+			name:  "upstream cost rate sync history component",
+			event: &logger.LogEvent{Level: "info", Component: "upstream.cost_rate_sync"},
+			want:  true,
+		},
+		{
 			name:  "cache instrumentation component",
 			event: &logger.LogEvent{Level: "info", Component: "cache.instrumentation"},
 			want:  true,

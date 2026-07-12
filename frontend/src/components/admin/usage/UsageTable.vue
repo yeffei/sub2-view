@@ -163,8 +163,14 @@
                 </div>
               </div>
             </div>
-            <div v-if="row.account_rate_multiplier != null" class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
-              A ${{ accountBilled(row).toFixed(6) }}
+            <div class="mt-0.5 text-[11px] text-orange-500 dark:text-orange-400">
+              {{ t('usage.upstreamCost') }} ${{ accountBilled(row).toFixed(6) }}
+            </div>
+            <div
+              class="text-[11px]"
+              :class="usageProfit(row).negative ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'"
+            >
+              {{ t('usage.grossProfit') }} ${{ usageProfit(row).grossProfit.toFixed(6) }}
             </div>
           </div>
         </template>
@@ -400,6 +406,16 @@
               }).toFixed(6) }}
             </span>
           </div>
+          <div class="flex items-center justify-between gap-6 border-t border-gray-700 pt-1.5">
+            <span class="text-gray-400">{{ t('usage.grossProfit') }}</span>
+            <span :class="usageProfit(tooltipData).negative ? 'font-semibold text-rose-400' : 'font-semibold text-emerald-400'">
+              ${{ usageProfit(tooltipData).grossProfit.toFixed(6) }}
+            </span>
+          </div>
+          <div class="flex items-center justify-between gap-6">
+            <span class="text-gray-400">{{ t('usage.grossMargin') }}</span>
+            <span class="font-semibold text-white">{{ formatGrossMargin(usageProfit(tooltipData).grossMargin) }}</span>
+          </div>
         </div>
         <div class="absolute right-full top-1/2 h-0 w-0 -translate-y-1/2 border-b-[6px] border-r-[6px] border-t-[6px] border-b-transparent border-r-gray-900 border-t-transparent dark:border-r-gray-800"></div>
       </div>
@@ -413,6 +429,7 @@ import { useI18n } from 'vue-i18n'
 import { formatDateTime, formatReasoningEffort } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
+import { calculateUsageProfit, formatGrossMargin } from '@/utils/usageProfit'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
@@ -439,6 +456,10 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
   const base = row.account_stats_cost != null ? row.account_stats_cost : (row.total_cost ?? 0)
   const result = base * (row.account_rate_multiplier ?? 1)
   return Number.isNaN(result) ? 0 : result
+}
+
+function usageProfit(row: AdminUsageLog | null) {
+  return calculateUsageProfit(row?.actual_cost, row ? accountBilled(row) : 0)
 }
 
 

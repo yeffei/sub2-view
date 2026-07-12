@@ -18,6 +18,10 @@ const messages: Record<string, string> = {
   'usage.cacheReadPerHitLabel': 'Avg Read/Hit {value}',
   'usage.avgActualInputTokensLabel': 'Avg Input {value}',
   'usage.totalCost': 'Total Cost',
+	'usage.usageRevenue': 'Usage Revenue',
+	'usage.grossProfit': 'Usage Gross Profit',
+	'usage.grossMargin': 'Gross Margin',
+	'usage.upstreamCost': 'Upstream Cost',
   'usage.accountCost': 'Cost',
   'usage.standardCost': 'Standard',
   'usage.avgDuration': 'Avg Duration',
@@ -100,4 +104,21 @@ describe('UsageStatsCards', () => {
     expect(text).toContain('Avg Read/Hit 22')
     expect(text).toContain('Avg Input 100')
   })
+
+	it('shows usage revenue, upstream cost, gross profit, and margin', () => {
+		const wrapper = mount(UsageStatsCards, {
+			props: {
+				stats: { ...stats, total_actual_cost: 10, total_account_cost: 6 },
+			},
+			global: { stubs: { Icon: true } },
+		})
+
+		const text = wrapper.text()
+		expect(text).toContain('Usage Revenue')
+		expect(text).toContain('$10.0000')
+		expect(text).toContain('Usage Gross Profit')
+		expect(text).toContain('$4.0000')
+		expect(text).toContain('Gross Margin 40.0%')
+		expect(text).toContain('Upstream Cost $6.0000')
+	})
 })

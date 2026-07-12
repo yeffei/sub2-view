@@ -584,6 +584,7 @@ export interface UpstreamPool {
   sticky_escape_error_rate_threshold: number
   sticky_escape_ttft_ms_threshold: number
   load_balance_enabled: boolean
+  auto_weight_enabled: boolean
   failover_enabled: boolean
   top_k: number
   max_failover_hops: number
@@ -615,6 +616,10 @@ export interface UpstreamPoolMember {
   schedulable_override: boolean | null
   manual_drained: boolean
   weight: number
+  runtime_weight_factor?: number
+  effective_weight?: number
+  runtime_weight_reason?: string
+  runtime_weight_updated_at?: string | null
   priority_override: number | null
   max_concurrency_override: number | null
   notes: string

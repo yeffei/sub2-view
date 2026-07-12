@@ -194,6 +194,7 @@ type poolAccountFacts struct {
 	avail15ByAccount map[int64][]*AccountMonitorAvailability
 	avail30ByAccount map[int64][]*AccountMonitorAvailability
 	historyByAccount map[int64][]*AccountMonitorHistoryEntry
+	poolAvailability map[int64][]*PoolAvailabilitySnapshotEntry
 }
 
 func (s *PoolHealthService) loadPoolAccountFacts(
@@ -229,6 +230,14 @@ func (s *PoolHealthService) loadPoolAccountFacts(
 	if err != nil {
 		return nil, fmt.Errorf("load account monitor history window: %w", err)
 	}
+	poolIDs := make([]int64, 0, len(pools))
+	for _, pool := range pools {
+		poolIDs = append(poolIDs, pool.ID)
+	}
+	facts.poolAvailability, err = s.accountMonitorRepo.ListPoolAvailabilitySince(ctx, poolIDs, since)
+	if err != nil {
+		return nil, fmt.Errorf("load pool availability snapshots: %w", err)
+	}
 	return facts, nil
 }
 
@@ -239,6 +248,7 @@ func emptyPoolAccountFacts() *poolAccountFacts {
 		avail15ByAccount: map[int64][]*AccountMonitorAvailability{},
 		avail30ByAccount: map[int64][]*AccountMonitorAvailability{},
 		historyByAccount: map[int64][]*AccountMonitorHistoryEntry{},
+		poolAvailability: map[int64][]*PoolAvailabilitySnapshotEntry{},
 	}
 }
 
@@ -271,15 +281,16 @@ func buildPoolHealthDetail(
 ) *PoolHealthDetail {
 	groupID, groupName := primaryPoolHealthGroup(bindings)
 	probeModel := probeModelForPool(pool.Platform, bindings)
-	probeStatus, bestLatency, bestPing := aggregatePoolAccountLatest(members, probeModel, facts.latestByAccount)
-	timeline := aggregatePoolHealthTimeline(members, probeModel, facts.historyByAccount)
+	_, bestLatency, bestPing := aggregatePoolAccountLatest(members, probeModel, facts.latestByAccount)
 	memberItems, healthy, degraded, failed := buildPoolMemberHealthItems(members, accountsByID)
-	memberAvailability := aggregatePoolMemberAvailability(len(memberItems), healthy, degraded)
-	availability7d := aggregatePoolWindowAvailability(members, probeModel, facts.historyByAccount, monitorAvailability7Days, memberAvailability)
-	availability15d := aggregatePoolWindowAvailability(members, probeModel, facts.historyByAccount, monitorAvailability15Days, memberAvailability)
-	availability30d := aggregatePoolWindowAvailability(members, probeModel, facts.historyByAccount, monitorAvailability30Days, memberAvailability)
 	memberStatus := aggregatePoolMemberServingStatus(len(memberItems), healthy, degraded, failed)
-	status := combinePoolMemberAndProbeStatus(memberStatus, probeStatus)
+	memberAvailability := poolAvailabilityFallback(memberStatus)
+	snapshots := facts.poolAvailability[pool.ID]
+	availability7d := aggregatePoolSnapshotAvailability(snapshots, monitorAvailability7Days, memberAvailability)
+	availability15d := aggregatePoolSnapshotAvailability(snapshots, monitorAvailability15Days, memberAvailability)
+	availability30d := aggregatePoolSnapshotAvailability(snapshots, monitorAvailability30Days, memberAvailability)
+	timeline := aggregatePoolSnapshotTimeline(snapshots)
+	status := memberStatus
 	if len(bindings) == 0 {
 		status = MonitorStatusError
 	}
@@ -304,6 +315,49 @@ func buildPoolHealthDetail(
 		Members:             memberItems,
 		Lines:               buildPoolHealthLines(bindings, members, accountsByID, probeModel, facts),
 	}
+}
+
+func poolAvailabilityFallback(status string) float64 {
+	if isRoutableMonitorStatus(status) {
+		return 100
+	}
+	return 0
+}
+
+func aggregatePoolSnapshotAvailability(snapshots []*PoolAvailabilitySnapshotEntry, windowDays int, fallback float64) float64 {
+	if windowDays <= 0 {
+		return 0
+	}
+	cutoff := time.Now().UTC().AddDate(0, 0, -windowDays)
+	total, available := 0, 0
+	for _, snapshot := range snapshots {
+		if snapshot == nil || snapshot.CheckedAt.UTC().Before(cutoff) {
+			continue
+		}
+		total++
+		if snapshot.Status == MonitorStatusOperational {
+			available++
+		}
+	}
+	if total == 0 {
+		return fallback
+	}
+	return math.Round(float64(available)*10000/float64(total)) / 100
+}
+
+func aggregatePoolSnapshotTimeline(snapshots []*PoolAvailabilitySnapshotEntry) []PoolHealthTimelinePoint {
+	limit := len(snapshots)
+	if limit > monitorTimelineMaxPoints {
+		limit = monitorTimelineMaxPoints
+	}
+	out := make([]PoolHealthTimelinePoint, 0, limit)
+	for _, snapshot := range snapshots[:limit] {
+		if snapshot == nil {
+			continue
+		}
+		out = append(out, PoolHealthTimelinePoint{Status: snapshot.Status, CheckedAt: snapshot.CheckedAt})
+	}
+	return out
 }
 
 func primaryPoolHealthGroup(bindings []UpstreamPoolBinding) (*int64, string) {

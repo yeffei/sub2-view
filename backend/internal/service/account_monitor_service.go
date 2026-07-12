@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,20 +18,37 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	poolAvailabilitySnapshotRetention     = 30 * 24 * time.Hour
+	poolAvailabilitySnapshotPruneInterval = 24 * time.Hour
+	poolRuntimeWeightTTL                  = 30 * time.Minute
+)
+
 type AccountMonitorRepository interface {
 	InsertHistoryBatch(ctx context.Context, rows []*AccountMonitorHistoryRow) error
+	InsertPoolAvailabilitySnapshots(ctx context.Context, rows []*PoolAvailabilitySnapshotRow) error
+	ListPoolAvailabilitySince(ctx context.Context, poolIDs []int64, since time.Time) (map[int64][]*PoolAvailabilitySnapshotEntry, error)
 	ListLatestForAccountIDs(ctx context.Context, ids []int64) (map[int64][]*AccountMonitorLatest, error)
 	ComputeAvailabilityForAccounts(ctx context.Context, ids []int64, windowDays int) (map[int64][]*AccountMonitorAvailability, error)
 	// ListHistorySinceForAccounts loads recent probe facts for account IDs. When primaryModels is empty,
 	// all models are returned; pool health then filters by each pool's own probe model.
 	ListHistorySinceForAccounts(ctx context.Context, ids []int64, primaryModels map[int64]string, since time.Time) (map[int64][]*AccountMonitorHistoryEntry, error)
 	DeleteHistoryBefore(ctx context.Context, before time.Time) (int64, error)
+	DeletePoolAvailabilityBefore(ctx context.Context, before time.Time) (int64, error)
+	ListPoolRuntimeWeightStates(ctx context.Context, poolIDs []int64) (map[int64]map[int64]*PoolRuntimeWeightState, error)
+	UpsertPoolRuntimeWeightStates(ctx context.Context, states []*PoolRuntimeWeightState) error
 }
 
 type AccountMonitorService struct {
-	repo             AccountMonitorRepository
-	upstreamPoolRepo UpstreamPoolRepository
-	accountRepo      AccountRepository
+	repo                AccountMonitorRepository
+	upstreamPoolRepo    UpstreamPoolRepository
+	accountRepo         AccountRepository
+	pruneMu             sync.Mutex
+	nextSnapshotPruneAt time.Time
+	healthAlertMu       sync.Mutex
+	healthAlertStates   map[string]*upstreamHealthAlertState
+	healthAlertEmitter  func(upstreamHealthAlertEvent)
+	now                 func() time.Time
 }
 
 type accountProbeTarget struct {
@@ -49,25 +68,283 @@ func NewAccountMonitorService(
 	upstreamPoolRepo UpstreamPoolRepository,
 	accountRepo AccountRepository,
 ) *AccountMonitorService {
-	return &AccountMonitorService{repo: repo, upstreamPoolRepo: upstreamPoolRepo, accountRepo: accountRepo}
+	return &AccountMonitorService{
+		repo: repo, upstreamPoolRepo: upstreamPoolRepo, accountRepo: accountRepo,
+		healthAlertStates:  make(map[string]*upstreamHealthAlertState),
+		healthAlertEmitter: emitUpstreamHealthAlert,
+		now:                time.Now,
+	}
 }
 
 func (s *AccountMonitorService) RunOnce(ctx context.Context) error {
 	if s == nil || s.repo == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil {
 		return nil
 	}
+	snapshots, err := s.buildPoolAvailabilitySnapshots(ctx)
+	if err != nil {
+		return err
+	}
+	if err := s.repo.InsertPoolAvailabilitySnapshots(ctx, snapshots); err != nil {
+		return fmt.Errorf("insert pool availability snapshots: %w", err)
+	}
+	if _, err := s.prunePoolAvailabilitySnapshots(ctx); err != nil {
+		slog.Warn("account_monitor: prune pool availability snapshots failed", "error", err)
+	}
 	targets, err := s.buildProbeTargets(ctx)
 	if err != nil {
 		return err
 	}
-	if len(targets) == 0 {
-		return nil
+	var rows []*AccountMonitorHistoryRow
+	if len(targets) > 0 {
+		rows = s.runProbeTargets(ctx, targets)
+		if err := s.repo.InsertHistoryBatch(ctx, rows); err != nil {
+			return fmt.Errorf("insert account monitor history: %w", err)
+		}
 	}
-	rows := s.runProbeTargets(ctx, targets)
-	if err := s.repo.InsertHistoryBatch(ctx, rows); err != nil {
-		return fmt.Errorf("insert account monitor history: %w", err)
+	if err := s.adjustPoolRuntimeWeights(ctx, rows); err != nil {
+		slog.Warn("account_monitor: adjust pool runtime weights failed", "error", err)
+	}
+	if err := s.evaluateUpstreamHealthAlerts(ctx, rows); err != nil {
+		slog.Warn("account_monitor: evaluate upstream health alerts failed", "error", err)
 	}
 	return nil
+}
+
+func (s *AccountMonitorService) adjustPoolRuntimeWeights(ctx context.Context, probeRows []*AccountMonitorHistoryRow) error {
+	pools, err := s.upstreamPoolRepo.ListUpstreamPools(ctx)
+	if err != nil {
+		return fmt.Errorf("list upstream pools for auto weight: %w", err)
+	}
+	autoPools := make([]UpstreamPool, 0, len(pools))
+	poolIDs := make([]int64, 0, len(pools))
+	for _, pool := range pools {
+		if pool.Enabled && pool.AutoWeightEnabled && strings.EqualFold(pool.Platform, PlatformOpenAI) {
+			autoPools = append(autoPools, pool)
+			poolIDs = append(poolIDs, pool.ID)
+		}
+	}
+	if len(autoPools) == 0 {
+		return nil
+	}
+	statesByPool, err := s.repo.ListPoolRuntimeWeightStates(ctx, poolIDs)
+	if err != nil {
+		return err
+	}
+	membersByPool, accountsByID := s.loadPoolMembersAndAccounts(ctx, autoPools)
+	rowsByPool := make(map[int64]map[int64]*AccountMonitorHistoryRow, len(autoPools))
+	for _, row := range probeRows {
+		if row == nil || row.PoolID == nil || *row.PoolID <= 0 || row.AccountID <= 0 {
+			continue
+		}
+		if rowsByPool[*row.PoolID] == nil {
+			rowsByPool[*row.PoolID] = map[int64]*AccountMonitorHistoryRow{}
+		}
+		rowsByPool[*row.PoolID][row.AccountID] = row
+	}
+	now := s.currentTime().UTC()
+	updates := make([]*PoolRuntimeWeightState, 0)
+	for _, pool := range autoPools {
+		members := activeAutoWeightMembers(membersByPool[pool.ID], accountsByID)
+		if len(members) < 2 {
+			continue
+		}
+		medianLatency := medianOperationalProbeLatency(rowsByPool[pool.ID])
+		for _, member := range members {
+			account := accountsByID[member.AccountID]
+			target, reason, observed := autoWeightTarget(account, rowsByPool[pool.ID][member.AccountID], medianLatency, now)
+			if !observed {
+				continue
+			}
+			current := (*PoolRuntimeWeightState)(nil)
+			if statesByPool[pool.ID] != nil {
+				current = statesByPool[pool.ID][member.AccountID]
+			}
+			if current != nil && now.Sub(current.LastObservedAt) > poolRuntimeWeightTTL {
+				current = nil
+			}
+			updates = append(updates, nextPoolRuntimeWeightState(pool.ID, member.AccountID, current, target, reason, now))
+		}
+	}
+	return s.repo.UpsertPoolRuntimeWeightStates(ctx, updates)
+}
+
+func (s *AccountMonitorService) currentTime() time.Time {
+	if s != nil && s.now != nil {
+		return s.now()
+	}
+	return time.Now()
+}
+
+func activeAutoWeightMembers(members []UpstreamPoolMember, accounts map[int64]*Account) []UpstreamPoolMember {
+	out := make([]UpstreamPoolMember, 0, len(members))
+	for _, member := range members {
+		account := accounts[member.AccountID]
+		if !member.Enabled || member.ManualDrained || (member.SchedulableOverride != nil && !*member.SchedulableOverride) || account == nil || !account.IsActive() {
+			continue
+		}
+		out = append(out, member)
+	}
+	return out
+}
+
+func medianOperationalProbeLatency(rows map[int64]*AccountMonitorHistoryRow) int {
+	latencies := make([]int, 0, len(rows))
+	for _, row := range rows {
+		if row != nil && row.Status == MonitorStatusOperational && row.LatencyMs != nil && *row.LatencyMs > 0 {
+			latencies = append(latencies, *row.LatencyMs)
+		}
+	}
+	if len(latencies) == 0 {
+		return 0
+	}
+	sort.Ints(latencies)
+	middle := len(latencies) / 2
+	if len(latencies)%2 == 1 {
+		return latencies[middle]
+	}
+	return (latencies[middle-1] + latencies[middle]) / 2
+}
+
+func autoWeightTarget(account *Account, row *AccountMonitorHistoryRow, medianLatency int, now time.Time) (float64, string, bool) {
+	if account == nil {
+		return 1, "", false
+	}
+	if account.RateLimitResetAt != nil && now.Before(*account.RateLimitResetAt) {
+		return 0.25, "rate_limited", true
+	}
+	if account.OverloadUntil != nil && now.Before(*account.OverloadUntil) {
+		return 0.5, "overloaded", true
+	}
+	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
+		return 0.5, "temporarily_unschedulable", true
+	}
+	if row == nil {
+		return 1, "", false
+	}
+	switch row.Status {
+	case MonitorStatusFailed, MonitorStatusError:
+		return 0.5, "probe_failed", true
+	case MonitorStatusDegraded:
+		return 0.75, "probe_degraded", true
+	case MonitorStatusOperational:
+		if row.LatencyMs == nil || *row.LatencyMs <= 0 || medianLatency <= 0 {
+			return 1, "healthy", true
+		}
+		ratio := float64(*row.LatencyMs) / float64(medianLatency)
+		switch {
+		case ratio <= 0.75:
+			return 1.25, "faster_than_pool", true
+		case ratio >= 1.75:
+			return 0.5, "much_slower_than_pool", true
+		case ratio >= 1.25:
+			return 0.75, "slower_than_pool", true
+		default:
+			return 1, "healthy", true
+		}
+	default:
+		return 1, "", false
+	}
+}
+
+func nextPoolRuntimeWeightState(poolID, accountID int64, current *PoolRuntimeWeightState, target float64, reason string, now time.Time) *PoolRuntimeWeightState {
+	factor := 1.0
+	previousTarget := 1.0
+	healthyStreak, unhealthyStreak := 0, 0
+	if current != nil {
+		factor = current.Factor
+		previousTarget = current.TargetFactor
+		healthyStreak = current.HealthyStreak
+		unhealthyStreak = current.UnhealthyStreak
+	}
+	target = math.Max(0.25, math.Min(1.25, target))
+	direction := 0
+	if target > factor {
+		direction = 1
+	} else if target < factor {
+		direction = -1
+	}
+	if direction == 0 {
+		healthyStreak, unhealthyStreak = 0, 0
+	} else if direction > 0 {
+		if previousTarget != target {
+			healthyStreak = 0
+		}
+		healthyStreak++
+		unhealthyStreak = 0
+		if healthyStreak >= 3 {
+			factor = math.Min(target, factor+0.25)
+		}
+	} else {
+		if previousTarget != target {
+			unhealthyStreak = 0
+		}
+		unhealthyStreak++
+		healthyStreak = 0
+		if unhealthyStreak >= 3 {
+			factor = math.Max(target, factor-0.25)
+		}
+	}
+	return &PoolRuntimeWeightState{
+		PoolID: poolID, AccountID: accountID, Factor: factor, TargetFactor: target,
+		HealthyStreak: healthyStreak, UnhealthyStreak: unhealthyStreak,
+		Reason: reason, LastObservedAt: now, UpdatedAt: now,
+	}
+}
+
+func (s *AccountMonitorService) prunePoolAvailabilitySnapshots(ctx context.Context) (int64, error) {
+	if s == nil || s.repo == nil {
+		return 0, nil
+	}
+	now := time.Now().UTC()
+	if s.now != nil {
+		now = s.now().UTC()
+	}
+
+	s.pruneMu.Lock()
+	if !s.nextSnapshotPruneAt.IsZero() && now.Before(s.nextSnapshotPruneAt) {
+		s.pruneMu.Unlock()
+		return 0, nil
+	}
+	s.nextSnapshotPruneAt = now.Add(poolAvailabilitySnapshotPruneInterval)
+	s.pruneMu.Unlock()
+
+	deleted, err := s.repo.DeletePoolAvailabilityBefore(ctx, now.Add(-poolAvailabilitySnapshotRetention))
+	if err != nil {
+		return deleted, err
+	}
+	if deleted > 0 {
+		slog.Info("account_monitor: pruned pool availability snapshots", "deleted", deleted)
+	}
+	return deleted, nil
+}
+
+func (s *AccountMonitorService) buildPoolAvailabilitySnapshots(ctx context.Context) ([]*PoolAvailabilitySnapshotRow, error) {
+	pools, err := s.upstreamPoolRepo.ListUpstreamPools(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list upstream pools for availability: %w", err)
+	}
+	enabledPools := filterEnabledPools(pools)
+	membersByPool, accountsByID := s.loadPoolMembersAndAccounts(ctx, enabledPools)
+	checkedAt := time.Now().UTC()
+	rows := make([]*PoolAvailabilitySnapshotRow, 0, len(enabledPools))
+	for _, pool := range enabledPools {
+		members := membersByPool[pool.ID]
+		available := 0
+		for _, member := range members {
+			if poolMemberSchedulable(member, accountsByID[member.AccountID]) {
+				available++
+			}
+		}
+		status := MonitorStatusFailed
+		if available > 0 {
+			status = MonitorStatusOperational
+		}
+		rows = append(rows, &PoolAvailabilitySnapshotRow{
+			PoolID: pool.ID, Status: status, TotalMembers: len(members),
+			AvailableMembers: available, CheckedAt: checkedAt,
+		})
+	}
+	return rows, nil
 }
 
 func (s *AccountMonitorService) buildProbeTargets(ctx context.Context) ([]accountProbeTarget, error) {

@@ -100,7 +100,9 @@ func provideCleanup(
 	backupSvc *service.BackupService,
 	paymentOrderExpiry *service.PaymentOrderExpiryService,
 	channelMonitorRunner *service.ChannelMonitorRunner,
+	accountMonitorRunner *service.AccountMonitorRunner,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
+	upstreamRateSyncRunner *service.UpstreamRateSyncRunner,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -259,9 +261,21 @@ func provideCleanup(
 				}
 				return nil
 			}},
+			{"AccountMonitorRunner", func() error {
+				if accountMonitorRunner != nil {
+					accountMonitorRunner.Stop()
+				}
+				return nil
+			}},
 			{"UserPlatformQuotaUsageFlusher", func() error {
 				if quotaFlusher != nil {
 					quotaFlusher.Stop()
+				}
+				return nil
+			}},
+			{"UpstreamRateSyncRunner", func() error {
+				if upstreamRateSyncRunner != nil {
+					upstreamRateSyncRunner.Stop()
 				}
 				return nil
 			}},

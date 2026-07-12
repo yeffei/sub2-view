@@ -55,6 +55,13 @@ export type PoolRoutingPaginationState = {
   logsLength: number
 }
 
+export type PoolHealthAlertLogLike = {
+  id: number
+  created_at: string
+  message?: string
+  extra?: Record<string, any>
+}
+
 const formatEntityLabel = (entity: NamedEntity): string => {
   if (entity.name) return entity.name
   if (entity.code) return entity.code
@@ -166,6 +173,18 @@ export function getPoolRoutingPaginationInfo(state: PoolRoutingPaginationState) 
     disabled,
     label: hasMore ? `加载更多（${loaded}/${total}）` : `已加载全部 ${loaded} 条`
   }
+}
+
+// 系统日志按时间倒序返回。每个 alert_key 只保留最新状态，避免已恢复的
+// 旧 firing 记录继续显示为当前异常。
+export function getLatestPoolHealthAlertStates<T extends PoolHealthAlertLogLike>(logs: T[]): T[] {
+  const latest = new Map<string, T>()
+  for (const log of logs) {
+    const key = String(log.extra?.alert_key || '').trim()
+    if (!key || latest.has(key)) continue
+    latest.set(key, log)
+  }
+  return Array.from(latest.values())
 }
 
 export function getEnabledPoolBindingGroupIDs(poolID: number, bindings: BindingLike[]): Set<number> {

@@ -59,8 +59,11 @@
                   <p class="text-xs font-medium text-zen-mist dark:text-zen-stone">
                     {{ t('usage.totalTokens') }}
                   </p>
-                  <p class="text-xl font-bold text-zen-ink dark:text-zen-paper">
-                    {{ formatTokens(usageStats?.total_tokens || 0) }}
+                  <p class="usage-summary-total-line text-xl font-bold text-zen-ink dark:text-zen-paper">
+                    <span>{{ formatTokens(usageStats?.total_tokens || 0) }}</span>
+                    <span class="usage-cache-rate-badge" :title="`${usageCopy.cacheRate} ${cacheStats.ratePercent}`">
+                      {{ usageCopy.cacheRate }} {{ cacheStats.ratePercent }}
+                    </span>
                   </p>
                   <div class="usage-summary-detail usage-summary-detail-token text-xs text-zen-mist dark:text-zen-stone">
                     <p class="usage-summary-token-line">
@@ -73,9 +76,6 @@
                         <span>{{ t('usage.cacheHit') }} {{ formatTokens(usageStats?.total_cache_read_tokens || 0) }}</span>
                         <span> · </span>
                         <span>{{ t('usage.cacheCreate') }} {{ formatTokens(usageStats?.total_cache_creation_tokens || 0) }}</span>
-                      </span>
-                      <span class="usage-cache-rate-badge" :title="`${usageCopy.cacheRate} ${cacheStats.ratePercent}`">
-                        {{ usageCopy.cacheRate }} {{ cacheStats.ratePercent }}
                       </span>
                     </p>
                   </div>
@@ -1608,6 +1608,15 @@ onMounted(() => {
   gap: 0.08rem;
 }
 
+.usage-summary-total-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  margin: 0;
+}
+
 .usage-summary-token-line {
   display: flex;
   min-width: 0;
@@ -1633,6 +1642,8 @@ onMounted(() => {
   margin-left: auto;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  font-weight: 600;
   color: #8b3d2f;
 }
 

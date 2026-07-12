@@ -92,6 +92,7 @@
             :start-date="startDate"
             :end-date="endDate"
             :filters="breakdownFilters"
+            @inspectGroup="inspectNegativeMarginGroup"
           />
         </div>
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -218,11 +219,13 @@ import type { OpsErrorLog } from '@/api/admin/ops'
 import ModelDistributionChart from '@/components/charts/ModelDistributionChart.vue'; import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'; import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { calculateUsageProfit, formatGrossMargin } from '@/utils/usageProfit'
 import type { AdminUsageLog, TrendDataPoint, ModelStat, GroupStat, EndpointStat, AdminUser } from '@/types'; import type { AdminUsageStatsResponse, AdminUsageQueryParams } from '@/api/admin/usage'
 
 const { t } = useI18n()
 const appStore = useAppStore()
 type DistributionMetric = 'tokens' | 'actual_cost'
+type GroupDistributionMetric = DistributionMetric | 'gross_profit'
 type CacheDistributionMetric = DistributionMetric | 'cache_hit_ratio' | 'cache_read_per_hit'
 type EndpointSource = 'inbound' | 'upstream' | 'path'
 type ModelDistributionSource = 'requested' | 'upstream' | 'mapping'
@@ -238,7 +241,7 @@ const loadedModelSources = reactive<Record<ModelDistributionSource, boolean>>({
   upstream: false,
   mapping: false,
 })
-const groupDistributionMetric = ref<DistributionMetric>('tokens')
+const groupDistributionMetric = ref<GroupDistributionMetric>('tokens')
 const endpointDistributionMetric = ref<CacheDistributionMetric>('tokens')
 const endpointDistributionSource = ref<EndpointSource>('inbound')
 const inboundEndpointStats = ref<EndpointStat[]>([])
@@ -278,6 +281,15 @@ const handleUserClick = async (userId: number) => {
   } catch {
     appStore.showError(t('admin.usage.failedToLoadUser'))
   }
+}
+
+const inspectNegativeMarginGroup = (groupID: number) => {
+  if (!Number.isFinite(groupID) || groupID <= 0) return
+  filters.value = {
+    ...filters.value,
+    group_id: groupID,
+  }
+  applyFilters()
 }
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
@@ -351,14 +363,20 @@ const usageBriefingRequestsNote = computed(() => {
 
 const usageBriefingCostValue = computed(() => {
   if (!usageStats.value) return t('usage.adminLedger.briefing.costPending')
-  return t('usage.adminLedger.briefing.costValue', { value: formatUsageCost(usageStats.value.total_actual_cost || 0) })
+  return t('usage.adminLedger.briefing.costValue', { value: formatUsageCost(usageProfit.value.grossProfit) })
 })
+
+const usageProfit = computed(() => calculateUsageProfit(
+  usageStats.value?.total_actual_cost,
+  usageStats.value?.total_account_cost,
+))
 
 const usageBriefingCostNote = computed(() => {
   if (!usageStats.value) return t('usage.adminLedger.briefing.costNotePending')
   return t('usage.adminLedger.briefing.costNote', {
-    accountCost: formatUsageCost(usageStats.value.total_account_cost || 0),
-    standardCost: formatUsageCost(usageStats.value.total_cost || 0)
+    revenue: formatUsageCost(usageProfit.value.revenue),
+    accountCost: formatUsageCost(usageProfit.value.cost),
+    margin: formatGrossMargin(usageProfit.value.grossMargin)
   })
 })
 
@@ -381,6 +399,7 @@ const usageBriefingAnomalyNote = computed(() => {
 const usageBriefingActionValue = computed(() => {
   if (errLoading.value || loading.value) return t('usage.adminLedger.briefing.actionPending')
   if (usageErrorCount.value > 0) return t('usage.adminLedger.briefing.actionErrors')
+  if (usageProfit.value.negative) return t('usage.adminLedger.briefing.actionNegativeMargin')
   if ((groupStats.value?.length || 0) > 0 || (inboundEndpointStats.value?.length || 0) > 0) return t('usage.adminLedger.briefing.actionGroups')
   return t('usage.adminLedger.briefing.actionDefault')
 })
@@ -388,6 +407,7 @@ const usageBriefingActionValue = computed(() => {
 const usageBriefingActionNote = computed(() => {
   if (errLoading.value || loading.value) return t('usage.adminLedger.briefing.actionNotePending')
   if (usageErrorCount.value > 0) return t('usage.adminLedger.briefing.actionNoteErrors')
+  if (usageProfit.value.negative) return t('usage.adminLedger.briefing.actionNoteNegativeMargin')
   if ((groupStats.value?.length || 0) > 0 || (inboundEndpointStats.value?.length || 0) > 0) return t('usage.adminLedger.briefing.actionNoteGroups')
   return t('usage.adminLedger.briefing.actionNoteDefault')
 })
@@ -398,6 +418,7 @@ const usageBriefingTags = computed(() => {
   if (usageErrorCount.value > 0) tags.push(t('usage.adminLedger.briefing.tagErrors', { value: formatUsageTokens(usageErrorCount.value) }))
   if ((groupStats.value?.length || 0) > 0) tags.push(t('usage.adminLedger.briefing.tagGroups', { value: formatUsageTokens(groupStats.value.length) }))
   if ((inboundEndpointStats.value?.length || 0) > 0) tags.push(t('usage.adminLedger.briefing.tagEndpoints', { value: formatUsageTokens(inboundEndpointStats.value.length) }))
+  if (usageProfit.value.negative) tags.unshift(t('usage.adminLedger.briefing.tagNegativeMargin'))
   return tags.slice(0, 5)
 })
 
@@ -409,14 +430,20 @@ const usageBriefingSummary = computed(() => {
       end: endDate.value,
       requests: formatUsageTokens(usageStats.value.total_requests || 0)
     }),
-    t('usage.adminLedger.briefing.summaryCost', { cost: formatUsageCost(usageStats.value.total_actual_cost || 0) })
+    t('usage.adminLedger.briefing.summaryCost', {
+      revenue: formatUsageCost(usageProfit.value.revenue),
+      profit: formatUsageCost(usageProfit.value.grossProfit),
+      margin: formatGrossMargin(usageProfit.value.grossMargin)
+    })
   ]
   if (usageErrorCount.value > 0) {
     parts.push(t('usage.adminLedger.briefing.summaryErrors', { errors: formatUsageTokens(usageErrorCount.value) }))
     parts.push(t('usage.adminLedger.briefing.summaryActionErrors'))
   } else {
     parts.push(t('usage.adminLedger.briefing.summaryNoErrors'))
-    parts.push(t('usage.adminLedger.briefing.summaryActionGroups'))
+    parts.push(t(usageProfit.value.negative
+      ? 'usage.adminLedger.briefing.summaryActionNegativeMargin'
+      : 'usage.adminLedger.briefing.summaryActionGroups'))
   }
   return parts.join('，') + '。'
 })

@@ -85,6 +85,7 @@
               <div class="flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-300">
                 <div class="flex flex-wrap gap-1">
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">负载均衡 {{ row.load_balance_enabled ? '开' : '关' }}</span>
+                  <span v-if="row.auto_weight_enabled" class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">自动调权</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">故障转移 {{ row.failover_enabled ? '开' : '关' }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">TopK {{ row.top_k }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">{{ accountTypeStrategyLabel(row.account_type_strategy) }}</span>
@@ -347,10 +348,10 @@
               </div>
               <button
                 class="btn btn-secondary btn-sm overview-refresh-button"
-                :disabled="!selectedPool || membersLoading || poolRoutingObservability.loading"
+                :disabled="!selectedPool || membersLoading || poolRoutingObservability.loading || poolHealthAlerts.loading"
                 @click="refreshSelectedPoolHealth"
               >
-                <Icon name="refresh" size="sm" :class="(membersLoading || poolRoutingObservability.loading) ? 'animate-spin' : ''" class="mr-1" />
+                <Icon name="refresh" size="sm" :class="(membersLoading || poolRoutingObservability.loading || poolHealthAlerts.loading) ? 'animate-spin' : ''" class="mr-1" />
                 刷新概览
               </button>
             </div>
@@ -435,6 +436,56 @@
               </div>
 
               <div class="min-w-0 xl:border-l xl:border-gray-200/80 xl:pl-4 dark:xl:border-dark-700/80 overview-diagnostic-panel">
+                <div class="mb-4 border-b border-gray-200/80 pb-4 dark:border-dark-700/80">
+                  <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">异常预警</div>
+                      <span :class="['badge', poolActiveHealthAlerts.length > 0 ? 'badge-warning' : 'badge-success']">
+                        {{ poolActiveHealthAlerts.length > 0 ? `${poolActiveHealthAlerts.length} 项持续中` : '当前正常' }}
+                      </span>
+                    </div>
+                    <span class="text-[11px] text-gray-500 dark:text-gray-400">近 7 天</span>
+                  </div>
+
+                  <div v-if="poolHealthAlerts.loading" class="rounded-lg bg-gray-50 px-3 py-3 text-xs text-gray-500 dark:bg-dark-800/70 dark:text-gray-400">
+                    正在加载最近预警…
+                  </div>
+                  <div
+                    v-else-if="poolHealthAlerts.error"
+                    class="flex flex-col gap-2 rounded-lg border border-rose-200 bg-rose-50/70 px-3 py-3 text-xs text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <span>{{ poolHealthAlerts.error }}</span>
+                    <button type="button" class="font-medium underline underline-offset-2" @click="selectedPool && loadPoolHealthAlerts(selectedPool)">重试</button>
+                  </div>
+                  <div v-else-if="poolActiveHealthAlerts.length > 0" class="space-y-2">
+                    <div
+                      v-for="log in poolActiveHealthAlerts.slice(0, 3)"
+                      :key="log.id"
+                      :class="['rounded-lg border px-3 py-2.5', poolHealthAlertCardClass(log)]"
+                    >
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                          <div class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ formatPoolHealthAlertTitle(log) }}</div>
+                          <span :class="['badge', getLogExtraString(log, 'severity') === 'critical' ? 'badge-danger' : 'badge-warning']">
+                            {{ getLogExtraString(log, 'severity') === 'critical' ? '严重' : '注意' }}
+                          </span>
+                        </div>
+                        <span class="text-[11px] text-gray-600 dark:text-gray-300">{{ formatCompactDateTime(log.created_at) }}</span>
+                      </div>
+                      <div class="mt-1 text-xs leading-5 text-gray-700 dark:text-gray-200">{{ formatPoolHealthAlertDetail(log) }}</div>
+                    </div>
+                    <div v-if="poolActiveHealthAlerts.length > 3" class="text-[11px] text-gray-500 dark:text-gray-400">
+                      另有 {{ poolActiveHealthAlerts.length - 3 }} 项持续异常，可在运维日志中查看。
+                    </div>
+                  </div>
+                  <div v-else class="rounded-lg border border-dashed border-emerald-200 bg-emerald-50/50 px-3 py-3 text-xs text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/10 dark:text-emerald-200">
+                    当前没有持续异常。
+                    <span v-if="latestResolvedPoolHealthAlert" class="ml-1 text-emerald-700/80 dark:text-emerald-300/80">
+                      最近恢复：{{ formatPoolHealthAlertTitle(latestResolvedPoolHealthAlert) }} · {{ formatCompactDateTime(latestResolvedPoolHealthAlert.created_at) }}
+                    </span>
+                  </div>
+                </div>
+
                 <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">路由诊断</div>
                   <button
@@ -740,8 +791,15 @@
             <span :class="['badge', value ? 'badge-warning' : 'badge-gray']">{{ value ? '已排空' : '正常' }}</span>
           </template>
 
-          <template #cell-weight="{ value }">
-            <span class="font-mono text-sm">{{ value }}</span>
+          <template #cell-weight="{ value, row }">
+            <div class="flex flex-col">
+              <span class="font-mono text-sm">
+                {{ value }}<template v-if="row.effective_weight && row.effective_weight !== value"> → {{ row.effective_weight }}</template>
+              </span>
+              <span v-if="row.runtime_weight_factor && row.runtime_weight_factor !== 1" class="text-xs text-gray-500 dark:text-gray-400">
+                ×{{ Number(row.runtime_weight_factor).toFixed(2) }} · {{ formatAutoWeightReason(row.runtime_weight_reason) }}
+              </span>
+            </div>
           </template>
 
           <template #cell-updated_at="{ value }">
@@ -1004,6 +1062,13 @@
               <span class="field-hint mb-0 block">请求失败后允许切换到候选账号。</span>
             </span>
             <Toggle :model-value="poolForm.failover_enabled" @update:modelValue="poolForm.failover_enabled = $event" />
+          </label>
+          <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-dark-600">
+            <span>
+              <span class="block text-sm">自动健康调权</span>
+              <span class="field-hint mb-0 block">OpenAI 池稳定观测后自动升降流量。</span>
+            </span>
+            <Toggle :model-value="poolForm.auto_weight_enabled" :disabled="poolForm.platform !== 'openai'" @update:modelValue="poolForm.auto_weight_enabled = $event" />
           </label>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
@@ -1351,6 +1416,7 @@ import {
   buildDeleteMemberSetConfirmMessage,
   buildDeletePoolConfirmMessage,
   filterAccountsForPoolCompletion,
+  getLatestPoolHealthAlertStates,
   getPoolRoutingPaginationInfo
 } from '@/utils/upstreamPoolInteractions'
 import { useAppStore } from '@/stores'
@@ -1368,6 +1434,7 @@ type PoolForm = {
   sticky_escape_error_rate_threshold: number
   sticky_escape_ttft_ms_threshold: number
   load_balance_enabled: boolean
+  auto_weight_enabled: boolean
   failover_enabled: boolean
   top_k: number
   max_failover_hops: number
@@ -1428,6 +1495,12 @@ type PoolRoutingObservabilityState = {
   logs: OpsSystemLog[]
 }
 
+type PoolHealthAlertState = {
+  loading: boolean
+  error: string
+  logs: OpsSystemLog[]
+}
+
 const appStore = useAppStore()
 const loading = ref(false)
 const submitting = ref(false)
@@ -1457,10 +1530,16 @@ const poolRoutingObservability = ref<PoolRoutingObservabilityState>({
   pageSize: 60,
   logs: [],
 })
+const poolHealthAlerts = ref<PoolHealthAlertState>({
+  loading: false,
+  error: '',
+  logs: [],
+})
 const searchQuery = ref('')
 const filters = ref({ platform: '', enabled: '' })
 const pagination = ref({ page: 1, page_size: 20, total: 0 })
 let poolObservabilityRequestToken = 0
+let poolHealthAlertRequestToken = 0
 
 const showPoolModal = ref(false)
 const showMemberModal = ref(false)
@@ -1484,6 +1563,10 @@ function createEmptyPoolRoutingObservabilityState(): PoolRoutingObservabilitySta
     pageSize: 60,
     logs: [],
   }
+}
+
+function createEmptyPoolHealthAlertState(): PoolHealthAlertState {
+  return { loading: false, error: '', logs: [] }
 }
 
 const poolRoutingPaginationInfo = computed(() => getPoolRoutingPaginationInfo({
@@ -1516,6 +1599,7 @@ const poolForm = ref<PoolForm>({
   sticky_escape_error_rate_threshold: 0.3,
   sticky_escape_ttft_ms_threshold: 6000,
   load_balance_enabled: true,
+  auto_weight_enabled: false,
   failover_enabled: true,
   top_k: 2,
   max_failover_hops: 3,
@@ -1588,6 +1672,14 @@ const poolAccountSyncPlatforms = new Set(['openai', 'anthropic'])
 const poolRoutingObservabilityPlatforms = new Set(['openai', 'anthropic'])
 const canSyncSelectedPool = computed(() => poolAccountSyncPlatforms.has(selectedPool.value?.platform || ''))
 const poolRoutingObservabilitySupported = computed(() => poolRoutingObservabilityPlatforms.has(selectedPool.value?.platform || ''))
+const latestPoolHealthAlertStates = computed(() => getLatestPoolHealthAlertStates(poolHealthAlerts.value.logs))
+const poolActiveHealthAlerts = computed(() => latestPoolHealthAlertStates.value.filter(log => {
+  const status = getLogExtraString(log, 'alert_status')
+  return status === 'firing' || status === 'reminder'
+}))
+const latestResolvedPoolHealthAlert = computed(() =>
+  latestPoolHealthAlertStates.value.find(log => getLogExtraString(log, 'alert_status') === 'resolved') || null
+)
 const memberAccountNameMap = computed(() =>
   new Map(
     members.value.map(member => [
@@ -1955,6 +2047,22 @@ const formatStickyEscapeReason = (value?: string | null) => {
   }
 }
 
+const formatAutoWeightReason = (value?: string | null) => {
+  const labels: Record<string, string> = {
+    rate_limited: '限流',
+    overloaded: '过载',
+    temporarily_unschedulable: '暂不可调度',
+    probe_failed: '探测失败',
+    probe_degraded: '探测降级',
+    faster_than_pool: '快于同池',
+    much_slower_than_pool: '明显慢于同池',
+    slower_than_pool: '慢于同池',
+    healthy: '健康',
+  }
+  const reason = String(value || '').trim()
+  return labels[reason] || reason || '-'
+}
+
 const formatRoutingReason = (value?: string | null) => {
   switch (String(value || '').trim()) {
     case 'previous_response_sticky':
@@ -1999,6 +2107,47 @@ const getLogExtraNumber = (log: OpsSystemLog, key: string) => {
     if (Number.isFinite(parsed)) return parsed
   }
   return null
+}
+
+const poolHealthAlertTypeLabels: Record<string, string> = {
+  pool_capacity_low: '池可用账号不足',
+  pool_unavailable: '池无可用账号',
+  account_rate_limited: '账号持续限流',
+  account_error_rate_high: '账号错误率偏高',
+  account_probe_failed: '账号连续探测失败',
+  account_latency_degraded: '账号延迟恶化',
+  account_runtime_weight_low: '自动权重持续偏低',
+}
+
+const formatPoolHealthAlertTitle = (log: OpsSystemLog) => {
+  const type = getLogExtraString(log, 'alert_type')
+  return poolHealthAlertTypeLabels[type] || log.message || '上游异常'
+}
+
+const poolHealthAlertCardClass = (log: OpsSystemLog) => (
+  getLogExtraString(log, 'severity') === 'critical'
+    ? 'border-rose-200 bg-rose-50/70 dark:border-rose-900/40 dark:bg-rose-950/20'
+    : 'border-amber-200 bg-amber-50/70 dark:border-amber-900/40 dark:bg-amber-950/20'
+)
+
+const formatPoolHealthAlertDetail = (log: OpsSystemLog) => {
+  const parts: string[] = []
+  const accountName = getLogExtraString(log, 'account_name')
+  const reason = getLogExtraString(log, 'reason')
+  const available = getLogExtraNumber(log, 'available_members')
+  const total = getLogExtraNumber(log, 'total_members')
+  const errorRate = getLogExtraNumber(log, 'error_rate')
+  const latency = getLogExtraNumber(log, 'latency_ms')
+  const medianLatency = getLogExtraNumber(log, 'pool_median_latency_ms')
+  const factor = getLogExtraNumber(log, 'runtime_weight_factor')
+
+  if (accountName) parts.push(`账号 ${accountName}`)
+  if (available != null && total != null) parts.push(`可用 ${available}/${total}`)
+  if (errorRate != null) parts.push(`错误率 ${(errorRate * 100).toFixed(1)}%`)
+  if (latency != null) parts.push(`延迟 ${latency}ms${medianLatency != null ? `，池中位数 ${medianLatency}ms` : ''}`)
+  if (factor != null) parts.push(`运行因子 ${factor.toFixed(2)}`)
+  if (parts.length === 0 && reason) parts.push(`原因 ${formatAutoWeightReason(reason)}`)
+  return parts.join(' · ') || log.message || '请检查当前池成员状态'
 }
 
 const getLogExtraNumberArray = (log: OpsSystemLog, key: string) => {
@@ -2185,6 +2334,7 @@ function resetPoolForm() {
     sticky_escape_error_rate_threshold: 0.3,
     sticky_escape_ttft_ms_threshold: 6000,
     load_balance_enabled: true,
+    auto_weight_enabled: false,
     failover_enabled: true,
     top_k: 2,
     max_failover_hops: 3,
@@ -2258,6 +2408,7 @@ async function loadAll() {
       members.value = []
       memberSets.value = []
       poolRoutingObservability.value = createEmptyPoolRoutingObservabilityState()
+      poolHealthAlerts.value = createEmptyPoolHealthAlertState()
     } else if (selectedPool.value) {
       const nextSelected = poolList.find(pool => pool.id === selectedPool.value?.id)
       selectPool(nextSelected || poolList[0])
@@ -2337,6 +2488,7 @@ function selectPool(pool: UpstreamPool) {
   loadMembers(pool.id)
   loadMemberSets(pool.id)
   loadPoolObservability(pool)
+  loadPoolHealthAlerts(pool)
   pagination.value.total = filteredPools.value.length
 }
 
@@ -2387,6 +2539,30 @@ async function loadPoolObservability(pool: UpstreamPool) {
   }
 }
 
+async function loadPoolHealthAlerts(pool: UpstreamPool) {
+  const requestToken = ++poolHealthAlertRequestToken
+  poolHealthAlerts.value = { loading: true, error: '', logs: [] }
+  try {
+    const result = await adminAPI.ops.listSystemLogs({
+      page: 1,
+      page_size: 50,
+      time_range: '7d',
+      component: 'upstream.health_alert',
+      platform: pool.platform,
+      pool_id: pool.id,
+    })
+    if (requestToken !== poolHealthAlertRequestToken) return
+    poolHealthAlerts.value = { loading: false, error: '', logs: result.items || [] }
+  } catch (error) {
+    if (requestToken !== poolHealthAlertRequestToken) return
+    poolHealthAlerts.value = {
+      loading: false,
+      error: extractApiErrorMessage(error, '加载最近预警失败'),
+      logs: [],
+    }
+  }
+}
+
 async function loadMorePoolObservability() {
   const pool = selectedPool.value
   if (!pool || !poolRoutingObservabilitySupported.value || !poolRoutingPaginationInfo.value.hasMore) return
@@ -2434,6 +2610,7 @@ async function refreshSelectedPoolHealth() {
     loadMembers(selectedPool.value.id),
     loadMemberSets(selectedPool.value.id),
     loadPoolObservability(selectedPool.value),
+    loadPoolHealthAlerts(selectedPool.value),
   ])
 }
 
@@ -2453,6 +2630,7 @@ function openPoolModal(pool?: UpstreamPool | null) {
       sticky_escape_error_rate_threshold: pool.sticky_escape_error_rate_threshold,
       sticky_escape_ttft_ms_threshold: pool.sticky_escape_ttft_ms_threshold,
       load_balance_enabled: pool.load_balance_enabled,
+      auto_weight_enabled: Boolean(pool.auto_weight_enabled),
       failover_enabled: pool.failover_enabled,
       top_k: pool.top_k,
       max_failover_hops: pool.max_failover_hops,
@@ -2598,6 +2776,7 @@ async function submitPool() {
     const payload = {
       ...poolForm.value,
       description: poolForm.value.description || undefined,
+      auto_weight_enabled: poolForm.value.platform === 'openai' && poolForm.value.auto_weight_enabled,
     }
     if (editingPool.value) {
       await adminAPI.upstreamPools.update(editingPool.value.id, payload)

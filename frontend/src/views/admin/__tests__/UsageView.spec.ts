@@ -154,11 +154,12 @@ const ModelDistributionChartStub = {
 }
 const GroupDistributionChartStub = {
   props: ['metric'],
-  emits: ['update:metric'],
+  emits: ['update:metric', 'inspectGroup'],
   template: `
     <div data-test="group-chart">
       <span class="metric">{{ metric }}</span>
       <button class="switch-metric" @click="$emit('update:metric', 'actual_cost')">switch</button>
+      <button class="inspect-group" @click="$emit('inspectGroup', 3)">inspect</button>
     </div>
   `,
 }
@@ -287,6 +288,47 @@ describe('admin UsageView distribution metric toggles', () => {
     expect(modelChart.find('.metric').text()).toBe('actual_cost')
     expect(groupChart.find('.metric').text()).toBe('actual_cost')
     expect(getSnapshotV2).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies the selected negative-margin group to ledger and chart requests', async () => {
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: true,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          AuditLogModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: ModelDistributionChartStub,
+          GroupDistributionChart: GroupDistributionChartStub,
+          EndpointDistributionChart: true,
+          OpsErrorLogTable: true,
+          OpsErrorDetailModal: true,
+        },
+      },
+    })
+
+    vi.advanceTimersByTime(120)
+    await flushPromises()
+
+    await wrapper.find('[data-test="group-chart"] .inspect-group').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.vm as any).filters.group_id).toBe(3)
+    expect(list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ group_id: 3 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    )
+    expect(getStats).toHaveBeenLastCalledWith(expect.objectContaining({ group_id: 3 }))
+    expect(getSnapshotV2).toHaveBeenLastCalledWith(expect.objectContaining({ group_id: 3 }))
   })
 })
 

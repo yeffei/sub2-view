@@ -57,7 +57,7 @@ func TestPoolHealthAggregatesAccountProbeHistory(t *testing.T) {
 	require.Len(t, detail.Lines, 2)
 	require.Equal(t, int64(1001), detail.Lines[0].AccountID)
 	require.Equal(t, "gpt-4o", detail.Lines[0].ProbeModel)
-	require.Equal(t, 50.0, detail.Availability7d)
+	require.Equal(t, 100.0, detail.Availability7d)
 }
 
 func TestPoolHealthUsesAccountStateWithoutMonitorLines(t *testing.T) {
@@ -99,10 +99,23 @@ func TestPoolHealthServingStatusIgnoresPartialUnschedulableMembers(t *testing.T)
 	require.Equal(t, MonitorStatusOperational, detail.Status)
 	require.Equal(t, 1, detail.HealthyMemberCount)
 	require.Equal(t, 1, detail.DegradedMemberCount)
-	require.Equal(t, 50.0, detail.Availability7d)
+	require.Equal(t, 100.0, detail.Availability7d)
 }
 
-func TestPoolHealthUsesFailedProbeOverHealthyMemberState(t *testing.T) {
+func TestPoolHealthAvailabilityUsesPoolSnapshots(t *testing.T) {
+	now := time.Now().UTC()
+	snapshots := []*PoolAvailabilitySnapshotEntry{
+		{PoolID: 1, Status: MonitorStatusOperational, CheckedAt: now},
+		{PoolID: 1, Status: MonitorStatusOperational, CheckedAt: now.Add(-5 * time.Minute)},
+		{PoolID: 1, Status: MonitorStatusFailed, CheckedAt: now.Add(-10 * time.Minute)},
+	}
+
+	require.Equal(t, 66.67, aggregatePoolSnapshotAvailability(snapshots, monitorAvailability7Days, 0))
+	require.Equal(t, 100.0, aggregatePoolSnapshotAvailability(nil, monitorAvailability7Days, 100))
+	require.Len(t, aggregatePoolSnapshotTimeline(snapshots), 3)
+}
+
+func TestPoolHealthKeepsServingWhenAccountProbesFail(t *testing.T) {
 	now := time.Now().UTC()
 	pool := UpstreamPool{ID: 1, Name: "OpenAI Pool", Platform: PlatformOpenAI, Enabled: true}
 	bindings := []UpstreamPoolBinding{
@@ -122,7 +135,7 @@ func TestPoolHealthUsesFailedProbeOverHealthyMemberState(t *testing.T) {
 
 	detail := buildPoolHealthDetail(pool, bindings, members, accountsByID, facts)
 
-	require.Equal(t, MonitorStatusFailed, detail.Status)
+	require.Equal(t, MonitorStatusOperational, detail.Status)
 	require.Equal(t, 2, detail.HealthyMemberCount)
 	require.Equal(t, 2, detail.TotalMemberCount)
 }

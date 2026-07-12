@@ -469,7 +469,11 @@ func (s *BalanceNotifyService) buildBalanceLowEmailBody(userName string, balance
 <p>为避免服务中断，请尽快完成充值或核对账户使用情况。</p>
 <p>Please recharge or review usage soon to avoid service interruption.</p>
 %s`, userName, userName, balance, threshold, balance, rechargeBlock)
-	return notificationEmailCard("#d97706", "余额不足提醒 / Low balance alert", content)
+	return strings.ReplaceAll(
+		notificationEmailCard("#d97706", "余额不足提醒 / Low balance alert", content),
+		"{{site_name}}",
+		siteName,
+	)
 }
 
 // buildQuotaAlertEmailBody builds HTML email for account quota alert.
@@ -494,5 +498,9 @@ func (s *BalanceNotifyService) buildQuotaAlertEmailBody(accountID int64, account
 <p>如需继续供给，请尽快扩容、切换或人工介入处理。</p>
 <p>Please expand capacity, switch accounts, or intervene manually if continued service is required.</p>`,
 		accountName, accountName, accountID, accountName, platform, dimLabel, used, limitStr, remaining, thresholdDisplay)
-	return notificationEmailCard("#dc2626", "账号限额告警 / Account quota alert", content)
+	return strings.ReplaceAll(
+		notificationEmailCard("#dc2626", "账号限额告警 / Account quota alert", content),
+		"{{site_name}}",
+		siteName,
+	)
 }

@@ -17,6 +17,53 @@
             @refresh="handleManualRefresh"
             @create="openCreateAccount"
           >
+            <template #beforeCreate>
+              <button
+                type="button"
+                class="btn btn-secondary gap-2"
+                :disabled="scheduledCostRateSyncLoading || scheduledCostRateSyncSaving"
+                :title="t('admin.accounts.scheduledCostRateSyncHint')"
+                :aria-pressed="scheduledCostRateSyncEnabled"
+                @click="toggleScheduledCostRateSync"
+              >
+                <span
+                  class="relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors"
+                  :class="scheduledCostRateSyncEnabled ? 'bg-teal-500' : 'bg-gray-300 dark:bg-gray-600'"
+                >
+                  <span
+                    class="mt-0.5 inline-block h-4 w-4 rounded-full bg-white shadow transition-transform"
+                    :class="scheduledCostRateSyncEnabled ? 'translate-x-[1.125rem]' : 'translate-x-0.5'"
+                  />
+                </span>
+                <span>{{ t('admin.accounts.scheduledCostRateSync') }}</span>
+              </button>
+              <button
+                class="btn btn-secondary"
+                :disabled="syncingAllUpstreamRates"
+                :title="t('admin.accounts.syncAllUpstreamRatesHint')"
+                @click="showSyncAllUpstreamRatesDialog = true"
+              >
+                <Icon name="sync" size="sm" :class="syncingAllUpstreamRates ? 'animate-spin' : ''" />
+                <span>{{ syncingAllUpstreamRates ? t('admin.accounts.syncingAllUpstreamRates') : t('admin.accounts.syncAllUpstreamRates') }}</span>
+              </button>
+              <button
+                v-if="failedUpstreamRateAccountIds.length > 0"
+                class="btn btn-secondary"
+                :disabled="syncingRateBatch || syncingAllUpstreamRates"
+                @click="handleRetryFailedUpstreamRates"
+              >
+                <Icon name="refresh" size="sm" :class="syncingRateBatch ? 'animate-spin' : ''" />
+                <span>{{ t('admin.accounts.retryFailedUpstreamRates', { count: failedUpstreamRateAccountIds.length }) }}</span>
+              </button>
+			  <button
+				v-if="lastUpstreamRateSyncResult"
+				class="btn btn-secondary"
+				@click="showUpstreamRateSyncResult = true"
+			  >
+				<Icon name="document" size="sm" />
+				<span>{{ t('admin.accounts.viewUpstreamRateSyncResult') }}</span>
+			  </button>
+            </template>
             <template #after>
               <!-- Auto Refresh Dropdown -->
               <div class="relative" ref="autoRefreshDropdownRef">
@@ -179,9 +226,11 @@
       <template #table>
         <AccountBulkActionsBar
           :selected-ids="selIds"
+          :syncing-upstream-rate="syncingRateBatch"
           @delete="handleBulkDelete"
           @reset-status="handleBulkResetStatus"
           @refresh-token="handleBulkRefreshToken"
+          @sync-upstream-rate="handleBulkSyncUpstreamRate"
           @edit-selected="openBulkEditSelected"
           @edit-filtered="openBulkEditFiltered"
           @clear="clearSelection"
@@ -343,7 +392,16 @@
             </div>
           </template>
           <template #cell-rate_multiplier="{ row }">
-            <span class="text-sm font-mono text-gray-700 dark:text-gray-300">
+            <button
+              v-if="canSyncUpstreamRate(row)"
+              type="button"
+              class="rounded px-1 py-0.5 font-mono text-sm text-teal-700 transition-colors hover:bg-teal-50 hover:text-teal-800 dark:text-teal-300 dark:hover:bg-teal-900/20"
+              :title="t('admin.accounts.viewCostRateHistory')"
+              @click="openCostRateHistory(row)"
+            >
+              {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
+            </button>
+            <span v-else class="text-sm font-mono text-gray-700 dark:text-gray-300">
               {{ (row.rate_multiplier ?? 1).toFixed(2) }}x
             </span>
           </template>
@@ -473,6 +531,137 @@
     />
     <TempUnschedStatusModal :show="showTempUnsched" :account="tempUnschedAcc" @close="showTempUnsched = false" @reset="handleTempUnschedReset" />
     <ConfirmDialog :show="showDeleteDialog" :title="t('admin.accounts.deleteAccount')" :message="t('admin.accounts.deleteConfirm', { name: deletingAcc?.name })" :confirm-text="t('common.delete')" :cancel-text="t('common.cancel')" :danger="true" @confirm="confirmDelete" @cancel="showDeleteDialog = false" />
+    <ConfirmDialog
+      :show="showSyncAllUpstreamRatesDialog"
+      :title="t('admin.accounts.syncAllUpstreamRatesConfirmTitle')"
+      :message="t('admin.accounts.syncAllUpstreamRatesConfirmMessage')"
+      :confirm-text="t('admin.accounts.syncAllUpstreamRatesConfirm')"
+      :cancel-text="t('common.cancel')"
+      @confirm="handleSyncAllUpstreamRates"
+      @cancel="showSyncAllUpstreamRatesDialog = false"
+    />
+	<BaseDialog
+	  :show="showUpstreamRateSyncResult"
+	  :title="t('admin.accounts.upstreamRateSyncResultTitle')"
+	  width="wide"
+	  @close="showUpstreamRateSyncResult = false"
+	>
+	  <div v-if="lastUpstreamRateSyncResult" class="space-y-4">
+		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultTotal') }}</p>
+			<p class="mt-1 text-lg font-semibold">{{ lastUpstreamRateSyncResult.total }}</p>
+		  </div>
+		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultChanged') }}</p>
+			<p class="mt-1 text-lg font-semibold text-emerald-600">{{ upstreamRateSyncChangedCount }}</p>
+		  </div>
+		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultSignificant') }}</p>
+			<p class="mt-1 text-lg font-semibold text-amber-600">{{ upstreamRateSyncSignificantCount }}</p>
+		  </div>
+		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultFailed') }}</p>
+			<p class="mt-1 text-lg font-semibold" :class="lastUpstreamRateSyncResult.failed > 0 ? 'text-rose-600' : 'text-gray-900 dark:text-white'">{{ lastUpstreamRateSyncResult.failed }}</p>
+		  </div>
+		</div>
+		<div class="max-h-[26rem] overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+		  <table class="w-full text-sm">
+			<thead class="sticky top-0 bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800">
+			  <tr>
+				<th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultAccount') }}</th>
+				<th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultChange') }}</th>
+				<th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultStatus') }}</th>
+			  </tr>
+			</thead>
+			<tbody>
+			  <tr v-for="item in lastUpstreamRateSyncResult.results" :key="item.account_id" class="border-t border-gray-100 dark:border-gray-700">
+				<td class="px-3 py-2">
+				  <span class="font-medium text-gray-900 dark:text-white">{{ upstreamRateSyncAccountLabel(item) }}</span>
+				  <span class="ml-1 text-xs text-gray-400">#{{ item.account_id }}</span>
+				</td>
+				<td class="px-3 py-2 font-mono text-xs">
+				  <template v-if="item.success">
+					{{ formatRateMultiplier(item.previous_rate_multiplier) }} → {{ formatRateMultiplier(item.rate_multiplier) }}
+				  </template>
+				  <span v-else class="text-gray-400">—</span>
+				</td>
+				<td class="px-3 py-2">
+				  <span v-if="!item.success" class="text-rose-600">{{ item.error || t('admin.accounts.syncUpstreamRateMultiplierFailed') }}</span>
+				  <span v-else-if="item.significant_change" class="text-amber-600">{{ t('admin.accounts.upstreamRateSyncResultLargeChange') }}</span>
+				  <span v-else-if="item.changed" class="text-emerald-600">{{ t('admin.accounts.upstreamRateSyncResultUpdated') }}</span>
+				  <span v-else class="text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultUnchanged') }}</span>
+				</td>
+			  </tr>
+			</tbody>
+		  </table>
+		</div>
+	  </div>
+	  <template #footer>
+		<button type="button" class="btn btn-primary" @click="showUpstreamRateSyncResult = false">{{ t('common.close') }}</button>
+	  </template>
+	</BaseDialog>
+    <BaseDialog
+      :show="showCostRateHistory"
+      :title="t('admin.accounts.costRateHistoryTitle', { name: costRateHistoryAccount?.name || '' })"
+      width="wide"
+      @close="showCostRateHistory = false"
+    >
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-800">
+          <span class="text-sm text-gray-600 dark:text-gray-300">{{ t('admin.accounts.currentCostRate') }}</span>
+          <span class="font-mono text-sm font-semibold text-gray-900 dark:text-white">
+            {{ formatRateMultiplier(costRateHistoryAccount?.rate_multiplier) }}
+          </span>
+        </div>
+        <div v-if="costRateHistoryLoading" class="py-10 text-center text-sm text-gray-500">
+          {{ t('common.loading') }}
+        </div>
+        <div v-else-if="costRateHistoryError" class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-900/50 dark:bg-rose-900/20 dark:text-rose-300">
+          <p>{{ costRateHistoryError }}</p>
+          <button type="button" class="mt-3 font-medium underline" @click="loadCostRateHistory">{{ t('common.retry') }}</button>
+        </div>
+        <div v-else-if="costRateHistoryLogs.length === 0" class="py-10 text-center">
+          <p class="text-sm font-medium text-gray-700 dark:text-gray-200">{{ t('admin.accounts.costRateHistoryEmpty') }}</p>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.costRateHistoryEmptyHint') }}</p>
+        </div>
+        <div v-else class="max-h-[28rem] overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+          <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+              <tr>
+                <th class="px-3 py-2">{{ t('admin.accounts.costRateHistoryTime') }}</th>
+                <th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultChange') }}</th>
+                <th class="px-3 py-2">{{ t('admin.accounts.costRateHistoryDelta') }}</th>
+                <th class="px-3 py-2">{{ t('admin.accounts.costRateHistorySource') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in costRateHistoryLogs" :key="log.id" class="border-t border-gray-100 dark:border-gray-700">
+                <td class="whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300">{{ formatDateTime(log.created_at) }}</td>
+                <td class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-900 dark:text-white">
+                  {{ formatRateMultiplier(costRateLogNumber(log, 'previous_rate_multiplier')) }} →
+                  {{ formatRateMultiplier(costRateLogNumber(log, 'rate_multiplier')) }}
+                </td>
+                <td class="whitespace-nowrap px-3 py-2" :class="costRateDeltaClass(log)">
+                  {{ formatCostRateDelta(log) }}
+                  <span v-if="log.extra?.significant_change" class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                    {{ t('admin.accounts.costRateHistoryLargeChange') }}
+                  </span>
+                </td>
+                <td class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">{{ String(log.extra?.rate_source || '—') }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.accounts.costRateHistoryHint') }}</p>
+      </div>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" :disabled="costRateHistoryLoading" @click="loadCostRateHistory">
+          {{ t('common.refresh') }}
+        </button>
+        <button type="button" class="btn btn-primary" @click="showCostRateHistory = false">{{ t('common.close') }}</button>
+      </template>
+    </BaseDialog>
     <ConfirmDialog :show="showExportDataDialog" :title="t('admin.accounts.dataExport')" :message="t('admin.accounts.dataExportConfirmMessage')" :confirm-text="t('admin.accounts.dataExportConfirm')" :cancel-text="t('common.cancel')" @confirm="handleExportData" @cancel="showExportDataDialog = false">
       <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
         <input type="checkbox" class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" v-model="includeProxyOnExport" />
@@ -526,6 +715,8 @@ import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { formatDateOnly, formatDateTime, formatRelativeTime } from '@/utils/format'
 import { proxyExpiryBadgeClass, proxyExpiryLabelKey } from '@/utils/proxyExpiry'
 import type { Account, AccountPlatform, AccountType, Proxy as AccountProxy, AdminGroup, WindowStats, ClaudeModel } from '@/types'
+import type { BatchSyncUpstreamRateMultiplierResult } from '@/api/admin/accounts'
+import type { OpsSystemLog } from '@/api/admin/ops'
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -587,6 +778,9 @@ const showBulkEdit = ref(false)
 const bulkEditTarget = ref<AccountBulkEditTarget | null>(null)
 const showTempUnsched = ref(false)
 const showDeleteDialog = ref(false)
+const showSyncAllUpstreamRatesDialog = ref(false)
+const showUpstreamRateSyncResult = ref(false)
+const showCostRateHistory = ref(false)
 const showReAuth = ref(false)
 const showTest = ref(false)
 const showStats = ref(false)
@@ -603,6 +797,110 @@ const scheduleAcc = ref<Account | null>(null)
 const scheduleModelOptions = ref<SelectOption[]>([])
 const togglingSchedulable = ref<number | null>(null)
 const syncingRateAccountId = ref<number | null>(null)
+const syncingRateBatch = ref(false)
+const syncingAllUpstreamRates = ref(false)
+const failedUpstreamRateAccountIds = ref<number[]>([])
+const lastUpstreamRateSyncResult = ref<BatchSyncUpstreamRateMultiplierResult | null>(null)
+const costRateHistoryAccount = ref<Account | null>(null)
+const costRateHistoryLogs = ref<OpsSystemLog[]>([])
+const costRateHistoryLoading = ref(false)
+const costRateHistoryError = ref('')
+const scheduledCostRateSyncEnabled = ref(false)
+const scheduledCostRateSyncLoading = ref(true)
+const scheduledCostRateSyncSaving = ref(false)
+
+const upstreamRateSyncChangedCount = computed(() => (
+  lastUpstreamRateSyncResult.value?.results.filter(item => item.success && item.changed).length || 0
+))
+const upstreamRateSyncSignificantCount = computed(() => (
+  lastUpstreamRateSyncResult.value?.results.filter(item => item.success && item.significant_change).length || 0
+))
+const formatRateMultiplier = (value?: number) => `${(value ?? 1).toFixed(4)}x`
+const upstreamRateSyncAccountLabel = (item: BatchSyncUpstreamRateMultiplierResult['results'][number]) => (
+  item.account?.name || item.account_name || t('admin.accounts.upstreamRateSyncResultUnknownAccount')
+)
+const recordUpstreamRateSyncResult = (result: BatchSyncUpstreamRateMultiplierResult, open = true) => {
+  lastUpstreamRateSyncResult.value = result
+  showUpstreamRateSyncResult.value = open
+  if (upstreamRateSyncSignificantCount.value > 0) {
+    appStore.showWarning(t('admin.accounts.upstreamRateSyncSignificantWarning', {
+      count: upstreamRateSyncSignificantCount.value
+    }))
+  }
+}
+const costRateLogNumber = (log: OpsSystemLog, key: string) => {
+  const value = Number(log.extra?.[key])
+  return Number.isFinite(value) ? value : undefined
+}
+const formatCostRateDelta = (log: OpsSystemLog) => {
+  const ratio = costRateLogNumber(log, 'change_ratio')
+  if (ratio === undefined) return '—'
+  const sign = ratio > 0 ? '+' : ''
+  return `${sign}${(ratio * 100).toFixed(1)}%`
+}
+const costRateDeltaClass = (log: OpsSystemLog) => {
+  const ratio = costRateLogNumber(log, 'change_ratio')
+  if (ratio === undefined || Math.abs(ratio) < 1e-9) return 'text-gray-500 dark:text-gray-400'
+  return ratio > 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'
+}
+const loadCostRateHistory = async () => {
+  if (!costRateHistoryAccount.value) return
+  costRateHistoryLoading.value = true
+  costRateHistoryError.value = ''
+  try {
+    const result = await adminAPI.ops.listSystemLogs({
+      page: 1,
+      page_size: 50,
+      time_range: '30d',
+      component: 'upstream.cost_rate_sync',
+      account_id: costRateHistoryAccount.value.id
+    })
+    costRateHistoryLogs.value = result.items
+  } catch (error: any) {
+    console.error('Failed to load cost rate history:', error)
+    costRateHistoryError.value = error?.message || error?.response?.data?.message || t('admin.accounts.costRateHistoryLoadFailed')
+  } finally {
+    costRateHistoryLoading.value = false
+  }
+}
+const openCostRateHistory = (account: Account) => {
+  costRateHistoryAccount.value = account
+  costRateHistoryLogs.value = []
+  showCostRateHistory.value = true
+  void loadCostRateHistory()
+}
+const loadScheduledCostRateSyncSetting = async () => {
+  scheduledCostRateSyncLoading.value = true
+  if (!adminAPI.settings?.getSettings) {
+    scheduledCostRateSyncLoading.value = false
+    return
+  }
+  try {
+    const settings = await adminAPI.settings.getSettings()
+    scheduledCostRateSyncEnabled.value = Boolean(settings.upstream_rate_sync_enabled)
+  } catch (error) {
+    console.error('Failed to load scheduled cost rate sync setting:', error)
+  } finally {
+    scheduledCostRateSyncLoading.value = false
+  }
+}
+const toggleScheduledCostRateSync = async () => {
+  if (scheduledCostRateSyncLoading.value || scheduledCostRateSyncSaving.value) return
+  const next = !scheduledCostRateSyncEnabled.value
+  scheduledCostRateSyncSaving.value = true
+  try {
+    const settings = await adminAPI.settings.updateSettings({ upstream_rate_sync_enabled: next })
+    scheduledCostRateSyncEnabled.value = Boolean(settings.upstream_rate_sync_enabled)
+    appStore.showSuccess(t(next
+      ? 'admin.accounts.scheduledCostRateSyncEnabled'
+      : 'admin.accounts.scheduledCostRateSyncDisabled'))
+  } catch (error: any) {
+    console.error('Failed to update scheduled cost rate sync setting:', error)
+    appStore.showError(error?.message || t('admin.accounts.scheduledCostRateSyncUpdateFailed'))
+  } finally {
+    scheduledCostRateSyncSaving.value = false
+  }
+}
 const exportingData = ref(false)
 
 // Account tools dropdown
@@ -1454,6 +1752,96 @@ const handleBulkRefreshToken = async () => {
     appStore.showError(String(error))
   }
 }
+const handleBulkSyncUpstreamRate = async () => {
+  if (syncingRateBatch.value || selIds.value.length === 0) return
+  syncingRateBatch.value = true
+  try {
+    const result = await adminAPI.accounts.batchSyncUpstreamRateMultiplier(selIds.value)
+    const updated = result.results
+      .map(item => item.account)
+      .filter((account): account is Account => Boolean(account))
+    if (updated.length > 0) {
+      updated.forEach(syncAccountRefs)
+      mergeAccountsIncrementally(updated)
+    }
+		recordUpstreamRateSyncResult(result)
+    if (result.failed > 0) {
+      appStore.showError(t('admin.accounts.bulkActions.syncUpstreamRatePartial', {
+        success: result.success,
+        failed: result.failed
+      }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.bulkActions.syncUpstreamRateSuccess', { count: result.success }))
+      clearSelection()
+    }
+  } catch (error: any) {
+    console.error('Failed to batch sync upstream rate multiplier:', error)
+    appStore.showError(error?.message || t('admin.accounts.syncUpstreamRateMultiplierFailed'))
+  } finally {
+    syncingRateBatch.value = false
+  }
+}
+const handleSyncAllUpstreamRates = async () => {
+  if (syncingAllUpstreamRates.value) return
+  showSyncAllUpstreamRatesDialog.value = false
+  syncingAllUpstreamRates.value = true
+  try {
+    const result = await adminAPI.accounts.syncAllUpstreamRateMultipliers()
+    const updated = result.results
+      .map(item => item.account)
+      .filter((account): account is Account => Boolean(account))
+    updated.forEach(syncAccountRefs)
+    mergeAccountsIncrementally(updated)
+		recordUpstreamRateSyncResult(result)
+    failedUpstreamRateAccountIds.value = result.results
+      .filter(item => !item.success && item.account_id > 0)
+      .map(item => item.account_id)
+    if (result.failed > 0) {
+      appStore.showError(t('admin.accounts.syncAllUpstreamRatesPartial', {
+        success: result.success,
+        failed: result.failed
+      }))
+    } else {
+      failedUpstreamRateAccountIds.value = []
+      appStore.showSuccess(t('admin.accounts.syncAllUpstreamRatesSuccess', { count: result.success }))
+    }
+  } catch (error: any) {
+    console.error('Failed to sync all upstream rate multipliers:', error)
+    appStore.showError(error?.message || t('admin.accounts.syncUpstreamRateMultiplierFailed'))
+  } finally {
+    syncingAllUpstreamRates.value = false
+  }
+}
+const handleRetryFailedUpstreamRates = async () => {
+  const accountIds = [...new Set(failedUpstreamRateAccountIds.value)]
+  if (syncingRateBatch.value || accountIds.length === 0) return
+  syncingRateBatch.value = true
+  try {
+    const result = await adminAPI.accounts.batchSyncUpstreamRateMultiplier(accountIds)
+    const updated = result.results
+      .map(item => item.account)
+      .filter((account): account is Account => Boolean(account))
+    updated.forEach(syncAccountRefs)
+    mergeAccountsIncrementally(updated)
+		recordUpstreamRateSyncResult(result)
+    failedUpstreamRateAccountIds.value = result.results
+      .filter(item => !item.success && item.account_id > 0)
+      .map(item => item.account_id)
+    if (result.failed > 0) {
+      appStore.showError(t('admin.accounts.retryFailedUpstreamRatesPartial', {
+        success: result.success,
+        failed: result.failed
+      }))
+    } else {
+      appStore.showSuccess(t('admin.accounts.retryFailedUpstreamRatesSuccess', { count: result.success }))
+    }
+  } catch (error: any) {
+    console.error('Failed to retry upstream rate multiplier sync:', error)
+    appStore.showError(error?.message || t('admin.accounts.syncUpstreamRateMultiplierFailed'))
+  } finally {
+    syncingRateBatch.value = false
+  }
+}
 const updateSchedulableInList = (accountIds: number[], schedulable: boolean) => {
   if (accountIds.length === 0) return
   const idSet = new Set(accountIds)
@@ -1617,8 +2005,25 @@ const handleSyncUpstreamRate = async (account: Account) => {
     const result = await adminAPI.accounts.syncUpstreamRateMultiplier(account.id)
     syncAccountRefs(result.account)
     mergeAccountsIncrementally([result.account])
-    appStore.showSuccess(t('admin.accounts.syncUpstreamRateMultiplierSuccess', {
-      rate: result.rate_multiplier.toFixed(2)
+		recordUpstreamRateSyncResult({
+			total: 1,
+			success: 1,
+			failed: 0,
+			results: [{
+				account_id: account.id,
+				account_name: account.name,
+				success: true,
+				previous_rate_multiplier: result.previous_rate_multiplier,
+				rate_multiplier: result.rate_multiplier,
+				changed: result.changed,
+				significant_change: result.significant_change,
+				account: result.account,
+				source: result.source,
+			}],
+		}, result.significant_change)
+    appStore.showSuccess(t('admin.accounts.syncUpstreamRateMultiplierSuccessWithChange', {
+      previous: result.previous_rate_multiplier.toFixed(4),
+	  rate: result.rate_multiplier.toFixed(4)
     }))
   } catch (error: any) {
     console.error('Failed to sync upstream rate multiplier:', error)
@@ -1873,6 +2278,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 onMounted(async () => {
   load()
+  void loadScheduledCostRateSyncSetting()
   try {
     const [p, g] = await Promise.all([adminAPI.proxies.getAll(), adminAPI.groups.getAll()])
     proxies.value = p

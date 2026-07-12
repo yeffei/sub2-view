@@ -119,6 +119,16 @@ func (s *OpsSystemLogSink) shouldIndex(event *logger.LogEvent) bool {
 	if strings.Contains(component, "routing.explanation") {
 		return true
 	}
+	// 上游健康预警的恢复事件使用 info 级别，仍需与 firing/reminder 一起保留，
+	// 便于管理员在同一条时间线上确认异常是否已经恢复。
+	if strings.Contains(component, "upstream.health_alert") {
+		return true
+	}
+	// 成本倍率历史同时包含普通 info 变化和大幅 warn 变化；两者都必须入库，
+	// 否则账号页只能看到大幅跳变，无法形成完整同步历史。
+	if strings.Contains(component, upstreamRateSyncComponent) {
+		return true
+	}
 	if strings.Contains(component, cacheInstrumentationComponent) {
 		return true
 	}

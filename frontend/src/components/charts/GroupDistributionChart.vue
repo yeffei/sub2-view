@@ -28,6 +28,16 @@
         >
           {{ t('admin.dashboard.metricActualCost') }}
         </button>
+        <button
+          type="button"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          :class="metric === 'gross_profit'
+            ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+          @click="emit('update:metric', 'gross_profit')"
+        >
+          {{ t('admin.dashboard.metricGrossProfit') }}
+        </button>
       </div>
     </div>
     <div v-if="loading" class="flex h-48 items-center justify-center">
@@ -46,6 +56,7 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
+              <th class="pb-2 text-right">{{ t('usage.grossProfit') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
@@ -79,13 +90,28 @@
                 <td class="py-1.5 text-right text-orange-500 dark:text-orange-400">
                   ${{ formatCost(group.account_cost) }}
                 </td>
+                <td
+                  class="py-1.5 text-right"
+                  :class="grossProfit(group) < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'"
+                >
+                  <span>${{ formatCost(grossProfit(group)) }}</span>
+                  <button
+                    v-if="group.group_id > 0 && grossProfit(group) < 0"
+                    type="button"
+                    class="ml-1 rounded px-1 py-0.5 text-[10px] font-medium text-rose-600 underline decoration-rose-300 underline-offset-2 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-900/20"
+                    :title="t('admin.dashboard.inspectNegativeMarginHint')"
+                    @click.stop="emit('inspectGroup', group.group_id)"
+                  >
+                    {{ t('admin.dashboard.inspectNegativeMargin') }}
+                  </button>
+                </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(group.cost) }}
                 </td>
               </tr>
               <!-- User breakdown sub-rows -->
               <tr v-if="expandedKey === `group-${group.group_id}`">
-                <td colspan="6" class="p-0">
+                <td colspan="7" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
                     :loading="breakdownLoading"
@@ -120,7 +146,7 @@ ChartJS.register(ArcElement, Tooltip, Legend)
 
 const { t } = useI18n()
 
-type DistributionMetric = 'tokens' | 'actual_cost'
+type DistributionMetric = 'tokens' | 'actual_cost' | 'gross_profit'
 
 const props = withDefaults(defineProps<{
   groupStats: GroupStat[]
@@ -138,6 +164,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'update:metric': [value: DistributionMetric]
+  'inspectGroup': [groupID: number]
 }>()
 
 const expandedKey = ref<string | null>(null)
@@ -184,8 +211,7 @@ const chartColors = [
 const displayGroupStats = computed(() => {
   if (!props.groupStats?.length) return []
 
-  const metricKey = props.metric === 'actual_cost' ? 'actual_cost' : 'total_tokens'
-  return [...props.groupStats].sort((a, b) => toFiniteNumber(b[metricKey]) - toFiniteNumber(a[metricKey]))
+  return [...props.groupStats].sort((a, b) => metricValue(b) - metricValue(a))
 })
 
 const chartData = computed(() => {
@@ -195,7 +221,7 @@ const chartData = computed(() => {
     labels: displayGroupStats.value.map((g) => g.group_name || String(g.group_id)),
     datasets: [
       {
-        data: displayGroupStats.value.map((g) => props.metric === 'actual_cost' ? toFiniteNumber(g.actual_cost) : toFiniteNumber(g.total_tokens)),
+        data: displayGroupStats.value.map(metricValue).map((value) => Math.max(0, value)),
         backgroundColor: chartColors.slice(0, displayGroupStats.value.length),
         borderWidth: 0
       }
@@ -216,7 +242,7 @@ const doughnutOptions = computed(() => ({
           const value = context.raw as number
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
-          const formattedValue = props.metric === 'actual_cost'
+          const formattedValue = props.metric === 'actual_cost' || props.metric === 'gross_profit'
             ? `$${formatCost(value)}`
             : formatTokens(value)
           return `${context.label}: ${formattedValue} (${percentage}%)`
@@ -225,6 +251,14 @@ const doughnutOptions = computed(() => ({
     }
   }
 }))
+
+const grossProfit = (group: GroupStat) => toFiniteNumber(group.actual_cost) - toFiniteNumber(group.account_cost)
+
+const metricValue = (group: GroupStat) => {
+  if (props.metric === 'gross_profit') return grossProfit(group)
+  if (props.metric === 'actual_cost') return toFiniteNumber(group.actual_cost)
+  return toFiniteNumber(group.total_tokens)
+}
 
 const toFiniteNumber = (value: number | null | undefined): number => {
   return Number.isFinite(value) ? Number(value) : 0

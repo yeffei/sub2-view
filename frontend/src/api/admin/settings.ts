@@ -614,6 +614,7 @@ export interface SystemSettings {
   // Channel Monitor feature switch
   channel_monitor_enabled: boolean;
   channel_monitor_default_interval_seconds: number;
+  upstream_rate_sync_enabled: boolean;
 
   // Available Channels feature switch
   available_channels_enabled: boolean;
@@ -858,6 +859,7 @@ export interface UpdateSettingsRequest {
   // Channel Monitor feature switch
   channel_monitor_enabled?: boolean;
   channel_monitor_default_interval_seconds?: number;
+  upstream_rate_sync_enabled?: boolean;
 
   // Available Channels feature switch
   available_channels_enabled?: boolean;

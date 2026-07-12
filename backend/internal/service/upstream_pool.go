@@ -48,6 +48,7 @@ type UpstreamPool struct {
 	StickyEscapeErrorRateThreshold float64
 	StickyEscapeTTFTMSThreshold    int
 	LoadBalanceEnabled             bool
+	AutoWeightEnabled              bool
 	FailoverEnabled                bool
 	TopK                           int
 	MaxFailoverHops                int
@@ -75,6 +76,10 @@ type UpstreamPoolMember struct {
 	RuntimeRateLimitResetAt       *time.Time
 	RuntimeOverloadUntil          *time.Time
 	RuntimeTempUnschedulableUntil *time.Time
+	RuntimeWeightFactor           float64
+	EffectiveWeight               int
+	RuntimeWeightReason           string
+	RuntimeWeightUpdatedAt        *time.Time
 	Enabled                       bool
 	SchedulableOverride           *bool
 	ManualDrained                 bool
@@ -223,6 +228,7 @@ type CreateUpstreamPoolInput struct {
 	StickyEscapeErrorRateThreshold float64
 	StickyEscapeTTFTMSThreshold    int
 	LoadBalanceEnabled             bool
+	AutoWeightEnabled              bool
 	FailoverEnabled                bool
 	TopK                           int
 	MaxFailoverHops                int
@@ -247,6 +253,7 @@ type UpdateUpstreamPoolInput struct {
 	StickyEscapeErrorRateThreshold *float64
 	StickyEscapeTTFTMSThreshold    *int
 	LoadBalanceEnabled             *bool
+	AutoWeightEnabled              *bool
 	FailoverEnabled                *bool
 	TopK                           *int
 	MaxFailoverHops                *int
@@ -453,6 +460,25 @@ func SetUpstreamPoolAccountTypeStrategyPolicyJSON(policyJSON map[string]any, str
 	}
 	routing["account_type_strategy"] = normalized
 	policyJSON["routing"] = routing
+	return policyJSON
+}
+
+func UpstreamPoolAutoWeightEnabledFromPolicyJSON(policyJSON map[string]any) bool {
+	autoWeight := policyJSONMap(policyJSON, "auto_weight")
+	enabled, _ := policyJSONBool(autoWeight, "enabled")
+	return enabled
+}
+
+func SetUpstreamPoolAutoWeightPolicyJSON(policyJSON map[string]any, enabled bool) map[string]any {
+	if policyJSON == nil {
+		policyJSON = map[string]any{}
+	}
+	autoWeight := policyJSONMap(policyJSON, "auto_weight")
+	if autoWeight == nil {
+		autoWeight = map[string]any{}
+	}
+	autoWeight["enabled"] = enabled
+	policyJSON["auto_weight"] = autoWeight
 	return policyJSON
 }
 

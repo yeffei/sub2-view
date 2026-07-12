@@ -235,6 +235,7 @@ func TestAPIContracts(t *testing.T) {
 					"last_used_at": null,
 					"quota": 0,
 					"quota_used": 0,
+					"current_concurrency": 0,
 					"rate_limit_5h": 0,
 					"rate_limit_1d": 0,
 					"rate_limit_7d": 0,
@@ -284,6 +285,7 @@ func TestAPIContracts(t *testing.T) {
 							"last_used_at": null,
 							"quota": 0,
 							"quota_used": 0,
+							"current_concurrency": 0,
 							"rate_limit_5h": 0,
 							"rate_limit_1d": 0,
 							"rate_limit_7d": 0,
@@ -869,6 +871,9 @@ func TestAPIContracts(t *testing.T) {
 					"payment_max_pending_orders": 0,
 					"payment_balance_disabled": false,
 					"payment_balance_recharge_multiplier": 0,
+					"payment_recharge_campaign_enabled": false,
+					"payment_recharge_campaign_amount": 0,
+					"payment_recharge_campaign_bonus_rate": 0,
 					"payment_recharge_fee_rate": 0,
 					"payment_load_balance_strategy": "",
 					"payment_product_name_prefix": "",
@@ -889,7 +894,7 @@ func TestAPIContracts(t *testing.T) {
 					"balance_low_notify_recharge_url": "",
 					"account_quota_notify_emails": [],
 					"channel_monitor_enabled": true,
-					"channel_monitor_default_interval_seconds": 300,
+					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
@@ -959,7 +964,7 @@ func TestAPIContracts(t *testing.T) {
 					"registration_enabled": true,
 					"email_verify_enabled": false,
 					"registration_email_suffix_whitelist": [],
-					"promo_code_enabled": true,
+					"promo_code_enabled": false,
 					"password_reset_enabled": false,
 					"frontend_url": "",
 						"invitation_code_enabled": false,
@@ -1111,6 +1116,9 @@ func TestAPIContracts(t *testing.T) {
 					"payment_enabled_types": null,
 					"payment_balance_disabled": false,
 					"payment_balance_recharge_multiplier": 0,
+					"payment_recharge_campaign_enabled": false,
+					"payment_recharge_campaign_amount": 0,
+					"payment_recharge_campaign_bonus_rate": 0,
 					"payment_recharge_fee_rate": 0,
 					"payment_load_balance_strategy": "",
 					"payment_product_name_prefix": "",
@@ -1130,7 +1138,7 @@ func TestAPIContracts(t *testing.T) {
 					"balance_low_notify_recharge_url": "",
 					"account_quota_notify_emails": [],
 					"channel_monitor_enabled": true,
-					"channel_monitor_default_interval_seconds": 300,
+					"channel_monitor_default_interval_seconds": 60,
 					"available_channels_enabled": false,
 					"risk_control_enabled": false,
 					"cyber_session_block_enabled": false,
@@ -1724,6 +1732,10 @@ func (s *stubAccountRepo) AutoPauseExpiredAccounts(ctx context.Context, now time
 
 func (s *stubAccountRepo) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
 	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) GetGroups(ctx context.Context, accountID int64) ([]service.Group, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (s *stubAccountRepo) ListSchedulable(ctx context.Context) ([]service.Account, error) {

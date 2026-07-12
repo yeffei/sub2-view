@@ -491,7 +491,10 @@ export async function syncUpstreamModels(id: number): Promise<SyncUpstreamModels
 
 export interface SyncUpstreamRateMultiplierResult {
   account: Account
+  previous_rate_multiplier: number
   rate_multiplier: number
+  changed: boolean
+  significant_change: boolean
   source: string
   upstream: {
     platform?: string
@@ -509,7 +512,45 @@ export interface SyncUpstreamRateMultiplierResult {
  */
 export async function syncUpstreamRateMultiplier(id: number): Promise<SyncUpstreamRateMultiplierResult> {
   const { data } = await apiClient.post<SyncUpstreamRateMultiplierResult>(
-    `/admin/accounts/${id}/rate-multiplier/sync-upstream`
+    `/admin/accounts/${id}/rate-multiplier/sync-upstream`,
+    undefined,
+    { timeout: 120000 }
+  )
+  return data
+}
+
+export interface BatchSyncUpstreamRateMultiplierResult {
+  total: number
+  success: number
+  failed: number
+  results: Array<{
+    account_id: number
+    account_name?: string
+    success: boolean
+    previous_rate_multiplier: number
+    rate_multiplier: number
+    changed?: boolean
+    significant_change?: boolean
+    account?: Account
+    source?: string
+    error?: string
+  }>
+}
+
+export async function batchSyncUpstreamRateMultiplier(accountIds: number[]): Promise<BatchSyncUpstreamRateMultiplierResult> {
+  const { data } = await apiClient.post<BatchSyncUpstreamRateMultiplierResult>(
+    '/admin/accounts/rate-multiplier/sync-upstream-batch',
+    { account_ids: accountIds },
+    { timeout: 300000 }
+  )
+  return data
+}
+
+export async function syncAllUpstreamRateMultipliers(): Promise<BatchSyncUpstreamRateMultiplierResult> {
+  const { data } = await apiClient.post<BatchSyncUpstreamRateMultiplierResult>(
+    '/admin/accounts/rate-multiplier/sync-upstream-all',
+    undefined,
+    { timeout: 300000 }
   )
   return data
 }
@@ -830,6 +871,8 @@ export const accountsAPI = {
   getAvailableModels,
   syncUpstreamModels,
   syncUpstreamRateMultiplier,
+  batchSyncUpstreamRateMultiplier,
+  syncAllUpstreamRateMultipliers,
   syncUpstreamModelsPreview,
   generateAuthUrl,
   exchangeCode,

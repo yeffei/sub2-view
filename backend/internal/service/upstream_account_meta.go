@@ -124,6 +124,24 @@ func (s *AccountTestService) FetchCompatibleUpstreamAccountMeta(ctx context.Cont
 	if usageErr != nil {
 		var usageSyncErr *UpstreamAccountMetaSyncError
 		if errors.As(usageErr, &usageSyncErr) && usageSyncErr.Kind == UpstreamAccountMetaSyncErrorUnsupported {
+			newAPIMeta, newAPIErr := s.probeNewAPIUpstreamRateMultiplier(ctx, account, normalizedBaseURL, apiKey)
+			if newAPIErr == nil {
+				return newAPIMeta, nil
+			}
+			var newAPISyncErr *UpstreamAccountMetaSyncError
+			if !errors.As(newAPIErr, &newAPISyncErr) || newAPISyncErr.Kind != UpstreamAccountMetaSyncErrorUnsupported {
+				return nil, newAPIErr
+			}
+
+			legacyMeta, legacyErr := s.probeLegacyUpstreamRateMultiplier(ctx, account, normalizedBaseURL, apiKey)
+			if legacyErr == nil {
+				return legacyMeta, nil
+			}
+			var legacySyncErr *UpstreamAccountMetaSyncError
+			if !errors.As(legacyErr, &legacySyncErr) || legacySyncErr.Kind != UpstreamAccountMetaSyncErrorUnsupported {
+				return nil, legacyErr
+			}
+
 			pricingURL := buildCompatibleModelPricingURL(normalizedBaseURL)
 			if s.probeCompatibleModelPricingURL(ctx, account, pricingURL, apiKey) {
 				return nil, newUpstreamAccountMetaUnsupportedError("上游只暴露模型定价 /api/pricing，不提供账号级倍率元数据；不能自动写入账号倍率", usageErr)

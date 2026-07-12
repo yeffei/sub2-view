@@ -160,10 +160,30 @@ type BulkUpdateAccountsRequest struct {
 }
 
 type SyncUpstreamRateMultiplierResponse struct {
-	Account        *dto.Account                  `json:"account"`
-	RateMultiplier float64                       `json:"rate_multiplier"`
-	Source         string                        `json:"source"`
-	Upstream       UpstreamRateMultiplierMetaDTO `json:"upstream"`
+	Account                *dto.Account                  `json:"account"`
+	PreviousRateMultiplier float64                       `json:"previous_rate_multiplier"`
+	RateMultiplier         float64                       `json:"rate_multiplier"`
+	Changed                bool                          `json:"changed"`
+	SignificantChange      bool                          `json:"significant_change"`
+	Source                 string                        `json:"source"`
+	Upstream               UpstreamRateMultiplierMetaDTO `json:"upstream"`
+}
+
+type BatchSyncUpstreamRateMultiplierRequest struct {
+	AccountIDs []int64 `json:"account_ids" binding:"required,min=1,max=100"`
+}
+
+type BatchSyncUpstreamRateMultiplierResult struct {
+	AccountID              int64        `json:"account_id"`
+	AccountName            string       `json:"account_name,omitempty"`
+	Success                bool         `json:"success"`
+	PreviousRateMultiplier float64      `json:"previous_rate_multiplier"`
+	RateMultiplier         float64      `json:"rate_multiplier"`
+	Changed                bool         `json:"changed,omitempty"`
+	SignificantChange      bool         `json:"significant_change,omitempty"`
+	Account                *dto.Account `json:"account,omitempty"`
+	Source                 string       `json:"source,omitempty"`
+	Error                  string       `json:"error,omitempty"`
 }
 
 type UpstreamRateMultiplierMetaDTO struct {
@@ -2474,7 +2494,7 @@ func (h *AccountHandler) SyncUpstreamRateMultiplier(c *gin.Context) {
 		return
 	}
 
-	meta, err := h.accountTestService.FetchCompatibleUpstreamAccountMeta(c.Request.Context(), account)
+	result, err := h.syncUpstreamRateMultiplier(c.Request.Context(), account)
 	if err != nil {
 		var syncErr *service.UpstreamAccountMetaSyncError
 		if errors.As(err, &syncErr) {
@@ -2493,26 +2513,159 @@ func (h *AccountHandler) SyncUpstreamRateMultiplier(c *gin.Context) {
 		return
 	}
 
-	updated, err := h.adminService.UpdateAccount(c.Request.Context(), accountID, &service.UpdateAccountInput{
-		RateMultiplier: &meta.RateMultiplier,
-	})
+	response.Success(c, result)
+}
+
+func (h *AccountHandler) syncUpstreamRateMultiplier(ctx context.Context, account *service.Account) (*SyncUpstreamRateMultiplierResponse, error) {
+	result, err := service.NewUpstreamRateSyncService(h.adminService, h.accountTestService).SyncAccount(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+	return &SyncUpstreamRateMultiplierResponse{
+		Account:                dto.AccountFromService(result.Account),
+		PreviousRateMultiplier: result.PreviousRateMultiplier,
+		RateMultiplier:         result.RateMultiplier,
+		Changed:                result.Changed,
+		SignificantChange:      result.SignificantChange,
+		Source:                 result.Meta.RateSource,
+		Upstream: UpstreamRateMultiplierMetaDTO{
+			Platform:         result.Meta.Platform,
+			GroupID:          result.Meta.GroupID,
+			GroupName:        result.Meta.GroupName,
+			RateSource:       result.Meta.RateSource,
+			SubscriptionType: result.Meta.SubscriptionType,
+		},
+	}, nil
+}
+
+func isSignificantRateMultiplierChange(previous, next float64) bool {
+	return service.IsSignificantRateMultiplierChange(previous, next)
+}
+
+// BatchSyncUpstreamRateMultiplier syncs selected API-key accounts independently.
+// POST /api/v1/admin/accounts/rate-multiplier/sync-upstream-batch
+func (h *AccountHandler) BatchSyncUpstreamRateMultiplier(c *gin.Context) {
+	var req BatchSyncUpstreamRateMultiplierRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if h.accountTestService == nil {
+		response.InternalError(c, "Account test service is not configured")
+		return
+	}
+
+	payload, err := h.batchSyncUpstreamRateMultipliers(c.Request.Context(), req.AccountIDs)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
+	response.Success(c, payload)
+}
 
-	response.Success(c, SyncUpstreamRateMultiplierResponse{
-		Account:        dto.AccountFromService(updated),
-		RateMultiplier: meta.RateMultiplier,
-		Source:         "compatible_upstream",
-		Upstream: UpstreamRateMultiplierMetaDTO{
-			Platform:         meta.Platform,
-			GroupID:          meta.GroupID,
-			GroupName:        meta.GroupName,
-			RateSource:       meta.RateSource,
-			SubscriptionType: meta.SubscriptionType,
-		},
-	})
+// SyncAllUpstreamRateMultipliers syncs every API-key account regardless of status.
+// OAuth and other account types are excluded at query time.
+// POST /api/v1/admin/accounts/rate-multiplier/sync-upstream-all
+func (h *AccountHandler) SyncAllUpstreamRateMultipliers(c *gin.Context) {
+	const pageSize = 15
+	accountIDs := make([]int64, 0)
+	for page := 1; ; page++ {
+		accounts, total, err := h.adminService.ListAccounts(
+			c.Request.Context(), page, pageSize, "", service.AccountTypeAPIKey,
+			"", "", "", 0, "", "id", "asc",
+		)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		for index := range accounts {
+			accountIDs = append(accountIDs, accounts[index].ID)
+		}
+		if len(accountIDs) >= int(total) || len(accounts) == 0 {
+			break
+		}
+	}
+
+	payload, err := h.batchSyncUpstreamRateMultipliers(c.Request.Context(), accountIDs)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, payload)
+}
+
+func (h *AccountHandler) batchSyncUpstreamRateMultipliers(ctx context.Context, accountIDs []int64) (gin.H, error) {
+	if h.accountTestService == nil {
+		return nil, errors.New("account test service is not configured")
+	}
+	accountIDs = normalizeInt64IDList(accountIDs)
+	accounts, err := h.adminService.GetAccountsByIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int64]*service.Account, len(accounts))
+	for _, account := range accounts {
+		if account != nil {
+			byID[account.ID] = account
+		}
+	}
+
+	results := make([]BatchSyncUpstreamRateMultiplierResult, len(accountIDs))
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(3)
+	for index, accountID := range accountIDs {
+		index, accountID := index, accountID
+		g.Go(func() error {
+			account := byID[accountID]
+			if account == nil {
+				results[index] = BatchSyncUpstreamRateMultiplierResult{AccountID: accountID, Error: "account not found"}
+				return nil
+			}
+			if account.Type != service.AccountTypeAPIKey {
+				results[index] = BatchSyncUpstreamRateMultiplierResult{AccountID: accountID, AccountName: account.Name, Error: "upstream rate sync only supports API-key accounts"}
+				return nil
+			}
+
+			result, syncErr := h.syncUpstreamRateMultiplier(gctx, account)
+			if syncErr != nil {
+				var typedErr *service.UpstreamAccountMetaSyncError
+				message := "failed to sync upstream rate multiplier"
+				if errors.As(syncErr, &typedErr) {
+					message = typedErr.SafeMessage()
+				}
+				results[index] = BatchSyncUpstreamRateMultiplierResult{AccountID: accountID, AccountName: account.Name, Error: message}
+				return nil
+			}
+			results[index] = BatchSyncUpstreamRateMultiplierResult{
+				AccountID:              accountID,
+				AccountName:            account.Name,
+				Success:                true,
+				PreviousRateMultiplier: result.PreviousRateMultiplier,
+				RateMultiplier:         result.RateMultiplier,
+				Changed:                result.Changed,
+				SignificantChange:      result.SignificantChange,
+				Account:                result.Account,
+				Source:                 result.Source,
+			}
+			return nil
+		})
+	}
+	_ = g.Wait()
+
+	success, failed := 0, 0
+	for _, result := range results {
+		if result.Success {
+			success++
+		} else {
+			failed++
+		}
+	}
+	return gin.H{
+		"total":   len(results),
+		"success": success,
+		"failed":  failed,
+		"results": results,
+	}, nil
 }
 
 // SyncUpstreamModelsPreview handles syncing live supported models using provided credentials (no account ID needed).

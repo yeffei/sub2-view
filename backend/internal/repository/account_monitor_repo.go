@@ -68,6 +68,119 @@ func (r *accountMonitorRepository) InsertHistoryBatch(ctx context.Context, rows 
 	return nil
 }
 
+func (r *accountMonitorRepository) InsertPoolAvailabilitySnapshots(ctx context.Context, rows []*service.PoolAvailabilitySnapshotRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	valueParts := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*5)
+	for _, row := range rows {
+		if row == nil || row.PoolID <= 0 {
+			continue
+		}
+		base := len(args) + 1
+		valueParts = append(valueParts, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d)", base, base+1, base+2, base+3, base+4))
+		args = append(args, row.PoolID, row.Status, row.TotalMembers, row.AvailableMembers, row.CheckedAt)
+	}
+	if len(valueParts) == 0 {
+		return nil
+	}
+	q := `INSERT INTO pool_availability_snapshots
+		(pool_id, status, total_members, available_members, checked_at) VALUES ` + strings.Join(valueParts, ",")
+	if _, err := r.db.ExecContext(ctx, q, args...); err != nil {
+		return fmt.Errorf("insert pool availability snapshots: %w", err)
+	}
+	return nil
+}
+
+func (r *accountMonitorRepository) ListPoolAvailabilitySince(ctx context.Context, poolIDs []int64, since time.Time) (map[int64][]*service.PoolAvailabilitySnapshotEntry, error) {
+	out := make(map[int64][]*service.PoolAvailabilitySnapshotEntry, len(poolIDs))
+	if len(poolIDs) == 0 {
+		return out, nil
+	}
+	const q = `SELECT id, pool_id, status, total_members, available_members, checked_at
+		FROM pool_availability_snapshots
+		WHERE pool_id = ANY($1) AND checked_at >= $2
+		ORDER BY pool_id, checked_at DESC`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(poolIDs), since)
+	if err != nil {
+		return nil, fmt.Errorf("query pool availability snapshots: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		entry := &service.PoolAvailabilitySnapshotEntry{}
+		if err := rows.Scan(&entry.ID, &entry.PoolID, &entry.Status, &entry.TotalMembers, &entry.AvailableMembers, &entry.CheckedAt); err != nil {
+			return nil, fmt.Errorf("scan pool availability snapshot: %w", err)
+		}
+		out[entry.PoolID] = append(out[entry.PoolID], entry)
+	}
+	return out, rows.Err()
+}
+
+func (r *accountMonitorRepository) ListPoolRuntimeWeightStates(ctx context.Context, poolIDs []int64) (map[int64]map[int64]*service.PoolRuntimeWeightState, error) {
+	out := make(map[int64]map[int64]*service.PoolRuntimeWeightState, len(poolIDs))
+	if len(poolIDs) == 0 {
+		return out, nil
+	}
+	const q = `SELECT pool_id, account_id, factor, target_factor, healthy_streak,
+		unhealthy_streak, reason, last_observed_at, updated_at
+		FROM upstream_pool_runtime_weights
+		WHERE pool_id = ANY($1)`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(poolIDs))
+	if err != nil {
+		return nil, fmt.Errorf("query pool runtime weight states: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		state := &service.PoolRuntimeWeightState{}
+		if err := rows.Scan(
+			&state.PoolID, &state.AccountID, &state.Factor, &state.TargetFactor,
+			&state.HealthyStreak, &state.UnhealthyStreak, &state.Reason,
+			&state.LastObservedAt, &state.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("scan pool runtime weight state: %w", err)
+		}
+		if out[state.PoolID] == nil {
+			out[state.PoolID] = map[int64]*service.PoolRuntimeWeightState{}
+		}
+		out[state.PoolID][state.AccountID] = state
+	}
+	return out, rows.Err()
+}
+
+func (r *accountMonitorRepository) UpsertPoolRuntimeWeightStates(ctx context.Context, states []*service.PoolRuntimeWeightState) error {
+	valueParts := make([]string, 0, len(states))
+	args := make([]any, 0, len(states)*9)
+	for _, state := range states {
+		if state == nil || state.PoolID <= 0 || state.AccountID <= 0 {
+			continue
+		}
+		base := len(args) + 1
+		valueParts = append(valueParts, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)", base, base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8))
+		args = append(args, state.PoolID, state.AccountID, state.Factor, state.TargetFactor,
+			state.HealthyStreak, state.UnhealthyStreak, state.Reason, state.LastObservedAt, state.UpdatedAt)
+	}
+	if len(valueParts) == 0 {
+		return nil
+	}
+	q := `INSERT INTO upstream_pool_runtime_weights (
+		pool_id, account_id, factor, target_factor, healthy_streak, unhealthy_streak,
+		reason, last_observed_at, updated_at
+	) VALUES ` + strings.Join(valueParts, ",") + `
+	ON CONFLICT (pool_id, account_id) DO UPDATE SET
+		factor = EXCLUDED.factor,
+		target_factor = EXCLUDED.target_factor,
+		healthy_streak = EXCLUDED.healthy_streak,
+		unhealthy_streak = EXCLUDED.unhealthy_streak,
+		reason = EXCLUDED.reason,
+		last_observed_at = EXCLUDED.last_observed_at,
+		updated_at = EXCLUDED.updated_at`
+	if _, err := r.db.ExecContext(ctx, q, args...); err != nil {
+		return fmt.Errorf("upsert pool runtime weight states: %w", err)
+	}
+	return nil
+}
+
 func (r *accountMonitorRepository) ListLatestForAccountIDs(ctx context.Context, ids []int64) (map[int64][]*service.AccountMonitorLatest, error) {
 	out := make(map[int64][]*service.AccountMonitorLatest, len(ids))
 	if len(ids) == 0 {
@@ -244,6 +357,28 @@ func (r *accountMonitorRepository) DeleteHistoryBefore(ctx context.Context, befo
 	return total, nil
 }
 
+// DeletePoolAvailabilityBefore removes at most four small batches per daily
+// maintenance pass, keeping cleanup bounded even after a long outage.
+func (r *accountMonitorRepository) DeletePoolAvailabilityBefore(ctx context.Context, before time.Time) (int64, error) {
+	const maxBatches = 4
+	var total int64
+	for batch := 0; batch < maxBatches; batch++ {
+		res, err := r.db.ExecContext(ctx, accountMonitorPrunePoolAvailabilitySQL, before, channelMonitorPruneBatchSize)
+		if err != nil {
+			return total, fmt.Errorf("pool availability snapshot prune batch: %w", err)
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return total, fmt.Errorf("pool availability snapshot prune rows affected: %w", err)
+		}
+		total += affected
+		if affected < channelMonitorPruneBatchSize {
+			break
+		}
+	}
+	return total, nil
+}
+
 func finalizeAccountAvailabilityRow(row *service.AccountMonitorAvailability, avgLatency sql.NullFloat64) {
 	if row.TotalChecks > 0 {
 		row.AvailabilityPct = float64(row.OperationalChecks) * 100.0 / float64(row.TotalChecks)
@@ -301,5 +436,16 @@ WITH batch AS (
     LIMIT $2
 )
 DELETE FROM account_monitor_histories
+WHERE id IN (SELECT id FROM batch)
+`
+
+const accountMonitorPrunePoolAvailabilitySQL = `
+WITH batch AS (
+    SELECT id FROM pool_availability_snapshots
+    WHERE checked_at < $1
+    ORDER BY checked_at, id
+    LIMIT $2
+)
+DELETE FROM pool_availability_snapshots
 WHERE id IN (SELECT id FROM batch)
 `

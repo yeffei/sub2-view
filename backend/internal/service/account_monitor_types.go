@@ -48,3 +48,32 @@ type AccountMonitorAvailability struct {
 	AvailabilityPct   float64
 	AvgLatencyMs      *int
 }
+
+type PoolAvailabilitySnapshotRow struct {
+	PoolID           int64
+	Status           string
+	TotalMembers     int
+	AvailableMembers int
+	CheckedAt        time.Time
+}
+
+type PoolAvailabilitySnapshotEntry struct {
+	ID               int64
+	PoolID           int64
+	Status           string
+	TotalMembers     int
+	AvailableMembers int
+	CheckedAt        time.Time
+}
+
+type PoolRuntimeWeightState struct {
+	PoolID          int64
+	AccountID       int64
+	Factor          float64
+	TargetFactor    float64
+	HealthyStreak   int
+	UnhealthyStreak int
+	Reason          string
+	LastObservedAt  time.Time
+	UpdatedAt       time.Time
+}

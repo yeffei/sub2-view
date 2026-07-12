@@ -135,6 +135,7 @@
               <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.actual') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.accountCost') }}</th>
+			  <th class="pb-2 text-right">{{ t('usage.grossProfit') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.standard') }}</th>
             </tr>
           </thead>
@@ -178,12 +179,18 @@
                     {{ t('admin.dashboard.avgInputShort', { value: formatTokens(model.average_actual_input_tokens || 0) }) }}
                   </div>
                 </td>
+				<td
+				  class="py-1.5 text-right"
+				  :class="modelGrossProfit(model) < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'"
+				>
+				  ${{ formatCost(modelGrossProfit(model)) }}
+				</td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
                   ${{ formatCost(model.cost) }}
                 </td>
               </tr>
               <tr v-if="expandedKey === `model-${model.model}`">
-                <td colspan="6" class="p-0">
+				<td colspan="7" class="p-0">
                   <UserBreakdownSubTable
                     :items="breakdownItems"
                     :loading="breakdownLoading"
@@ -502,6 +509,10 @@ const rankingDoughnutOptions = computed(() => ({
 const toFiniteNumber = (value: number | null | undefined): number => {
   return Number.isFinite(value) ? Number(value) : 0
 }
+
+const modelGrossProfit = (model: ModelStat) => (
+  toFiniteNumber(model.actual_cost) - toFiniteNumber(model.account_cost)
+)
 
 const getMetricValue = (item: ModelStat, metric: DistributionMetric): number => {
   switch (metric) {

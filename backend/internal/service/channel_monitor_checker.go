@@ -101,7 +101,7 @@ func runCheckForModel(ctx context.Context, provider, endpoint, apiKey, model str
 	if mode == MonitorBodyOverrideModeReplace {
 		if strings.TrimSpace(respText) == "" {
 			res.Status = MonitorStatusFailed
-			res.Message = truncateMessage("probe returned 2xx with empty text")
+			res.Message = truncateMessage("replace-mode probe returned 2xx with empty text")
 			return res
 		}
 		return finalizeOperationalOrDegraded(res, latency, latencyMs)

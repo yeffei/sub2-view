@@ -63,14 +63,33 @@
         <Icon name="dollar" size="md" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500">{{ t('usage.totalCost') }}</p>
+        <p class="text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500">{{ t('usage.usageRevenue') }}</p>
         <p class="text-lg font-bold text-green-600">
           ${{ (stats?.total_actual_cost || 0).toFixed(4) }}
         </p>
         <p class="text-[11px] text-gray-400">
-          <span class="text-orange-500">{{ t('usage.accountCost') }} ${{ (stats?.total_account_cost || 0).toFixed(4) }}</span>
-          <span> · </span>
           <span>{{ t('usage.standardCost') }} ${{ (stats?.total_cost || 0).toFixed(4) }}</span>
+        </p>
+      </div>
+    </div>
+    <div class="card usage-stats-card">
+      <div
+        class="usage-stats-icon rounded-lg p-2"
+        :class="profit.negative
+          ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'
+          : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30'"
+      >
+        <Icon name="chart" size="md" />
+      </div>
+      <div class="min-w-0 flex-1">
+        <p class="text-[11px] font-medium uppercase tracking-[0.12em] text-gray-500">{{ t('usage.grossProfit') }}</p>
+        <p class="text-lg font-bold" :class="profit.negative ? 'text-rose-600' : 'text-emerald-600'">
+          ${{ profit.grossProfit.toFixed(4) }}
+        </p>
+        <p class="text-[11px] text-gray-400">
+          <span>{{ t('usage.grossMargin') }} {{ formatGrossMargin(profit.grossMargin) }}</span>
+          <span> · </span>
+          <span class="text-orange-500">{{ t('usage.upstreamCost') }} ${{ profit.cost.toFixed(4) }}</span>
         </p>
       </div>
     </div>
@@ -104,13 +123,19 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AdminUsageStatsResponse } from '@/api/admin/usage'
 import Icon from '@/components/icons/Icon.vue'
+import { calculateUsageProfit, formatGrossMargin } from '@/utils/usageProfit'
 
-defineProps<{ stats: AdminUsageStatsResponse | null }>()
+const props = defineProps<{ stats: AdminUsageStatsResponse | null }>()
 
 const { t } = useI18n()
+const profit = computed(() => calculateUsageProfit(
+  props.stats?.total_actual_cost,
+  props.stats?.total_account_cost,
+))
 
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`
@@ -153,7 +178,13 @@ const cacheDetailLabel = () => t('usage.cacheBreakdown')
 
 @media (min-width: 1024px) {
   .usage-stats-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1536px) {
+  .usage-stats-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

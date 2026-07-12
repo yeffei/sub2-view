@@ -323,6 +323,8 @@ func registerAccountRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		accounts.POST("/models/sync-upstream-preview", h.Admin.Account.SyncUpstreamModelsPreview)
 		accounts.GET("/:id/models", h.Admin.Account.GetAvailableModels)
 		accounts.POST("/:id/models/sync-upstream", h.Admin.Account.SyncUpstreamModels)
+		accounts.POST("/rate-multiplier/sync-upstream-batch", h.Admin.Account.BatchSyncUpstreamRateMultiplier)
+		accounts.POST("/rate-multiplier/sync-upstream-all", h.Admin.Account.SyncAllUpstreamRateMultipliers)
 		accounts.POST("/:id/rate-multiplier/sync-upstream", h.Admin.Account.SyncUpstreamRateMultiplier)
 		accounts.POST("/batch", h.Admin.Account.BatchCreate)
 		accounts.GET("/data", h.Admin.Account.ExportData)
