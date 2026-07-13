@@ -26,6 +26,7 @@ type UpstreamPool struct {
 	StickyEscapeTTFTMSThreshold    int            `json:"sticky_escape_ttft_ms_threshold"`
 	LoadBalanceEnabled             bool           `json:"load_balance_enabled"`
 	AutoWeightEnabled              bool           `json:"auto_weight_enabled"`
+	AutoWeightMode                 string         `json:"auto_weight_mode"`
 	FailoverEnabled                bool           `json:"failover_enabled"`
 	TopK                           int            `json:"top_k"`
 	MaxFailoverHops                int            `json:"max_failover_hops"`
@@ -34,6 +35,10 @@ type UpstreamPool struct {
 	PolicyJSON                     map[string]any `json:"policy_json"`
 	CreatedAt                      string         `json:"created_at"`
 	UpdatedAt                      string         `json:"updated_at"`
+	MemberTotalCount               int            `json:"member_total_count"`
+	MemberEnabledCount             int            `json:"member_enabled_count"`
+	BindingTotalCount              int            `json:"binding_total_count"`
+	BindingEnabledCount            int            `json:"binding_enabled_count"`
 }
 
 type UpstreamPoolMember struct {
@@ -97,6 +102,35 @@ type UpstreamAccountSet struct {
 	AccountCount int    `json:"account_count"`
 	CreatedAt    string `json:"created_at"`
 	UpdatedAt    string `json:"updated_at"`
+}
+
+type UpstreamCapacityPressure struct {
+	SetID                   int64                            `json:"set_id"`
+	SetName                 string                           `json:"set_name"`
+	SetCode                 string                           `json:"set_code"`
+	Platform                string                           `json:"platform"`
+	Enabled                 bool                             `json:"enabled"`
+	CapacityLimit           int                              `json:"capacity_limit"`
+	CurrentConcurrency      int                              `json:"current_concurrency"`
+	AvailableCapacity       int                              `json:"available_capacity"`
+	WaitingCount            int                              `json:"waiting_count"`
+	GroupFullCount          int                              `json:"group_full_count"`
+	MemberFullCount         int                              `json:"member_full_count"`
+	BorrowedSlotCount       int                              `json:"borrowed_slot_count"`
+	PeakConcurrency5m       int                              `json:"peak_concurrency_5m"`
+	P95LoadRate5m           int                              `json:"p95_load_rate_5m"`
+	SchedulingConcentration int                              `json:"scheduling_concentration"`
+	Members                 []UpstreamCapacityMemberPressure `json:"members"`
+}
+
+type UpstreamCapacityMemberPressure struct {
+	AccountID            int64  `json:"account_id"`
+	AccountName          string `json:"account_name"`
+	HardConcurrencyLimit *int   `json:"hard_concurrency_limit"`
+	SoftConcurrencyShare *int   `json:"soft_concurrency_share"`
+	CurrentConcurrency   int    `json:"current_concurrency"`
+	WaitingCount         int    `json:"waiting_count"`
+	LoadRate             int    `json:"load_rate"`
 }
 
 type UpstreamAccountSetMember struct {
@@ -177,6 +211,7 @@ func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
 		StickyEscapeTTFTMSThreshold:    pool.StickyEscapeTTFTMSThreshold,
 		LoadBalanceEnabled:             pool.LoadBalanceEnabled,
 		AutoWeightEnabled:              pool.AutoWeightEnabled,
+		AutoWeightMode:                 pool.AutoWeightMode,
 		FailoverEnabled:                pool.FailoverEnabled,
 		TopK:                           pool.TopK,
 		MaxFailoverHops:                pool.MaxFailoverHops,
@@ -185,6 +220,10 @@ func UpstreamPoolFromService(pool *service.UpstreamPool) *UpstreamPool {
 		PolicyJSON:                     pool.PolicyJSON,
 		CreatedAt:                      pool.CreatedAt.Format(upstreamPoolTimeLayout),
 		UpdatedAt:                      pool.UpdatedAt.Format(upstreamPoolTimeLayout),
+		MemberTotalCount:               pool.MemberTotalCount,
+		MemberEnabledCount:             pool.MemberEnabledCount,
+		BindingTotalCount:              pool.BindingTotalCount,
+		BindingEnabledCount:            pool.BindingEnabledCount,
 	}
 }
 
@@ -349,4 +388,48 @@ func upstreamPoolMemberSyncChangesFromService(items []service.UpstreamPoolMember
 		})
 	}
 	return out
+}
+
+func UpstreamCapacityPressureFromService(item *service.UpstreamCapacityPressure) *UpstreamCapacityPressure {
+	if item == nil {
+		return nil
+	}
+	out := &UpstreamCapacityPressure{
+		SetID:                   item.SetID,
+		SetName:                 item.SetName,
+		SetCode:                 item.SetCode,
+		Platform:                item.Platform,
+		Enabled:                 item.Enabled,
+		CapacityLimit:           item.CapacityLimit,
+		CurrentConcurrency:      item.CurrentConcurrency,
+		AvailableCapacity:       item.AvailableCapacity,
+		WaitingCount:            item.WaitingCount,
+		GroupFullCount:          item.GroupFullCount,
+		MemberFullCount:         item.MemberFullCount,
+		BorrowedSlotCount:       item.BorrowedSlotCount,
+		PeakConcurrency5m:       item.PeakConcurrency5m,
+		P95LoadRate5m:           item.P95LoadRate5m,
+		SchedulingConcentration: item.SchedulingConcentration,
+		Members:                 make([]UpstreamCapacityMemberPressure, 0, len(item.Members)),
+	}
+	for _, member := range item.Members {
+		out.Members = append(out.Members, UpstreamCapacityMemberPressure{
+			AccountID:            member.AccountID,
+			AccountName:          member.AccountName,
+			HardConcurrencyLimit: cloneIntPointer(member.HardConcurrencyLimit),
+			SoftConcurrencyShare: cloneIntPointer(member.SoftConcurrencyShare),
+			CurrentConcurrency:   member.CurrentConcurrency,
+			WaitingCount:         member.WaitingCount,
+			LoadRate:             member.LoadRate,
+		})
+	}
+	return out
+}
+
+func cloneIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }

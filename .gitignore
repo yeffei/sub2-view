@@ -138,6 +138,7 @@ docs/*
 !docs/sst-production-upgrade-sop.md
 !docs/sst-remote-docker-upgrade-sop.md
 !docs/sst-release-button-upgrade-plan.md
+!docs/shared-capacity-group-design.md
 !docs/legal/
 !docs/legal/*.md
 .serena/

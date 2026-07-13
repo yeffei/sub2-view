@@ -32,7 +32,11 @@ SELECT
   sticky_ttl_seconds, sticky_escape_enabled, sticky_escape_error_rate_threshold,
   sticky_escape_ttft_ms_threshold, load_balance_enabled, failover_enabled,
   top_k, max_failover_hops, wait_timeout_ms, max_waiting, policy_json,
-  created_at, updated_at
+  created_at, updated_at,
+  (SELECT COUNT(*) FROM upstream_pool_members m WHERE m.pool_id = upstream_pools.id),
+  (SELECT COUNT(*) FROM upstream_pool_members m WHERE m.pool_id = upstream_pools.id AND m.enabled = TRUE),
+  (SELECT COUNT(*) FROM upstream_pool_bindings b WHERE b.pool_id = upstream_pools.id),
+  (SELECT COUNT(*) FROM upstream_pool_bindings b WHERE b.pool_id = upstream_pools.id AND b.enabled = TRUE)
 FROM upstream_pools
 ORDER BY id ASC`
 
@@ -68,7 +72,11 @@ SELECT
   sticky_ttl_seconds, sticky_escape_enabled, sticky_escape_error_rate_threshold,
   sticky_escape_ttft_ms_threshold, load_balance_enabled, failover_enabled,
   top_k, max_failover_hops, wait_timeout_ms, max_waiting, policy_json,
-  created_at, updated_at
+  created_at, updated_at,
+  (SELECT COUNT(*) FROM upstream_pool_members m WHERE m.pool_id = upstream_pools.id),
+  (SELECT COUNT(*) FROM upstream_pool_members m WHERE m.pool_id = upstream_pools.id AND m.enabled = TRUE),
+  (SELECT COUNT(*) FROM upstream_pool_bindings b WHERE b.pool_id = upstream_pools.id),
+  (SELECT COUNT(*) FROM upstream_pool_bindings b WHERE b.pool_id = upstream_pools.id AND b.enabled = TRUE)
 FROM upstream_pools
 WHERE id = $1`
 
@@ -256,15 +264,15 @@ WITH direct_members AS (
     m.schedulable_override,
     m.manual_drained,
 	m.weight,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active'
 	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
 	     THEN rw.factor ELSE 1.00 END AS runtime_weight_factor,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active'
 	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
 	     THEN GREATEST(1, ROUND(m.weight * rw.factor)::INTEGER)
 	     ELSE m.weight END AS effective_weight,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN COALESCE(rw.reason, '') ELSE '' END AS runtime_weight_reason,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN rw.updated_at ELSE NULL END AS runtime_weight_updated_at,
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active' AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN COALESCE(rw.reason, '') ELSE '' END AS runtime_weight_reason,
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active' AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN rw.updated_at ELSE NULL END AS runtime_weight_updated_at,
     m.priority_override,
     m.max_concurrency_override,
     m.notes,
@@ -292,15 +300,15 @@ WITH direct_members AS (
     NULL::BOOLEAN AS schedulable_override,
     FALSE AS manual_drained,
     100 AS weight,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active'
 	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
 	     THEN rw.factor ELSE 1.00 END AS runtime_weight_factor,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on')
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active'
 	          AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes'
 	     THEN GREATEST(1, ROUND(100 * rw.factor)::INTEGER)
 	     ELSE 100 END AS effective_weight,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN COALESCE(rw.reason, '') ELSE '' END AS runtime_weight_reason,
-	CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN rw.updated_at ELSE NULL END AS runtime_weight_updated_at,
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active' AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN COALESCE(rw.reason, '') ELSE '' END AS runtime_weight_reason,
+	CASE WHEN COALESCE(NULLIF(LOWER(p.policy_json->'auto_weight'->>'mode'), ''), CASE WHEN LOWER(COALESCE(p.policy_json->'auto_weight'->>'enabled', 'false')) IN ('true','1','yes','on') THEN 'active' ELSE 'off' END) = 'active' AND rw.last_observed_at >= NOW() - INTERVAL '30 minutes' THEN rw.updated_at ELSE NULL END AS runtime_weight_updated_at,
     NULL::INTEGER AS priority_override,
     NULL::INTEGER AS max_concurrency_override,
     pms.notes,
@@ -639,6 +647,7 @@ func (r *upstreamPoolRepository) ListUpstreamAccountSets(ctx context.Context) ([
 	const query = `
 SELECT
   s.id, s.name, s.code, s.platform, s.description, s.enabled,
+  s.shared_concurrency_limit,
   COUNT(m.account_id) AS account_count,
   s.created_at, s.updated_at
 FROM upstream_account_sets s
@@ -662,6 +671,7 @@ ORDER BY s.id ASC`
 			&item.Platform,
 			&item.Description,
 			&item.Enabled,
+			&item.SharedConcurrencyLimit,
 			&item.AccountCount,
 			&item.CreatedAt,
 			&item.UpdatedAt,
@@ -684,6 +694,7 @@ func (r *upstreamPoolRepository) GetUpstreamAccountSetByID(ctx context.Context, 
 	const query = `
 SELECT
   s.id, s.name, s.code, s.platform, s.description, s.enabled,
+  s.shared_concurrency_limit,
   COUNT(m.account_id) AS account_count,
   s.created_at, s.updated_at
 FROM upstream_account_sets s
@@ -699,6 +710,7 @@ GROUP BY s.id`
 		&item.Platform,
 		&item.Description,
 		&item.Enabled,
+		&item.SharedConcurrencyLimit,
 		&item.AccountCount,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -718,8 +730,8 @@ func (r *upstreamPoolRepository) CreateUpstreamAccountSet(ctx context.Context, i
 
 	const query = `
 INSERT INTO upstream_account_sets (
-  name, code, platform, description, enabled
-) VALUES ($1,$2,$3,$4,$5)
+  name, code, platform, description, enabled, shared_concurrency_limit
+) VALUES ($1,$2,$3,$4,$5,$6)
 RETURNING id, created_at, updated_at`
 
 	if err := r.db.QueryRowContext(
@@ -730,6 +742,7 @@ RETURNING id, created_at, updated_at`
 		input.Platform,
 		input.Description,
 		input.Enabled,
+		input.SharedConcurrencyLimit,
 	).Scan(&input.ID, &input.CreatedAt, &input.UpdatedAt); err != nil {
 		return nil, fmt.Errorf("create upstream account set: %w", err)
 	}
@@ -748,6 +761,7 @@ UPDATE upstream_account_sets SET
   platform = $4,
   description = $5,
   enabled = $6,
+  shared_concurrency_limit = $7,
   updated_at = NOW()
 WHERE id = $1
 RETURNING created_at, updated_at`
@@ -761,6 +775,7 @@ RETURNING created_at, updated_at`
 		input.Platform,
 		input.Description,
 		input.Enabled,
+		input.SharedConcurrencyLimit,
 	).Scan(&input.CreatedAt, &input.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, service.ErrUpstreamPoolNotFound
@@ -816,9 +831,13 @@ SELECT
   COALESCE(a.platform, '') AS account_platform,
   COALESCE(a.type, '') AS account_type,
   COALESCE(a.status, '') AS account_status,
+  cm.hard_concurrency_limit,
+  cm.soft_concurrency_share,
   m.added_at
 FROM upstream_account_set_members m
 LEFT JOIN accounts a ON a.id = m.account_id
+LEFT JOIN upstream_account_set_capacity_members cm
+  ON cm.set_id = m.set_id AND cm.account_id = m.account_id
 WHERE m.set_id = $1
 ORDER BY account_name ASC, m.account_id ASC`
 
@@ -838,6 +857,8 @@ ORDER BY account_name ASC, m.account_id ASC`
 			&item.AccountPlatform,
 			&item.AccountType,
 			&item.AccountStatus,
+			&item.CapacityHardLimit,
+			&item.CapacitySoftShare,
 			&item.AddedAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan upstream account set member: %w", err)
@@ -880,6 +901,22 @@ func (r *upstreamPoolRepository) DeleteUpstreamAccountSetMember(ctx context.Cont
 		return service.ErrUpstreamPoolNotFound
 	}
 	return nil
+}
+
+func (r *upstreamPoolRepository) UpdateUpstreamAccountSetMemberCapacity(ctx context.Context, setID, accountID int64, hardLimit, softShare *int) error {
+	if r == nil || r.db == nil || setID <= 0 || accountID <= 0 {
+		return service.ErrUpstreamPoolNotFound
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO upstream_account_set_capacity_members (set_id, account_id, hard_concurrency_limit, soft_concurrency_share)
+SELECT $1, $2, $3, $4 WHERE EXISTS (SELECT 1 FROM upstream_account_set_members WHERE set_id = $1 AND account_id = $2)
+ON CONFLICT (account_id) DO UPDATE SET set_id = EXCLUDED.set_id, hard_concurrency_limit = EXCLUDED.hard_concurrency_limit, soft_concurrency_share = EXCLUDED.soft_concurrency_share`, setID, accountID, hardLimit, softShare)
+	if err != nil {
+		return fmt.Errorf("update upstream account set member capacity: %w", err)
+	}
+	if hardLimit == nil && softShare == nil {
+		_, err = r.db.ExecContext(ctx, `DELETE FROM upstream_account_set_capacity_members WHERE set_id = $1 AND account_id = $2`, setID, accountID)
+	}
+	return err
 }
 
 func (r *upstreamPoolRepository) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]service.UpstreamPoolMemberSet, error) {
@@ -1335,6 +1372,7 @@ LIMIT 1`
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
 	pool.AccountTypeStrategy = service.UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
 	pool.AutoWeightEnabled = service.UpstreamPoolAutoWeightEnabledFromPolicyJSON(pool.PolicyJSON)
+	pool.AutoWeightMode = service.UpstreamPoolAutoWeightModeFromPolicyJSON(pool.PolicyJSON)
 
 	if !pool.Enabled {
 		return &service.UpstreamPoolResolvedBinding{
@@ -1393,7 +1431,7 @@ FROM (
 ) members
 ORDER BY account_id, source_priority ASC, source_set_id ASC NULLS FIRST`
 
-	rows, err := r.db.QueryContext(ctx, membersQuery, pool.ID, pool.AutoWeightEnabled)
+	rows, err := r.db.QueryContext(ctx, membersQuery, pool.ID, pool.AutoWeightMode == "active" || (pool.AutoWeightMode == "" && pool.AutoWeightEnabled))
 	if err != nil {
 		return nil, fmt.Errorf("query upstream pool members: %w", err)
 	}
@@ -1510,12 +1548,17 @@ func scanUpstreamPoolRow(scanner interface {
 		&policyJSON,
 		&pool.CreatedAt,
 		&pool.UpdatedAt,
+		&pool.MemberTotalCount,
+		&pool.MemberEnabledCount,
+		&pool.BindingTotalCount,
+		&pool.BindingEnabledCount,
 	); err != nil {
 		return service.UpstreamPool{}, err
 	}
 	pool.PolicyJSON = cloneAnyMapJSON(policyJSON)
 	pool.AccountTypeStrategy = service.UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
 	pool.AutoWeightEnabled = service.UpstreamPoolAutoWeightEnabledFromPolicyJSON(pool.PolicyJSON)
+	pool.AutoWeightMode = service.UpstreamPoolAutoWeightModeFromPolicyJSON(pool.PolicyJSON)
 	return pool, nil
 }
 

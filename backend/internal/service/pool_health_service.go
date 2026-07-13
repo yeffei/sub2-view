@@ -16,6 +16,13 @@ type PoolHealthService struct {
 	upstreamPoolRepo   UpstreamPoolRepository
 	accountRepo        AccountRepository
 	accountMonitorRepo AccountMonitorRepository
+	capacityReader     UpstreamCapacityPressureReader
+}
+
+func (s *PoolHealthService) SetCapacityPressureReader(reader UpstreamCapacityPressureReader) {
+	if s != nil {
+		s.capacityReader = reader
+	}
 }
 
 func NewPoolHealthService(
@@ -69,6 +76,7 @@ func poolHealthDetailToView(detail *PoolHealthDetail) *PoolHealthView {
 		GroupID:             detail.GroupID,
 		GroupName:           detail.GroupName,
 		Status:              detail.Status,
+		CapacityStatus:      detail.CapacityStatus,
 		Availability7d:      detail.Availability7d,
 		BestLatencyMs:       detail.BestLatencyMs,
 		BestPingLatencyMs:   detail.BestPingLatencyMs,
@@ -105,12 +113,72 @@ func (s *PoolHealthService) buildPoolHealth(ctx context.Context) ([]*PoolHealthD
 	for _, pool := range enabledPools {
 		bindings := poolBindings[pool.ID]
 		detail := buildPoolHealthDetail(pool, bindings, poolMembers[pool.ID], accountsByID, accountFacts)
+		detail.CapacityStatus = coarsePoolCapacityStatus(detail.Status)
+		if s.capacityReader != nil {
+			if pressures, pressureErr := s.capacityReader.ListUpstreamCapacityPressures(ctx); pressureErr == nil {
+				detail.CapacityStatus = poolCapacityStatus(poolMembers[pool.ID], pressures, detail.CapacityStatus)
+			}
+		}
 		out = append(out, detail)
 	}
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].ID < out[j].ID
 	})
 	return out, nil
+}
+
+func poolCapacityStatus(members []UpstreamPoolMember, pressures []UpstreamCapacityPressure, fallback string) string {
+	status := fallback
+	for _, member := range members {
+		if member.SourceSetID == nil {
+			continue
+		}
+		for _, pressure := range pressures {
+			if pressure.SetID != *member.SourceSetID {
+				continue
+			}
+			candidate := "ample"
+			if pressure.WaitingCount > 0 {
+				candidate = "queueing"
+			} else if pressure.AvailableCapacity <= 0 {
+				candidate = "tight"
+			} else if pressure.CapacityLimit > 0 && float64(pressure.CurrentConcurrency)/float64(pressure.CapacityLimit) >= 0.8 {
+				candidate = "observe"
+			}
+			if capacityStatusRank(candidate) > capacityStatusRank(status) {
+				status = candidate
+			}
+		}
+	}
+	return status
+}
+
+func coarsePoolCapacityStatus(status string) string {
+	switch status {
+	case MonitorStatusOperational:
+		return "ample"
+	case MonitorStatusDegraded:
+		return "observe"
+	case MonitorStatusFailed:
+		return "tight"
+	default:
+		return "queueing"
+	}
+}
+
+func capacityStatusRank(status string) int {
+	switch status {
+	case "ample":
+		return 0
+	case "observe":
+		return 1
+	case "tight":
+		return 2
+	case "queueing":
+		return 3
+	default:
+		return 0
+	}
 }
 
 func filterEnabledPools(pools []UpstreamPool) []UpstreamPool {

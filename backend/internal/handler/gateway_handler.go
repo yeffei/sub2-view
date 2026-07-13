@@ -382,9 +382,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					}
 				}
 
-				accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
+				accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeoutForAccount(
 					c,
-					account.ID,
+					account,
 					selection.WaitPlan.MaxConcurrency,
 					selection.WaitPlan.Timeout,
 					reqStream,
@@ -671,9 +671,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					}
 				}
 
-				accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
+				accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeoutForAccount(
 					c,
-					account.ID,
+					account,
 					selection.WaitPlan.MaxConcurrency,
 					selection.WaitPlan.Timeout,
 					reqStream,
@@ -779,6 +779,11 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				result, err = h.antigravityGatewayService.Forward(requestCtx, c, account, attemptBody, hasBoundSession)
 			} else {
 				result, err = h.gatewayService.Forward(requestCtx, c, account, attemptParsedReq)
+			}
+			if err != nil {
+				h.gatewayService.ReportAccountScheduleResult(account.ID, false, nil)
+			} else if result != nil {
+				h.gatewayService.ReportAccountScheduleResult(account.ID, true, result.FirstTokenMs)
 			}
 
 			// 兜底释放串行锁（正常情况已通过回调提前释放）

@@ -16,24 +16,29 @@ import (
 
 // stubConcurrencyCacheForTest 用于并发服务单元测试的缓存桩
 type stubConcurrencyCacheForTest struct {
-	acquireResult        bool
-	acquireErr           error
-	releaseErr           error
-	concurrency          int
-	concurrencyErr       error
-	waitAllowed          bool
-	waitErr              error
-	waitCount            int
-	waitCountErr         error
-	loadBatch            map[int64]*AccountLoadInfo
-	loadBatchErr         error
-	usersLoadBatch       map[int64]*UserLoadInfo
-	usersLoadErr         error
-	cleanupErr           error
-	apiKeyTrackErr       error
-	apiKeyReleaseErr     error
-	apiKeyConcurrency    map[int64]int
-	apiKeyConcurrencyErr error
+	acquireResult         bool
+	acquireErr            error
+	releaseErr            error
+	concurrency           int
+	concurrencyErr        error
+	waitAllowed           bool
+	waitErr               error
+	waitCount             int
+	waitCountErr          error
+	loadBatch             map[int64]*AccountLoadInfo
+	loadBatchErr          error
+	usersLoadBatch        map[int64]*UserLoadInfo
+	usersLoadErr          error
+	cleanupErr            error
+	apiKeyTrackErr        error
+	apiKeyReleaseErr      error
+	apiKeyConcurrency     map[int64]int
+	apiKeyConcurrencyErr  error
+	capacityAcquireResult CapacitySlotAcquireResult
+	capacityAcquireErr    error
+	capacityReleaseErr    error
+	capacityAcquireCalls  []AccountConcurrencyScope
+	capacityReleaseCalls  []AccountConcurrencyScope
 
 	// 记录调用
 	releasedAccountIDs       []int64
@@ -127,6 +132,43 @@ func (c *stubConcurrencyCacheForTest) CleanupStaleProcessSlots(_ context.Context
 	return c.cleanupErr
 }
 
+func (c *stubConcurrencyCacheForTest) AcquireCapacitySlot(
+	_ context.Context,
+	groupID int64,
+	accountID int64,
+	groupLimit int,
+	memberHardLimit int,
+	memberSoftShare int,
+	_ string,
+) (CapacitySlotAcquireResult, error) {
+	c.capacityAcquireCalls = append(c.capacityAcquireCalls, AccountConcurrencyScope{
+		AccountID: accountID,
+		Capacity: &AccountCapacityScope{
+			GroupID:         groupID,
+			GroupLimit:      groupLimit,
+			MemberHardLimit: memberHardLimit,
+			MemberSoftShare: memberSoftShare,
+		},
+	})
+	return c.capacityAcquireResult, c.capacityAcquireErr
+}
+
+func (c *stubConcurrencyCacheForTest) ReleaseCapacitySlot(_ context.Context, groupID, accountID int64, _ string) error {
+	c.capacityReleaseCalls = append(c.capacityReleaseCalls, AccountConcurrencyScope{
+		AccountID: accountID,
+		Capacity:  &AccountCapacityScope{GroupID: groupID},
+	})
+	return c.capacityReleaseErr
+}
+
+func (c *stubConcurrencyCacheForTest) GetCapacitySlotCounts(_ context.Context, _, _ int64) (CapacitySlotCounts, error) {
+	return CapacitySlotCounts{}, nil
+}
+
+func (c *stubConcurrencyCacheForTest) GetCapacityMetrics(_ context.Context, _ int64, _ time.Time) (CapacityMetrics, error) {
+	return CapacityMetrics{}, nil
+}
+
 type trackingConcurrencyCache struct {
 	stubConcurrencyCacheForTest
 	cleanupPrefix string
@@ -204,6 +246,96 @@ func TestAcquireAccountSlot_ReleaseDecrements(t *testing.T) {
 	require.Equal(t, int64(42), cache.releasedAccountIDs[0])
 	require.Len(t, cache.releasedRequestIDs, 1)
 	require.NotEmpty(t, cache.releasedRequestIDs[0], "requestID 不应为空")
+}
+
+func TestAcquireAccountSlotWithScope_CapacitySuccessAndRelease(t *testing.T) {
+	cache := &stubConcurrencyCacheForTest{
+		capacityAcquireResult: CapacitySlotAcquireResult{
+			Status:   CapacityAcquireStatusAcquired,
+			Borrowed: true,
+		},
+	}
+	svc := NewConcurrencyService(cache)
+	scope := AccountConcurrencyScope{
+		AccountID: 42,
+		Capacity: &AccountCapacityScope{
+			GroupID:         7,
+			GroupLimit:      3000,
+			MemberHardLimit: 1000,
+			MemberSoftShare: 1000,
+		},
+	}
+
+	result, err := svc.AcquireAccountSlotWithScope(context.Background(), scope)
+	require.NoError(t, err)
+	require.True(t, result.Acquired)
+	require.True(t, result.Borrowed)
+	require.Equal(t, AcquireDeniedScopeNone, result.DeniedScope)
+	require.Len(t, cache.capacityAcquireCalls, 1)
+	require.Equal(t, scope.AccountID, cache.capacityAcquireCalls[0].AccountID)
+	require.Equal(t, scope.Capacity, cache.capacityAcquireCalls[0].Capacity)
+
+	result.ReleaseFunc()
+	require.Len(t, cache.capacityReleaseCalls, 1)
+	require.Equal(t, int64(42), cache.capacityReleaseCalls[0].AccountID)
+	require.Equal(t, int64(7), cache.capacityReleaseCalls[0].Capacity.GroupID)
+}
+
+func TestAcquireAccountSlotWithScope_CapacityDeniedScopes(t *testing.T) {
+	tests := []struct {
+		name       string
+		status     CapacityAcquireStatus
+		wantDenied AcquireDeniedScope
+	}{
+		{name: "group full", status: CapacityAcquireStatusGroupFull, wantDenied: AcquireDeniedScopeCapacity},
+		{name: "member full", status: CapacityAcquireStatusMemberFull, wantDenied: AcquireDeniedScopeAccount},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := &stubConcurrencyCacheForTest{
+				capacityAcquireResult: CapacitySlotAcquireResult{Status: tt.status},
+			}
+			svc := NewConcurrencyService(cache)
+			result, err := svc.AcquireAccountSlotWithScope(context.Background(), AccountConcurrencyScope{
+				AccountID: 42,
+				Capacity: &AccountCapacityScope{
+					GroupID:    7,
+					GroupLimit: 3000,
+				},
+			})
+			require.NoError(t, err)
+			require.False(t, result.Acquired)
+			require.Equal(t, tt.wantDenied, result.DeniedScope)
+			require.Nil(t, result.ReleaseFunc)
+		})
+	}
+}
+
+func TestAcquireAccountSlotWithScope_CapacityDoesNotFallbackWhenUnsupported(t *testing.T) {
+	legacyCache := struct{ ConcurrencyCache }{
+		ConcurrencyCache: &stubConcurrencyCacheForTest{acquireResult: true},
+	}
+	svc := NewConcurrencyService(legacyCache)
+
+	result, err := svc.AcquireAccountSlotWithScope(context.Background(), AccountConcurrencyScope{
+		AccountID: 42,
+		Capacity: &AccountCapacityScope{
+			GroupID:    7,
+			GroupLimit: 3000,
+		},
+	})
+	require.ErrorIs(t, err, ErrCapacityConcurrencyUnsupported)
+	require.Nil(t, result)
+}
+
+func TestAcquireAccountSlotWithScope_RejectsInvalidCapacityScope(t *testing.T) {
+	svc := NewConcurrencyService(&stubConcurrencyCacheForTest{})
+	result, err := svc.AcquireAccountSlotWithScope(context.Background(), AccountConcurrencyScope{
+		AccountID: 42,
+		Capacity:  &AccountCapacityScope{},
+	})
+	require.ErrorContains(t, err, "invalid shared capacity concurrency scope")
+	require.Nil(t, result)
 }
 
 func TestAcquireUserSlot_IndependentFromAccount(t *testing.T) {
@@ -364,6 +496,27 @@ func TestGetAccountsLoadBatchFresh_BypassesShortTTLCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, fresh[int64(1)].CurrentConcurrency)
 	require.Equal(t, int64(2), cache.loadBatchCalls.Load())
+}
+
+func TestAccountLoadBatchCacheKey_IncludesCapacityScope(t *testing.T) {
+	base := []AccountWithConcurrency{{ID: 1, MaxConcurrency: 1000}}
+	capacity := []AccountWithConcurrency{{
+		ID:             1,
+		MaxConcurrency: 1000,
+		Capacity: &AccountCapacityScope{
+			GroupID:         7,
+			GroupLimit:      3000,
+			MemberHardLimit: 1000,
+			MemberSoftShare: 1000,
+		},
+	}}
+	require.NotEqual(t, accountLoadBatchCacheKey(base), accountLoadBatchCacheKey(capacity))
+
+	changedGroup := append([]AccountWithConcurrency(nil), capacity...)
+	changedScope := *capacity[0].Capacity
+	changedScope.GroupID = 8
+	changedGroup[0].Capacity = &changedScope
+	require.NotEqual(t, accountLoadBatchCacheKey(capacity), accountLoadBatchCacheKey(changedGroup))
 }
 
 func TestIncrementWaitCount_Success(t *testing.T) {

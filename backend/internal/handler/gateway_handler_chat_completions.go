@@ -192,9 +192,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", "No available accounts")
 				return
 			}
-			accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
+			accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeoutForAccount(
 				c,
-				account.ID,
+				account,
 				selection.WaitPlan.MaxConcurrency,
 				selection.WaitPlan.Timeout,
 				reqStream,
@@ -234,6 +234,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			result, err = h.geminiCompatService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody)
 		} else {
 			result, err = h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody, parsedReq)
+		}
+		if err != nil {
+			h.gatewayService.ReportAccountScheduleResult(account.ID, false, nil)
+		} else if result != nil {
+			h.gatewayService.ReportAccountScheduleResult(account.ID, true, result.FirstTokenMs)
 		}
 
 		if accountReleaseFunc != nil {

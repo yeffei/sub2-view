@@ -50,6 +50,24 @@ func (h *UpstreamPoolHandler) GetByID(c *gin.Context) {
 	response.Success(c, dto.UpstreamPoolFromService(pool))
 }
 
+func (h *UpstreamPoolHandler) GetCapacityPressures(c *gin.Context) {
+	reader, ok := h.adminService.(service.UpstreamCapacityPressureReader)
+	if !ok {
+		response.Error(c, 501, "Capacity pressure monitoring is unavailable")
+		return
+	}
+	pressures, err := reader.ListUpstreamCapacityPressures(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	out := make([]dto.UpstreamCapacityPressure, 0, len(pressures))
+	for i := range pressures {
+		out = append(out, *dto.UpstreamCapacityPressureFromService(&pressures[i]))
+	}
+	response.Success(c, out)
+}
+
 func (h *UpstreamPoolHandler) GetMembers(c *gin.Context) {
 	poolID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil || poolID <= 0 {
@@ -149,6 +167,7 @@ func (h *UpstreamPoolHandler) Create(c *gin.Context) {
 			StickyEscapeTTFTMSThreshold:    intValue(req.StickyEscapeTTFTMSThreshold, 6000),
 			LoadBalanceEnabled:             boolValue(req.LoadBalanceEnabled, true),
 			AutoWeightEnabled:              boolValue(req.AutoWeightEnabled, false),
+			AutoWeightMode:                 stringValue(req.AutoWeightMode),
 			FailoverEnabled:                boolValue(req.FailoverEnabled, true),
 			TopK:                           intValue(req.TopK, 2),
 			MaxFailoverHops:                intValue(req.MaxFailoverHops, 3),
@@ -193,6 +212,7 @@ func (h *UpstreamPoolHandler) Update(c *gin.Context) {
 			StickyEscapeTTFTMSThreshold:    req.StickyEscapeTTFTMSThreshold,
 			LoadBalanceEnabled:             req.LoadBalanceEnabled,
 			AutoWeightEnabled:              req.AutoWeightEnabled,
+			AutoWeightMode:                 req.AutoWeightMode,
 			FailoverEnabled:                req.FailoverEnabled,
 			TopK:                           req.TopK,
 			MaxFailoverHops:                req.MaxFailoverHops,
@@ -379,11 +399,12 @@ func (h *UpstreamPoolHandler) CreateAccountSet(c *gin.Context) {
 	}
 	executeAdminIdempotentJSON(c, "admin.upstream_pools.account_sets.create", req, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		item, err := h.adminService.CreateUpstreamAccountSet(ctx, &service.CreateUpstreamAccountSetInput{
-			Name:        stringValue(req.Name),
-			Code:        stringValue(req.Code),
-			Platform:    stringValue(req.Platform),
-			Description: stringValue(req.Description),
-			Enabled:     boolValue(req.Enabled, true),
+			Name:                   stringValue(req.Name),
+			Code:                   stringValue(req.Code),
+			Platform:               stringValue(req.Platform),
+			Description:            stringValue(req.Description),
+			Enabled:                boolValue(req.Enabled, true),
+			SharedConcurrencyLimit: req.SharedConcurrencyLimit.Value,
 		})
 		if err != nil {
 			return nil, err
@@ -405,11 +426,13 @@ func (h *UpstreamPoolHandler) UpdateAccountSet(c *gin.Context) {
 	}
 	executeAdminIdempotentJSON(c, "admin.upstream_pools.account_sets.update", map[string]any{"set_id": setID, "payload": req}, service.DefaultWriteIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		item, err := h.adminService.UpdateUpstreamAccountSet(ctx, setID, &service.UpdateUpstreamAccountSetInput{
-			Name:        req.Name,
-			Code:        req.Code,
-			Platform:    req.Platform,
-			Description: req.Description,
-			Enabled:     req.Enabled,
+			Name:                      req.Name,
+			Code:                      req.Code,
+			Platform:                  req.Platform,
+			Description:               req.Description,
+			Enabled:                   req.Enabled,
+			SharedConcurrencyLimitSet: req.SharedConcurrencyLimit.Set,
+			SharedConcurrencyLimit:    req.SharedConcurrencyLimit.Value,
 		})
 		if err != nil {
 			return nil, err
@@ -484,6 +507,37 @@ func (h *UpstreamPoolHandler) DeleteAccountSetMember(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"message": "Upstream account set member deleted successfully"})
+}
+
+func (h *UpstreamPoolHandler) UpdateAccountSetMemberCapacity(c *gin.Context) {
+	setID, err := strconv.ParseInt(c.Param("set_id"), 10, 64)
+	if err != nil || setID <= 0 {
+		response.BadRequest(c, "Invalid account set ID")
+		return
+	}
+	accountID, err := strconv.ParseInt(c.Param("account_id"), 10, 64)
+	if err != nil || accountID <= 0 {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+	var req struct {
+		HardConcurrencyLimit *int `json:"hard_concurrency_limit"`
+		SoftConcurrencyShare *int `json:"soft_concurrency_share"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	writer, ok := h.adminService.(service.UpstreamCapacityMemberWriter)
+	if !ok {
+		response.Error(c, 501, "Capacity member configuration is unavailable")
+		return
+	}
+	if err := writer.UpdateUpstreamAccountSetMemberCapacity(c.Request.Context(), setID, accountID, req.HardConcurrencyLimit, req.SoftConcurrencyShare); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"message": "Upstream account set member capacity updated successfully"})
 }
 
 func (h *UpstreamPoolHandler) GetMemberSets(c *gin.Context) {
@@ -581,6 +635,7 @@ type upstreamPoolWriteRequest struct {
 	StickyEscapeTTFTMSThreshold    *int           `json:"sticky_escape_ttft_ms_threshold"`
 	LoadBalanceEnabled             *bool          `json:"load_balance_enabled"`
 	AutoWeightEnabled              *bool          `json:"auto_weight_enabled"`
+	AutoWeightMode                 *string        `json:"auto_weight_mode"`
 	FailoverEnabled                *bool          `json:"failover_enabled"`
 	TopK                           *int           `json:"top_k"`
 	MaxFailoverHops                *int           `json:"max_failover_hops"`
@@ -682,11 +737,12 @@ type upstreamPoolBindingWriteRequest struct {
 }
 
 type upstreamAccountSetWriteRequest struct {
-	Name        *string `json:"name"`
-	Code        *string `json:"code"`
-	Platform    *string `json:"platform"`
-	Description *string `json:"description"`
-	Enabled     *bool   `json:"enabled"`
+	Name                   *string                  `json:"name"`
+	Code                   *string                  `json:"code"`
+	Platform               *string                  `json:"platform"`
+	Description            *string                  `json:"description"`
+	Enabled                *bool                    `json:"enabled"`
+	SharedConcurrencyLimit upstreamNullableIntField `json:"shared_concurrency_limit"`
 }
 
 type upstreamAccountSetMembersWriteRequest struct {

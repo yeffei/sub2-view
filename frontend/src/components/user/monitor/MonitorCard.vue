@@ -24,6 +24,9 @@
         {{ statusLabel(item.status) }}
       </span>
     </div>
+    <div class="mt-2 text-[11px] text-stone-500 dark:text-stone-400">
+      容量：{{ capacityStatusLabel(item.capacity_status) }}
+    </div>
 
     <!-- Metrics -->
     <MonitorMetricPair
@@ -89,6 +92,10 @@ const poolSignalClass = computed(() => {
   if (props.item.status === 'degraded') return 'bg-amber-500'
   return 'bg-rose-500'
 })
+
+function capacityStatusLabel(status: PoolHealthView['capacity_status']) {
+  return ({ ample: '余量充足', observe: '需要观察', tight: '余量紧张', queueing: '排队中' } as const)[status]
+}
 
 const availabilityLabel = computed(() => {
   const win = t(`channelStatus.windowTab.${props.window}`)

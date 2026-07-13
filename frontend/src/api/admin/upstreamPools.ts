@@ -12,7 +12,8 @@ import type {
   UpstreamAccountSetMember,
   UpstreamPoolMemberSet,
   UpstreamPoolMemberSyncMode,
-  UpstreamPoolMemberSyncResult
+  UpstreamPoolMemberSyncResult,
+  UpstreamCapacityPressure
 } from '@/types'
 
 interface ApiListResponse<T> {
@@ -74,12 +75,18 @@ export async function getAccountSets(): Promise<UpstreamAccountSet[]> {
   return Array.isArray(data) ? data : data.items || []
 }
 
+export async function getCapacityPressures(): Promise<UpstreamCapacityPressure[]> {
+  const { data } = await apiClient.get<UpstreamCapacityPressure[]>('/admin/upstream-pools/capacity-pressures')
+  return data || []
+}
+
 export async function createAccountSet(payload: {
   name: string
   platform: string
   description?: string
   enabled?: boolean
   code?: string
+  shared_concurrency_limit?: number | null
 }): Promise<UpstreamAccountSet> {
   const { data } = await apiClient.post<UpstreamAccountSet>('/admin/upstream-pools/account-sets', payload)
   return data
@@ -91,6 +98,7 @@ export async function updateAccountSet(setId: number, payload: {
   platform?: string
   description?: string
   enabled?: boolean
+  shared_concurrency_limit?: number | null
 }): Promise<UpstreamAccountSet> {
   const { data } = await apiClient.put<UpstreamAccountSet>(`/admin/upstream-pools/account-sets/${setId}`, payload)
   return data
@@ -121,6 +129,17 @@ export async function addAccountSetMembers(setId: number, payload: {
 export async function removeAccountSetMember(setId: number, accountId: number): Promise<{ message: string }> {
   const { data } = await apiClient.delete<{ message: string }>(
     `/admin/upstream-pools/account-sets/${setId}/members/${accountId}`
+  )
+  return data
+}
+
+export async function updateAccountSetMemberCapacity(setId: number, accountId: number, payload: {
+  hard_concurrency_limit: number | null
+  soft_concurrency_share: number | null
+}): Promise<{ message: string }> {
+  const { data } = await apiClient.put<{ message: string }>(
+    `/admin/upstream-pools/account-sets/${setId}/members/${accountId}/capacity`,
+    payload
   )
   return data
 }
@@ -243,6 +262,7 @@ const upstreamPoolsAPI = {
   applyMemberSync,
   getBindings,
   getAccountSets,
+  getCapacityPressures,
   getAccountSetMembers,
   getMemberSets,
   create,
@@ -259,6 +279,7 @@ const upstreamPoolsAPI = {
   removeAccountSet,
   addAccountSetMembers,
   removeAccountSetMember,
+  updateAccountSetMemberCapacity,
   createMemberSet,
   updateMemberSet,
   removeMemberSet

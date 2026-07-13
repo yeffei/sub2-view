@@ -449,6 +449,7 @@ func buildSchedulerMetadataAccount(account service.Account) service.Account {
 		SessionWindowStart:      account.SessionWindowStart,
 		SessionWindowEnd:        account.SessionWindowEnd,
 		SessionWindowStatus:     account.SessionWindowStatus,
+		CapacityScope:           account.CapacityScope,
 		AccountGroups:           filterSchedulerAccountGroups(account.AccountGroups),
 		GroupIDs:                filterSchedulerGroupIDs(account.GroupIDs, account.AccountGroups),
 		Credentials:             filterSchedulerCredentials(account.Credentials),

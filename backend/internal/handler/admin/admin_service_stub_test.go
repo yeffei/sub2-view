@@ -20,6 +20,7 @@ type stubAdminService struct {
 	accountSetMembers      []service.UpstreamAccountSetMember
 	upstreamPoolMemberSets []service.UpstreamPoolMemberSet
 	upstreamPoolBindings   []service.UpstreamPoolBinding
+	capacityPressures      []service.UpstreamCapacityPressure
 	proxies                []service.Proxy
 	proxyCounts            []service.ProxyWithAccountCount
 	redeems                []service.RedeemCode
@@ -378,6 +379,10 @@ func (s *stubAdminService) GetGroupAPIKeys(ctx context.Context, groupID int64, p
 
 func (s *stubAdminService) ListUpstreamPools(ctx context.Context) ([]service.UpstreamPool, error) {
 	return s.upstreamPools, nil
+}
+
+func (s *stubAdminService) ListUpstreamCapacityPressures(ctx context.Context) ([]service.UpstreamCapacityPressure, error) {
+	return s.capacityPressures, nil
 }
 
 func (s *stubAdminService) GetUpstreamPoolByID(ctx context.Context, id int64) (*service.UpstreamPool, error) {

@@ -37,6 +37,7 @@ type poolHealthListItem struct {
 	ID                int64                     `json:"id"`
 	Name              string                    `json:"name"`
 	Status            string                    `json:"status"`
+	CapacityStatus    string                    `json:"capacity_status"`
 	Availability7d    float64                   `json:"availability_7d"`
 	BestLatencyMs     *int                      `json:"best_latency_ms"`
 	BestPingLatencyMs *int                      `json:"best_ping_latency_ms"`
@@ -54,6 +55,7 @@ type poolHealthDetailResponse struct {
 	ID                int64                     `json:"id"`
 	Name              string                    `json:"name"`
 	Status            string                    `json:"status"`
+	CapacityStatus    string                    `json:"capacity_status"`
 	Availability7d    float64                   `json:"availability_7d"`
 	Availability15d   float64                   `json:"availability_15d"`
 	Availability30d   float64                   `json:"availability_30d"`
@@ -67,6 +69,7 @@ func poolHealthViewToItem(v *service.PoolHealthView) poolHealthListItem {
 		ID:                v.ID,
 		Name:              v.Name,
 		Status:            v.Status,
+		CapacityStatus:    valueOrCapacityStatus(v.CapacityStatus, v.Status),
 		Availability7d:    v.Availability7d,
 		BestLatencyMs:     v.BestLatencyMs,
 		BestPingLatencyMs: v.BestPingLatencyMs,
@@ -79,12 +82,29 @@ func poolHealthDetailToResponse(d *service.PoolHealthDetail) *poolHealthDetailRe
 		ID:                d.ID,
 		Name:              d.Name,
 		Status:            d.Status,
+		CapacityStatus:    valueOrCapacityStatus(d.CapacityStatus, d.Status),
 		Availability7d:    d.Availability7d,
 		Availability15d:   d.Availability15d,
 		Availability30d:   d.Availability30d,
 		BestLatencyMs:     d.BestLatencyMs,
 		BestPingLatencyMs: d.BestPingLatencyMs,
 		Timeline:          poolHealthTimelineToResponse(d.Timeline),
+	}
+}
+
+func valueOrCapacityStatus(value, status string) string {
+	if value != "" {
+		return value
+	}
+	switch status {
+	case service.MonitorStatusOperational:
+		return "ample"
+	case service.MonitorStatusDegraded:
+		return "observe"
+	case service.MonitorStatusFailed:
+		return "tight"
+	default:
+		return "queueing"
 	}
 }
 

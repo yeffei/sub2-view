@@ -207,6 +207,10 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 	if err != nil {
 		return nil, err
 	}
+	capacityScopes, err := r.loadAccountCapacityScopes(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	outByID := make(map[int64]*service.Account, len(entAccounts))
 	for _, entAcc := range entAccounts {
@@ -228,6 +232,9 @@ func (r *accountRepository) GetByIDs(ctx context.Context, ids []int64) ([]*servi
 		}
 		if ags, ok := accountGroupsByAccount[entAcc.ID]; ok {
 			out.AccountGroups = ags
+		}
+		if scope, ok := capacityScopes[entAcc.ID]; ok {
+			out.CapacityScope = scope
 		}
 		outByID[entAcc.ID] = out
 	}
@@ -1846,6 +1853,10 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 	if err != nil {
 		return nil, err
 	}
+	capacityScopes, err := r.loadAccountCapacityScopes(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
 
 	outAccounts := make([]service.Account, 0, len(accounts))
 	for _, acc := range accounts {
@@ -1874,10 +1885,62 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 		if ags, ok := accountGroupsByAccount[acc.ID]; ok {
 			out.AccountGroups = ags
 		}
+		if scope, ok := capacityScopes[acc.ID]; ok {
+			out.CapacityScope = scope
+		}
 		outAccounts = append(outAccounts, *out)
 	}
 
 	return outAccounts, nil
+}
+
+func (r *accountRepository) loadAccountCapacityScopes(ctx context.Context, accountIDs []int64) (map[int64]*service.AccountCapacityScope, error) {
+	out := make(map[int64]*service.AccountCapacityScope)
+	if r == nil || r.sql == nil || len(accountIDs) == 0 {
+		return out, nil
+	}
+
+	const query = `
+SELECT
+  cm.account_id,
+  cm.set_id,
+  s.shared_concurrency_limit,
+  COALESCE(cm.hard_concurrency_limit, 0),
+  COALESCE(cm.soft_concurrency_share, 0)
+FROM upstream_account_set_capacity_members cm
+JOIN upstream_account_sets s ON s.id = cm.set_id
+WHERE cm.account_id = ANY($1::BIGINT[])
+  AND s.enabled = TRUE
+  AND s.shared_concurrency_limit IS NOT NULL`
+
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(accountIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			accountID       int64
+			groupID         int64
+			groupLimit      int
+			memberHardLimit int
+			memberSoftShare int
+		)
+		if err := rows.Scan(&accountID, &groupID, &groupLimit, &memberHardLimit, &memberSoftShare); err != nil {
+			return nil, err
+		}
+		out[accountID] = &service.AccountCapacityScope{
+			GroupID:         groupID,
+			GroupLimit:      groupLimit,
+			MemberHardLimit: memberHardLimit,
+			MemberSoftShare: memberSoftShare,
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func tempUnschedulablePredicate() dbpredicate.Account {

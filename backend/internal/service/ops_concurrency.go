@@ -59,23 +59,24 @@ func (s *OpsService) getAccountsLoadMapBestEffort(ctx context.Context, accounts 
 	}
 
 	// De-duplicate IDs (and keep the max concurrency to avoid under-reporting).
-	unique := make(map[int64]int, len(accounts))
+	unique := make(map[int64]AccountWithConcurrency, len(accounts))
 	for _, acc := range accounts {
 		if acc.ID <= 0 {
 			continue
 		}
 		lf := acc.EffectiveLoadFactor()
-		if prev, ok := unique[acc.ID]; !ok || lf > prev {
-			unique[acc.ID] = lf
+		if prev, ok := unique[acc.ID]; !ok || lf > prev.MaxConcurrency {
+			unique[acc.ID] = AccountWithConcurrency{
+				ID:             acc.ID,
+				MaxConcurrency: lf,
+				Capacity:       acc.CapacityScope,
+			}
 		}
 	}
 
 	batch := make([]AccountWithConcurrency, 0, len(unique))
-	for id, maxConc := range unique {
-		batch = append(batch, AccountWithConcurrency{
-			ID:             id,
-			MaxConcurrency: maxConc,
-		})
+	for _, account := range unique {
+		batch = append(batch, account)
 	}
 
 	out := make(map[int64]*AccountLoadInfo, len(batch))

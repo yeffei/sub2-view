@@ -474,6 +474,7 @@ func NewOpenAIGatewayService(
 		channelService:        channelService,
 		balanceNotifyService:  balanceNotifyService,
 		settingService:        settingService,
+		openaiAccountStats:    newOpenAIAccountRuntimeStats(),
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		codexSnapshotThrottle: newAccountWriteThrottle(openAICodexSnapshotPersistMinInterval),
@@ -1817,7 +1818,7 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 
 	// 检查账号是否需要清理粘性会话
 	// Check if sticky session should be cleared
-	if shouldClearStickySession(account, requestedModel) {
+	if s.shouldClearStickySession(account, requestedModel) {
 		_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 		return nil
 	}
@@ -1851,6 +1852,21 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 	// Refresh session TTL and return account
 	_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, openaiStickySessionTTL)
 	return account
+}
+
+func (s *OpenAIGatewayService) shouldClearStickySession(account *Account, requestedModel string) bool {
+	if shouldClearStickySession(account, requestedModel) {
+		return true
+	}
+	if s == nil || s.openaiAccountStats == nil || account == nil {
+		return false
+	}
+	cfg, _ := s.openAIStickyEscapeConfig(nil)
+	if !cfg.enabled {
+		return false
+	}
+	errorRate, ttft, hasTTFT := s.openaiAccountStats.snapshot(account.ID)
+	return (hasTTFT && ttft > cfg.ttftMs) || errorRate > cfg.errorRate
 }
 
 // selectBestAccount 从候选账号中选择最佳账号（优先级 + LRU）。
@@ -1981,7 +1997,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		if err != nil {
 			return nil, err
 		}
-		result, err := s.tryAcquireAccountSlot(ctx, account.ID, account.Concurrency)
+		result, err := s.tryAcquireAccountSlotForAccount(ctx, account)
 		if err == nil && result != nil && result.Acquired {
 			return s.newAcquiredSelectionResult(ctx, account, result.ReleaseFunc)
 		}
@@ -2032,7 +2048,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		if accountID > 0 && !isExcluded(accountID) {
 			account, err := s.getSchedulableAccount(ctx, accountID)
 			if err == nil {
-				clearSticky := shouldClearStickySession(account, requestedModel)
+				clearSticky := s.shouldClearStickySession(account, requestedModel)
 				if clearSticky {
 					_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 				}
@@ -2050,7 +2066,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 					} else if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, account, requestedModel, requireCompact) {
 						_ = s.deleteStickySessionAccountID(ctx, groupID, sessionHash)
 					} else {
-						result, err := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+						result, err := s.tryAcquireAccountSlotForAccount(ctx, account)
 						if err == nil && result != nil && result.Acquired {
 							selection, selectErr := s.newAcquiredSelectionResult(ctx, account, result.ReleaseFunc)
 							if selectErr != nil {
@@ -2108,6 +2124,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		accountLoads = append(accountLoads, AccountWithConcurrency{
 			ID:             acc.ID,
 			MaxConcurrency: acc.EffectiveLoadFactor(),
+			Capacity:       acc.CapacityScope,
 		})
 	}
 
@@ -2183,7 +2200,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
 				continue
 			}
-			result, err := s.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+			result, err := s.tryAcquireAccountSlotForAccount(ctx, fresh)
 			if err == nil && result != nil && result.Acquired {
 				selection, selectErr := s.newAcquiredSelectionResult(ctx, fresh, result.ReleaseFunc)
 				if selectErr != nil {
@@ -2218,7 +2235,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 			if needsUpstreamCheck && s.isUpstreamModelRestrictedByChannel(ctx, *groupID, fresh, requestedModel, requireCompact) {
 				continue
 			}
-			result, err := s.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+			result, err := s.tryAcquireAccountSlotForAccount(ctx, fresh)
 			if err == nil && result != nil && result.Acquired {
 				selection, selectErr := s.newAcquiredSelectionResult(ctx, fresh, result.ReleaseFunc)
 				if selectErr != nil {
@@ -2301,11 +2318,14 @@ func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, grou
 	return s.filterAccountsByResolvedPool(ctx, groupID, PlatformOpenAI, accounts), nil
 }
 
-func (s *OpenAIGatewayService) tryAcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
+func (s *OpenAIGatewayService) tryAcquireAccountSlotForAccount(ctx context.Context, account *Account) (*AcquireResult, error) {
 	if s.concurrencyService == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, nil
 	}
-	return s.concurrencyService.AcquireAccountSlot(ctx, accountID, maxConcurrency)
+	if account == nil {
+		return nil, errors.New("account is required")
+	}
+	return s.concurrencyService.AcquireAccountSlotWithScope(ctx, account.ConcurrencyScope())
 }
 
 func (s *OpenAIGatewayService) isAccountAllowedByResolvedPool(ctx context.Context, groupID *int64, platform string, accountID int64) bool {

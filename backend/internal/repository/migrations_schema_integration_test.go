@@ -101,6 +101,31 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "scheduler_outbox", "dedup_key", "text", 0, true)
 	requireIndex(t, tx, "scheduler_outbox", "idx_scheduler_outbox_pending_dedup_key")
 
+	// upstream account-set shared concurrency capacity
+	requireColumn(t, tx, "upstream_account_sets", "shared_concurrency_limit", "integer", 0, true)
+	requireColumn(t, tx, "upstream_account_set_capacity_members", "account_id", "bigint", 0, false)
+	requireColumn(t, tx, "upstream_account_set_capacity_members", "set_id", "bigint", 0, false)
+	requireColumn(t, tx, "upstream_account_set_capacity_members", "hard_concurrency_limit", "integer", 0, true)
+	requireColumn(t, tx, "upstream_account_set_capacity_members", "soft_concurrency_share", "integer", 0, true)
+	requireIndex(t, tx, "upstream_account_set_capacity_members", "idx_upstream_account_set_capacity_members_set_id")
+	requireConstraintDefinitionContains(
+		t,
+		tx,
+		"upstream_account_sets",
+		"upstream_account_sets_shared_concurrency_limit_check",
+		"shared_concurrency_limit",
+		"> 0",
+	)
+	requireConstraintDefinitionContains(
+		t,
+		tx,
+		"upstream_account_set_capacity_members",
+		"upstream_account_set_capacity_members_membership_fk",
+		"FOREIGN KEY (set_id, account_id)",
+		"upstream_account_set_members(set_id, account_id)",
+		"ON DELETE CASCADE",
+	)
+
 	// user_allowed_groups table should exist
 	var uagRegclass sql.NullString
 	require.NoError(t, tx.QueryRowContext(context.Background(), "SELECT to_regclass('public.user_allowed_groups')").Scan(&uagRegclass))

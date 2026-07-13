@@ -170,7 +170,7 @@ func (s *AccountMonitorService) evaluateUpstreamHealthAlerts(ctx context.Context
 func (s *AccountMonitorService) loadHealthAlertRuntimeWeights(ctx context.Context, pools []UpstreamPool) (map[int64]map[int64]*PoolRuntimeWeightState, error) {
 	poolIDs := make([]int64, 0, len(pools))
 	for _, pool := range pools {
-		if pool.AutoWeightEnabled && strings.EqualFold(pool.Platform, PlatformOpenAI) {
+		if UpstreamPoolAutoWeightModeFromPolicyJSON(pool.PolicyJSON) == "active" && strings.EqualFold(pool.Platform, PlatformOpenAI) {
 			poolIDs = append(poolIDs, pool.ID)
 		}
 	}

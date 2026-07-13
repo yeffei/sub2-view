@@ -526,6 +526,44 @@ func shouldClearStickySession(account *Account, requestedModel string) bool {
 	return false
 }
 
+func (s *GatewayService) shouldClearStickySession(account *Account, requestedModel string) bool {
+	if shouldClearStickySession(account, requestedModel) {
+		return true
+	}
+	if s == nil || s.accountRuntimeStats == nil || account == nil {
+		return false
+	}
+	thresholdTTFT := 15000.0
+	thresholdErrorRate := 0.5
+	if s.cfg != nil {
+		if configured := s.cfg.Gateway.OpenAIScheduler.StickyEscapeTTFTMs; configured > 0 {
+			thresholdTTFT = float64(configured)
+		}
+		if configured := s.cfg.Gateway.OpenAIScheduler.StickyEscapeErrorRate; configured > 0 && configured <= 1 {
+			thresholdErrorRate = configured
+		}
+		if !s.cfg.Gateway.OpenAIScheduler.StickyEscapeEnabled {
+			return false
+		}
+	}
+	errorRate, ttft, hasTTFT := s.accountRuntimeStats.snapshot(account.ID)
+	return (hasTTFT && ttft > thresholdTTFT) || errorRate > thresholdErrorRate
+}
+
+func (s *GatewayService) ReportAccountScheduleResult(accountID int64, success bool, firstTokenMs *int) {
+	if s == nil || s.accountRuntimeStats == nil {
+		return
+	}
+	s.accountRuntimeStats.report(accountID, success, firstTokenMs)
+}
+
+func (s *GatewayService) SeedAccountRuntimeTTFT(accountID int64, ttftMs int) {
+	if s == nil || s.accountRuntimeStats == nil {
+		return
+	}
+	s.accountRuntimeStats.seedTTFT(accountID, ttftMs)
+}
+
 type AccountWaitPlan struct {
 	AccountID      int64
 	MaxConcurrency int
@@ -653,6 +691,7 @@ type GatewayService struct {
 	balanceNotifyService  *BalanceNotifyService
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	upstreamPoolRepo      UpstreamPoolRepository
+	accountRuntimeStats   *openAIAccountRuntimeStats
 }
 
 // NewGatewayService creates a new GatewayService
@@ -722,6 +761,7 @@ func NewGatewayService(
 		balanceNotifyService:  balanceNotifyService,
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 		upstreamPoolRepo:      upstreamPoolRepo,
+		accountRuntimeStats:   newOpenAIAccountRuntimeStats(),
 	}
 	svc.userGroupRateResolver = newUserGroupRateResolver(
 		userGroupRateRepo,
@@ -1723,7 +1763,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				return nil, err
 			}
 
-			result, err := s.tryAcquireAccountSlot(ctx, account.ID, account.Concurrency)
+			result, err := s.tryAcquireAccountSlotForAccount(ctx, account)
 			if err == nil && result.Acquired {
 				// 获取槽位后检查会话限制（使用 sessionHash 作为会话标识符）
 				if !s.checkAndRegisterSession(ctx, account, sessionHash) {
@@ -1903,7 +1943,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 						rpmPass := gatePass && s.isAccountSchedulableForRPM(ctx, stickyAccount, true)
 
 						if rpmPass { // 粘性会话窗口费用+RPM 检查
-							result, err := s.tryAcquireAccountSlot(ctx, stickyAccountID, stickyAccount.Concurrency)
+							result, err := s.tryAcquireAccountSlotForAccount(ctx, stickyAccount)
 							if err == nil && result.Acquired {
 								// 会话数量限制检查
 								if !s.checkAndRegisterSession(ctx, stickyAccount, sessionHash) {
@@ -1973,6 +2013,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				routingLoads = append(routingLoads, AccountWithConcurrency{
 					ID:             acc.ID,
 					MaxConcurrency: acc.EffectiveLoadFactor(),
+					Capacity:       acc.CapacityScope,
 				})
 			}
 			routingLoadMap, _ := s.concurrencyService.GetAccountsLoadBatch(ctx, routingLoads)
@@ -2014,7 +2055,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 
 				// 4. 尝试获取槽位
 				for _, item := range routingAvailable {
-					result, err := s.tryAcquireAccountSlot(ctx, item.account.ID, item.account.Concurrency)
+					result, err := s.tryAcquireAccountSlotForAccount(ctx, item.account)
 					if err == nil && result.Acquired {
 						// 会话数量限制检查
 						if !s.checkAndRegisterSession(ctx, item.account, sessionHash) {
@@ -2061,7 +2102,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			account, ok := accountByID[accountID]
 			if ok {
 				// 检查账户是否需要清理粘性会话绑定
-				clearSticky := shouldClearStickySession(account, requestedModel)
+				clearSticky := s.shouldClearStickySession(account, requestedModel)
 				if clearSticky {
 					slog.Debug("sticky.layer1_5_no_routing_clear",
 						"account_id", accountID,
@@ -2096,7 +2137,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				)
 
 				if !clearSticky && platformOK && modelSupported && modelSchedulable && quotaOK && windowCostOK && rpmOK && schedulable {
-					result, err := s.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+					result, err := s.tryAcquireAccountSlotForAccount(ctx, account)
 					if err == nil && result.Acquired {
 						// 会话数量限制检查
 						if !s.checkAndRegisterSession(ctx, account, sessionHash) {
@@ -2224,6 +2265,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		accountLoads = append(accountLoads, AccountWithConcurrency{
 			ID:             acc.ID,
 			MaxConcurrency: acc.EffectiveLoadFactor(),
+			Capacity:       acc.CapacityScope,
 		})
 	}
 
@@ -2265,7 +2307,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 				break
 			}
 
-			result, err := s.tryAcquireAccountSlot(ctx, selected.account.ID, selected.account.Concurrency)
+			result, err := s.tryAcquireAccountSlotForAccount(ctx, selected.account)
 			if err == nil && result.Acquired {
 				// 会话数量限制检查
 				if !s.checkAndRegisterSession(ctx, selected.account, sessionHash) {
@@ -2312,7 +2354,7 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 	sortAccountsByPriorityAndLastUsed(ordered, preferOAuth)
 
 	for _, acc := range ordered {
-		result, err := s.tryAcquireAccountSlot(ctx, acc.ID, acc.Concurrency)
+		result, err := s.tryAcquireAccountSlotForAccount(ctx, acc)
 		if err == nil && result.Acquired {
 			// 会话数量限制检查
 			if !s.checkAndRegisterSession(ctx, acc, sessionHash) {
@@ -2814,11 +2856,14 @@ func (s *GatewayService) isAccountInGroup(account *Account, groupID *int64) bool
 	return false
 }
 
-func (s *GatewayService) tryAcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
+func (s *GatewayService) tryAcquireAccountSlotForAccount(ctx context.Context, account *Account) (*AcquireResult, error) {
 	if s.concurrencyService == nil {
 		return &AcquireResult{Acquired: true, ReleaseFunc: func() {}}, nil
 	}
-	return s.concurrencyService.AcquireAccountSlot(ctx, accountID, maxConcurrency)
+	if account == nil {
+		return nil, errors.New("account is required")
+	}
+	return s.concurrencyService.AcquireAccountSlotWithScope(ctx, account.ConcurrencyScope())
 }
 
 type usageLogWindowStatsBatchProvider interface {
@@ -3493,7 +3538,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 					account, err := s.getSchedulableAccount(ctx, accountID)
 					// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 					if err == nil {
-						clearSticky := shouldClearStickySession(account, requestedModel)
+						clearSticky := s.shouldClearStickySession(account, requestedModel)
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
@@ -3613,7 +3658,7 @@ func (s *GatewayService) selectAccountForModelWithPlatform(ctx context.Context, 
 				account, err := s.getSchedulableAccount(ctx, accountID)
 				// 检查账号分组归属和平台匹配（确保粘性会话不会跨分组或跨平台）
 				if err == nil {
-					clearSticky := shouldClearStickySession(account, requestedModel)
+					clearSticky := s.shouldClearStickySession(account, requestedModel)
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}
@@ -3753,7 +3798,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 					account, err := s.getSchedulableAccount(ctx, accountID)
 					// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 					if err == nil {
-						clearSticky := shouldClearStickySession(account, requestedModel)
+						clearSticky := s.shouldClearStickySession(account, requestedModel)
 						if clearSticky {
 							_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 						}
@@ -3875,7 +3920,7 @@ func (s *GatewayService) selectAccountWithMixedScheduling(ctx context.Context, g
 				account, err := s.getSchedulableAccount(ctx, accountID)
 				// 检查账号分组归属和有效性：原生平台直接匹配，antigravity 需要启用混合调度
 				if err == nil {
-					clearSticky := shouldClearStickySession(account, requestedModel)
+					clearSticky := s.shouldClearStickySession(account, requestedModel)
 					if clearSticky {
 						_ = s.cache.DeleteSessionAccountID(ctx, derefGroupID(groupID), sessionHash)
 					}

@@ -15,6 +15,7 @@ type PoolHealthView struct {
 	GroupID             *int64
 	GroupName           string
 	Status              string
+	CapacityStatus      string
 	Availability7d      float64
 	BestLatencyMs       *int
 	BestPingLatencyMs   *int
@@ -39,6 +40,7 @@ type PoolHealthDetail struct {
 	GroupID             *int64
 	GroupName           string
 	Status              string
+	CapacityStatus      string
 	Availability7d      float64
 	Availability15d     float64
 	Availability30d     float64

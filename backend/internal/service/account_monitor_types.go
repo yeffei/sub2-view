@@ -77,3 +77,9 @@ type PoolRuntimeWeightState struct {
 	LastObservedAt  time.Time
 	UpdatedAt       time.Time
 }
+
+type AccountRuntimeHealthSnapshot struct {
+	AccountID   int64
+	SampleCount int
+	P95TTFTMs   int
+}

@@ -65,6 +65,12 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 				Group:     &service.Group{ID: bucket.GroupID, Name: "gemini-group"},
 			},
 		},
+		CapacityScope: &service.AccountCapacityScope{
+			GroupID:         88,
+			GroupLimit:      3000,
+			MemberHardLimit: 1000,
+			MemberSoftShare: 1000,
+		},
 	}
 
 	require.NoError(t, cache.SetSnapshot(ctx, bucket, []service.Account{account}))
@@ -88,6 +94,11 @@ func TestSchedulerCacheSnapshotUsesSlimMetadataButKeepsFullAccount(t *testing.T)
 	require.Equal(t, 4, got.GetMaxSessions())
 	require.Equal(t, 11, got.GetSessionIdleTimeoutMinutes())
 	require.Nil(t, got.Extra["unused_large_field"])
+	require.NotNil(t, got.CapacityScope)
+	require.Equal(t, int64(88), got.CapacityScope.GroupID)
+	require.Equal(t, 3000, got.CapacityScope.GroupLimit)
+	require.Equal(t, 1000, got.CapacityScope.MemberHardLimit)
+	require.Equal(t, 1000, got.CapacityScope.MemberSoftShare)
 	require.Equal(t, []int64{bucket.GroupID}, got.GroupIDs)
 	require.Len(t, got.AccountGroups, 1)
 	require.Equal(t, account.ID, got.AccountGroups[0].AccountID)

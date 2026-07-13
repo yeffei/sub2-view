@@ -392,6 +392,7 @@ func (c *OpsMetricsCollector) collectConcurrencyQueueDepth(parentCtx context.Con
 		batch = append(batch, AccountWithConcurrency{
 			ID:             acc.ID,
 			MaxConcurrency: acc.EffectiveLoadFactor(),
+			Capacity:       acc.CapacityScope,
 		})
 	}
 	if len(batch) == 0 {

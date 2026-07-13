@@ -14,6 +14,7 @@ export interface PoolHealthView {
   id: number
   name: string
   status: MonitorStatus
+  capacity_status: 'ample' | 'observe' | 'tight' | 'queueing'
   availability_7d: number
   best_latency_ms: number | null
   best_ping_latency_ms: number | null
@@ -24,6 +25,7 @@ export interface PoolHealthDetail {
   id: number
   name: string
   status: MonitorStatus
+  capacity_status: 'ample' | 'observe' | 'tight' | 'queueing'
   availability_7d: number
   availability_15d: number
   availability_30d: number

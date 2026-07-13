@@ -233,6 +233,14 @@ func (s *openAIAccountRuntimeStats) report(accountID int64, success bool, firstT
 	}
 }
 
+func (s *openAIAccountRuntimeStats) seedTTFT(accountID int64, ttftMs int) {
+	if s == nil || accountID <= 0 || ttftMs <= 0 {
+		return
+	}
+	stat := s.loadOrCreate(accountID)
+	stat.ttftEWMABits.Store(math.Float64bits(float64(ttftMs)))
+}
+
 func (s *openAIAccountRuntimeStats) snapshot(accountID int64) (errorRate float64, ttft float64, hasTTFT bool) {
 	if s == nil || accountID <= 0 {
 		return 0, 0, false
@@ -491,7 +499,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			TTFTMs:    ttftMsPtr,
 		}, nil
 	}
-	result, acquireErr := s.service.tryAcquireAccountSlot(ctx, accountID, account.Concurrency)
+	result, acquireErr := s.service.tryAcquireAccountSlotForAccount(ctx, account)
 	if acquireErr == nil && result != nil && result.Acquired {
 		_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
 		return &AccountSelectionResult{
@@ -682,6 +690,7 @@ func buildOpenAIAccountLoadReq(accounts []*Account) []AccountWithConcurrency {
 		loadReq = append(loadReq, AccountWithConcurrency{
 			ID:             account.ID,
 			MaxConcurrency: account.EffectiveLoadFactor(),
+			Capacity:       account.CapacityScope,
 		})
 	}
 	return loadReq
@@ -1291,7 +1300,7 @@ func (s *defaultOpenAIAccountScheduler) tryAcquireOpenAISelectionOrder(
 			compactBlocked = true
 			continue
 		}
-		result, acquireErr := s.service.tryAcquireAccountSlot(ctx, fresh.ID, fresh.Concurrency)
+		result, acquireErr := s.service.tryAcquireAccountSlotForAccount(ctx, fresh)
 		if acquireErr != nil {
 			return nil, compactBlocked, acquireErr
 		}
@@ -1857,11 +1866,23 @@ func (s *OpenAIGatewayService) isOpenAIAccountTransportCompatible(account *Accou
 }
 
 func (s *OpenAIGatewayService) ReportOpenAIAccountScheduleResult(accountID int64, success bool, firstTokenMs *int) {
-	scheduler := s.getOpenAIAccountScheduler(context.Background())
-	if scheduler == nil {
+	if s == nil {
 		return
 	}
-	scheduler.ReportResult(accountID, success, firstTokenMs)
+	if s.openaiAccountStats == nil {
+		s.openaiAccountStats = newOpenAIAccountRuntimeStats()
+	}
+	s.openaiAccountStats.report(accountID, success, firstTokenMs)
+}
+
+func (s *OpenAIGatewayService) SeedOpenAIAccountRuntimeTTFT(accountID int64, ttftMs int) {
+	if s == nil {
+		return
+	}
+	if s.openaiAccountStats == nil {
+		s.openaiAccountStats = newOpenAIAccountRuntimeStats()
+	}
+	s.openaiAccountStats.seedTTFT(accountID, ttftMs)
 }
 
 func (s *OpenAIGatewayService) RecordOpenAIAccountSwitch() {

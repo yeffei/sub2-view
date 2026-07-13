@@ -190,9 +190,9 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				h.responsesErrorResponse(c, http.StatusServiceUnavailable, "api_error", "No available accounts")
 				return
 			}
-			accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(
+			accountReleaseFunc, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeoutForAccount(
 				c,
-				account.ID,
+				account,
 				selection.WaitPlan.MaxConcurrency,
 				selection.WaitPlan.Timeout,
 				reqStream,
@@ -213,6 +213,11 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 		}
 		result, err := h.gatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody, parsedReq)
+		if err != nil {
+			h.gatewayService.ReportAccountScheduleResult(account.ID, false, nil)
+		} else if result != nil {
+			h.gatewayService.ReportAccountScheduleResult(account.ID, true, result.FirstTokenMs)
+		}
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()

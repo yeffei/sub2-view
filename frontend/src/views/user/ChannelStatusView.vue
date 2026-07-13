@@ -23,6 +23,9 @@
         :detail-cache="detailCache"
         @card-click="openDetail"
       />
+      <p v-if="items.length" class="text-xs text-gray-500 dark:text-gray-400">
+        容量状态仅展示粗粒度余量，不包含账号、并发上限或内部调度细节。
+      </p>
     </div>
 
     <MonitorDetailDialog

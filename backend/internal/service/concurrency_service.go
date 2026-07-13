@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"os"
 	"strconv"
 	"sync"
@@ -57,6 +58,68 @@ type APIKeyConcurrencyCache interface {
 	ReleaseAPIKeySlot(ctx context.Context, apiKeyID int64, requestID string) error
 	GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error)
 }
+
+type CapacityAcquireStatus int
+
+const (
+	CapacityAcquireStatusAcquired CapacityAcquireStatus = iota + 1
+	CapacityAcquireStatusGroupFull
+	CapacityAcquireStatusMemberFull
+)
+
+type CapacitySlotAcquireResult struct {
+	Status   CapacityAcquireStatus
+	Borrowed bool
+}
+
+type CapacitySlotCounts struct {
+	GroupConcurrency  int
+	MemberConcurrency int
+}
+
+type CapacityMetrics struct {
+	GroupFullCount    int
+	MemberFullCount   int
+	BorrowedSlotCount int
+}
+
+type CapacityConcurrencyCache interface {
+	AcquireCapacitySlot(
+		ctx context.Context,
+		groupID int64,
+		accountID int64,
+		groupLimit int,
+		memberHardLimit int,
+		memberSoftShare int,
+		requestID string,
+	) (CapacitySlotAcquireResult, error)
+	ReleaseCapacitySlot(ctx context.Context, groupID, accountID int64, requestID string) error
+	GetCapacitySlotCounts(ctx context.Context, groupID, accountID int64) (CapacitySlotCounts, error)
+	GetCapacityMetrics(ctx context.Context, groupID int64, since time.Time) (CapacityMetrics, error)
+}
+
+type AccountCapacityScope struct {
+	GroupID         int64
+	GroupLimit      int
+	MemberHardLimit int
+	MemberSoftShare int
+}
+
+type AccountConcurrencyScope struct {
+	AccountID    int64
+	AccountLimit int
+	Capacity     *AccountCapacityScope
+}
+
+type AcquireDeniedScope string
+
+const (
+	AcquireDeniedScopeNone     AcquireDeniedScope = ""
+	AcquireDeniedScopeAccount  AcquireDeniedScope = "account"
+	AcquireDeniedScopeCapacity AcquireDeniedScope = "capacity_group"
+)
+
+var ErrCapacityConcurrencyUnsupported = errors.New("shared capacity concurrency cache is not supported")
 
 var (
 	requestIDPrefix  = initRequestIDPrefix()
@@ -140,12 +203,15 @@ func (s *ConcurrencyService) SetAccountLoadBatchCacheTTL(ttl time.Duration) {
 // AcquireResult represents the result of acquiring a concurrency slot
 type AcquireResult struct {
 	Acquired    bool
+	DeniedScope AcquireDeniedScope
+	Borrowed    bool
 	ReleaseFunc func() // Must be called when done (typically via defer)
 }
 
 type AccountWithConcurrency struct {
 	ID             int64
 	MaxConcurrency int
+	Capacity       *AccountCapacityScope
 }
 
 type UserWithConcurrency struct {
@@ -171,8 +237,19 @@ type UserLoadInfo struct {
 // If the account is at max concurrency, it waits until a slot is available or timeout.
 // Returns a release function that MUST be called when the request completes.
 func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {
+	return s.AcquireAccountSlotWithScope(ctx, AccountConcurrencyScope{
+		AccountID:    accountID,
+		AccountLimit: maxConcurrency,
+	})
+}
+
+func (s *ConcurrencyService) AcquireAccountSlotWithScope(ctx context.Context, scope AccountConcurrencyScope) (*AcquireResult, error) {
+	if scope.Capacity != nil {
+		return s.acquireCapacityAccountSlot(ctx, scope)
+	}
+
 	// If maxConcurrency is 0 or negative, no limit
-	if maxConcurrency <= 0 {
+	if scope.AccountLimit <= 0 {
 		return &AcquireResult{
 			Acquired:    true,
 			ReleaseFunc: func() {}, // no-op
@@ -182,7 +259,7 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 	// Generate unique request ID for this slot
 	requestID := generateRequestID()
 
-	acquired, err := s.cache.AcquireAccountSlot(ctx, accountID, maxConcurrency, requestID)
+	acquired, err := s.cache.AcquireAccountSlot(ctx, scope.AccountID, scope.AccountLimit, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -193,8 +270,8 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 			ReleaseFunc: func() {
 				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				if err := s.cache.ReleaseAccountSlot(bgCtx, accountID, requestID); err != nil {
-					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", accountID, requestID, err)
+				if err := s.cache.ReleaseAccountSlot(bgCtx, scope.AccountID, requestID); err != nil {
+					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", scope.AccountID, requestID, err)
 				}
 			},
 		}, nil
@@ -202,8 +279,93 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 
 	return &AcquireResult{
 		Acquired:    false,
+		DeniedScope: AcquireDeniedScopeAccount,
 		ReleaseFunc: nil,
 	}, nil
+}
+
+func (s *ConcurrencyService) acquireCapacityAccountSlot(ctx context.Context, scope AccountConcurrencyScope) (*AcquireResult, error) {
+	if s == nil || s.cache == nil {
+		return nil, ErrCapacityConcurrencyUnsupported
+	}
+	capacity := scope.Capacity
+	if capacity == nil || scope.AccountID <= 0 || capacity.GroupID <= 0 || capacity.GroupLimit <= 0 {
+		return nil, errors.New("invalid shared capacity concurrency scope")
+	}
+	cache, ok := s.cache.(CapacityConcurrencyCache)
+	if !ok {
+		return nil, ErrCapacityConcurrencyUnsupported
+	}
+
+	requestID := generateRequestID()
+	acquired, err := cache.AcquireCapacitySlot(
+		ctx,
+		capacity.GroupID,
+		scope.AccountID,
+		capacity.GroupLimit,
+		capacity.MemberHardLimit,
+		capacity.MemberSoftShare,
+		requestID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	switch acquired.Status {
+	case CapacityAcquireStatusAcquired:
+		return &AcquireResult{
+			Acquired: true,
+			Borrowed: acquired.Borrowed,
+			ReleaseFunc: func() {
+				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				if err := cache.ReleaseCapacitySlot(bgCtx, capacity.GroupID, scope.AccountID, requestID); err != nil {
+					logger.LegacyPrintf(
+						"service.concurrency",
+						"Warning: failed to release capacity slot for group %d account %d (req=%s): %v",
+						capacity.GroupID,
+						scope.AccountID,
+						requestID,
+						err,
+					)
+				}
+			},
+		}, nil
+	case CapacityAcquireStatusGroupFull:
+		return &AcquireResult{
+			Acquired:    false,
+			DeniedScope: AcquireDeniedScopeCapacity,
+		}, nil
+	case CapacityAcquireStatusMemberFull:
+		return &AcquireResult{
+			Acquired:    false,
+			DeniedScope: AcquireDeniedScopeAccount,
+		}, nil
+	default:
+		return nil, errors.New("invalid shared capacity acquire status")
+	}
+}
+
+func (s *ConcurrencyService) GetCapacityMetrics(ctx context.Context, groupID int64, since time.Time) (CapacityMetrics, error) {
+	if s == nil || s.cache == nil || groupID <= 0 {
+		return CapacityMetrics{}, nil
+	}
+	cache, ok := s.cache.(CapacityConcurrencyCache)
+	if !ok {
+		return CapacityMetrics{}, ErrCapacityConcurrencyUnsupported
+	}
+	return cache.GetCapacityMetrics(ctx, groupID, since)
+}
+
+func (s *ConcurrencyService) GetCapacitySlotCounts(ctx context.Context, groupID, accountID int64) (CapacitySlotCounts, error) {
+	if s == nil || s.cache == nil || groupID <= 0 || accountID <= 0 {
+		return CapacitySlotCounts{}, nil
+	}
+	cache, ok := s.cache.(CapacityConcurrencyCache)
+	if !ok {
+		return CapacitySlotCounts{}, ErrCapacityConcurrencyUnsupported
+	}
+	return cache.GetCapacitySlotCounts(ctx, groupID, accountID)
 }
 
 // AcquireUserSlot attempts to acquire a concurrency slot for a user.
@@ -509,10 +671,19 @@ func (s *ConcurrencyService) storeCachedAccountLoadBatch(key string, loadMap map
 
 func accountLoadBatchCacheKey(accounts []AccountWithConcurrency) string {
 	hash := sha256.New()
-	var buf [16]byte
+	var buf [48]byte
 	for _, account := range accounts {
 		binary.LittleEndian.PutUint64(buf[:8], uint64(account.ID))
 		binary.LittleEndian.PutUint64(buf[8:], uint64(int64(account.MaxConcurrency)))
+		for i := 16; i < len(buf); i++ {
+			buf[i] = 0
+		}
+		if account.Capacity != nil {
+			binary.LittleEndian.PutUint64(buf[16:24], uint64(account.Capacity.GroupID))
+			binary.LittleEndian.PutUint64(buf[24:32], uint64(int64(account.Capacity.GroupLimit)))
+			binary.LittleEndian.PutUint64(buf[32:40], uint64(int64(account.Capacity.MemberHardLimit)))
+			binary.LittleEndian.PutUint64(buf[40:48], uint64(int64(account.Capacity.MemberSoftShare)))
+		}
 		_, _ = hash.Write(buf[:])
 	}
 	sum := hash.Sum(nil)

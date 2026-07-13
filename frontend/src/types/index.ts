@@ -266,6 +266,10 @@ export interface Subscription {
   is_active: boolean
   created_at: string
   updated_at: string
+  member_total_count?: number
+  member_enabled_count?: number
+  binding_total_count?: number
+  binding_enabled_count?: number
 }
 
 export interface CreateSubscriptionRequest {
@@ -585,6 +589,7 @@ export interface UpstreamPool {
   sticky_escape_ttft_ms_threshold: number
   load_balance_enabled: boolean
   auto_weight_enabled: boolean
+  auto_weight_mode?: 'off' | 'observe' | 'active'
   failover_enabled: boolean
   top_k: number
   max_failover_hops: number
@@ -653,6 +658,7 @@ export interface UpstreamAccountSet {
   platform: string
   description: string
   enabled: boolean
+  shared_concurrency_limit: number | null
   account_count: number
   created_at: string
   updated_at: string
@@ -674,7 +680,38 @@ export interface UpstreamAccountSetMember {
   runtime_rate_limit_reset_at?: string | null
   runtime_overload_until?: string | null
   runtime_temp_unschedulable_until?: string | null
+  capacity_hard_limit?: number | null
+  capacity_soft_share?: number | null
   added_at: string
+}
+
+export interface UpstreamCapacityMemberPressure {
+  account_id: number
+  account_name: string
+  hard_concurrency_limit: number | null
+  soft_concurrency_share: number | null
+  current_concurrency: number
+  waiting_count: number
+  load_rate: number
+}
+
+export interface UpstreamCapacityPressure {
+  set_id: number
+  set_name: string
+  set_code: string
+  platform: string
+  enabled: boolean
+  capacity_limit: number
+  current_concurrency: number
+  available_capacity: number
+  waiting_count: number
+  group_full_count: number
+  member_full_count: number
+  borrowed_slot_count: number
+  peak_concurrency_5m: number
+  p95_load_rate_5m: number
+  scheduling_concentration: number
+  members: UpstreamCapacityMemberPressure[]
 }
 
 export interface UpstreamPoolMemberSet {

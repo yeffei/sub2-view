@@ -21,18 +21,23 @@ type helperConcurrencyCacheStub struct {
 	accountSeq []bool
 	userSeq    []bool
 
-	accountAcquireCalls int
-	userAcquireCalls    int
-	accountReleaseCalls int
-	userReleaseCalls    int
-	waitAllowed         bool
-	waitIncrementCalls  int
-	waitDecrementCalls  int
-	waitMaxWait         int
-	waitIncrementHook   func()
-	apiKeyTrackCalls    int
-	apiKeyReleaseCalls  int
-	apiKeyTrackIDs      []int64
+	accountAcquireCalls  int
+	userAcquireCalls     int
+	accountReleaseCalls  int
+	userReleaseCalls     int
+	waitAllowed          bool
+	waitIncrementCalls   int
+	waitDecrementCalls   int
+	waitMaxWait          int
+	waitIncrementHook    func()
+	apiKeyTrackCalls     int
+	apiKeyReleaseCalls   int
+	apiKeyTrackIDs       []int64
+	capacityAcquireCalls int
+	capacityReleaseCalls int
+	capacityGroupID      int64
+	capacityAccountID    int64
+	capacityResult       service.CapacitySlotAcquireResult
 }
 
 func (s *helperConcurrencyCacheStub) AcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int, requestID string) (bool, error) {
@@ -52,6 +57,38 @@ func (s *helperConcurrencyCacheStub) ReleaseAccountSlot(ctx context.Context, acc
 	defer s.mu.Unlock()
 	s.accountReleaseCalls++
 	return nil
+}
+
+func (s *helperConcurrencyCacheStub) AcquireCapacitySlot(
+	ctx context.Context,
+	groupID int64,
+	accountID int64,
+	groupLimit int,
+	memberHardLimit int,
+	memberSoftShare int,
+	requestID string,
+) (service.CapacitySlotAcquireResult, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.capacityAcquireCalls++
+	s.capacityGroupID = groupID
+	s.capacityAccountID = accountID
+	return s.capacityResult, nil
+}
+
+func (s *helperConcurrencyCacheStub) ReleaseCapacitySlot(ctx context.Context, groupID, accountID int64, requestID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.capacityReleaseCalls++
+	return nil
+}
+
+func (s *helperConcurrencyCacheStub) GetCapacitySlotCounts(ctx context.Context, groupID, accountID int64) (service.CapacitySlotCounts, error) {
+	return service.CapacitySlotCounts{}, nil
+}
+
+func (s *helperConcurrencyCacheStub) GetCapacityMetrics(ctx context.Context, groupID int64, since time.Time) (service.CapacityMetrics, error) {
+	return service.CapacityMetrics{}, nil
 }
 
 func (s *helperConcurrencyCacheStub) GetAccountConcurrency(ctx context.Context, accountID int64) (int, error) {
@@ -252,7 +289,7 @@ func TestWaitForSlotWithPingTimeout_AccountAndUserAcquire(t *testing.T) {
 	t.Run("account_slot_acquired_after_retry", func(t *testing.T) {
 		c, _ := newHelperTestContext(http.MethodPost, "/v1/messages")
 		streamStarted := false
-		release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, time.Second, false, &streamStarted, true)
+		release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, time.Second, false, &streamStarted, true, &service.Account{ID: 101, Concurrency: 2})
 		require.NoError(t, err)
 		require.NotNil(t, release)
 		require.False(t, streamStarted)
@@ -271,6 +308,38 @@ func TestWaitForSlotWithPingTimeout_AccountAndUserAcquire(t *testing.T) {
 		require.GreaterOrEqual(t, cache.userAcquireCalls, 2)
 		require.GreaterOrEqual(t, cache.userReleaseCalls, 1)
 	})
+}
+
+func TestTryAcquireAccountSlotForAccount_UsesCapacityScope(t *testing.T) {
+	cache := &helperConcurrencyCacheStub{
+		accountSeq: []bool{true},
+		capacityResult: service.CapacitySlotAcquireResult{
+			Status: service.CapacityAcquireStatusAcquired,
+		},
+	}
+	helper := NewConcurrencyHelper(service.NewConcurrencyService(cache), SSEPingFormatNone, 5*time.Millisecond)
+	account := &service.Account{
+		ID:          901,
+		Concurrency: 1000,
+		CapacityScope: &service.AccountCapacityScope{
+			GroupID:         77,
+			GroupLimit:      3000,
+			MemberHardLimit: 1000,
+			MemberSoftShare: 1000,
+		},
+	}
+
+	release, acquired, err := helper.TryAcquireAccountSlotForAccount(context.Background(), account, account.Concurrency)
+	require.NoError(t, err)
+	require.True(t, acquired)
+	require.NotNil(t, release)
+	require.Equal(t, 1, cache.capacityAcquireCalls)
+	require.Equal(t, 0, cache.accountAcquireCalls)
+	require.Equal(t, int64(77), cache.capacityGroupID)
+	require.Equal(t, int64(901), cache.capacityAccountID)
+
+	release()
+	require.Equal(t, 1, cache.capacityReleaseCalls)
 }
 
 func TestAcquireUserSlotWithWait_ImmediateAcquireSkipsWaitQueue(t *testing.T) {
@@ -417,7 +486,7 @@ func TestWaitForSlotWithPingTimeout_TimeoutAndStreamPing(t *testing.T) {
 		helper := NewConcurrencyHelper(concurrency, SSEPingFormatNone, 5*time.Millisecond)
 		c, _ := newHelperTestContext(http.MethodPost, "/v1/messages")
 		streamStarted := false
-		release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, 130*time.Millisecond, false, &streamStarted, true)
+		release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, 130*time.Millisecond, false, &streamStarted, true, &service.Account{ID: 101, Concurrency: 2})
 		require.Nil(t, release)
 		var cErr *ConcurrencyError
 		require.ErrorAs(t, err, &cErr)
@@ -428,7 +497,7 @@ func TestWaitForSlotWithPingTimeout_TimeoutAndStreamPing(t *testing.T) {
 		helper := NewConcurrencyHelper(concurrency, SSEPingFormatComment, 10*time.Millisecond)
 		c, rec := newHelperTestContext(http.MethodPost, "/v1/messages")
 		streamStarted := false
-		release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, 70*time.Millisecond, true, &streamStarted, true)
+		release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, 70*time.Millisecond, true, &streamStarted, true, &service.Account{ID: 101, Concurrency: 2})
 		require.Nil(t, release)
 		var cErr *ConcurrencyError
 		require.ErrorAs(t, err, &cErr)
@@ -450,7 +519,7 @@ func TestWaitForSlotWithPingTimeout_ParentContextCanceled(t *testing.T) {
 	cancel()
 
 	streamStarted := false
-	release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, time.Second, false, &streamStarted, true)
+	release, err := helper.waitForSlotWithPingTimeout(c, "account", 101, 2, time.Second, false, &streamStarted, true, &service.Account{ID: 101, Concurrency: 2})
 	require.Nil(t, release)
 	require.ErrorIs(t, err, context.Canceled)
 	var cErr *ConcurrencyError
@@ -465,7 +534,7 @@ func TestWaitForSlotWithPingTimeout_AcquireError(t *testing.T) {
 	helper := NewConcurrencyHelper(concurrency, SSEPingFormatNone, 5*time.Millisecond)
 	c, _ := newHelperTestContext(http.MethodPost, "/v1/messages")
 	streamStarted := false
-	release, err := helper.waitForSlotWithPingTimeout(c, "account", 1, 1, 200*time.Millisecond, false, &streamStarted, true)
+	release, err := helper.waitForSlotWithPingTimeout(c, "account", 1, 1, 200*time.Millisecond, false, &streamStarted, true, &service.Account{ID: 1, Concurrency: 1})
 	require.Nil(t, release)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "redis unavailable")
@@ -480,7 +549,7 @@ func TestAcquireAccountSlotWithWaitTimeout_ImmediateAttemptBeforeBackoff(t *test
 	c, _ := newHelperTestContext(http.MethodPost, "/v1/messages")
 	streamStarted := false
 
-	release, err := helper.AcquireAccountSlotWithWaitTimeout(c, 301, 1, 30*time.Millisecond, false, &streamStarted)
+	release, err := helper.AcquireAccountSlotWithWaitTimeoutForAccount(c, &service.Account{ID: 301, Concurrency: 1}, 1, 30*time.Millisecond, false, &streamStarted)
 	require.Nil(t, release)
 	var cErr *ConcurrencyError
 	require.ErrorAs(t, err, &cErr)

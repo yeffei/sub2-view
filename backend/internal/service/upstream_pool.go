@@ -49,6 +49,7 @@ type UpstreamPool struct {
 	StickyEscapeTTFTMSThreshold    int
 	LoadBalanceEnabled             bool
 	AutoWeightEnabled              bool
+	AutoWeightMode                 string
 	FailoverEnabled                bool
 	TopK                           int
 	MaxFailoverHops                int
@@ -57,6 +58,10 @@ type UpstreamPool struct {
 	PolicyJSON                     map[string]any
 	CreatedAt                      time.Time
 	UpdatedAt                      time.Time
+	MemberTotalCount               int
+	MemberEnabledCount             int
+	BindingTotalCount              int
+	BindingEnabledCount            int
 }
 
 type UpstreamPoolMember struct {
@@ -111,15 +116,16 @@ type UpstreamPoolBinding struct {
 }
 
 type UpstreamAccountSet struct {
-	ID           int64
-	Name         string
-	Code         string
-	Platform     string
-	Description  string
-	Enabled      bool
-	AccountCount int
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                     int64
+	Name                   string
+	Code                   string
+	Platform               string
+	Description            string
+	Enabled                bool
+	SharedConcurrencyLimit *int
+	AccountCount           int
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
 }
 
 type UpstreamAccountSetMember struct {
@@ -138,7 +144,101 @@ type UpstreamAccountSetMember struct {
 	RuntimeRateLimitResetAt       *time.Time
 	RuntimeOverloadUntil          *time.Time
 	RuntimeTempUnschedulableUntil *time.Time
+	CapacityHardLimit             *int
+	CapacitySoftShare             *int
 	AddedAt                       time.Time
+}
+
+type UpstreamCapacityPressure struct {
+	SetID                   int64
+	SetName                 string
+	SetCode                 string
+	Platform                string
+	Enabled                 bool
+	CapacityLimit           int
+	CurrentConcurrency      int
+	AvailableCapacity       int
+	WaitingCount            int
+	GroupFullCount          int
+	MemberFullCount         int
+	BorrowedSlotCount       int
+	PeakConcurrency5m       int
+	P95LoadRate5m           int
+	SchedulingConcentration int
+	Members                 []UpstreamCapacityMemberPressure
+}
+
+type UpstreamCapacitySnapshotRow struct {
+	SetID                                                     int64
+	CapacityLimit, CurrentConcurrency, WaitingCount, LoadRate int
+	CheckedAt                                                 time.Time
+}
+type UpstreamCapacitySnapshotStats struct{ PeakConcurrency5m, P95LoadRate5m int }
+
+type UpstreamCapacityMemberPressure struct {
+	AccountID            int64
+	AccountName          string
+	HardConcurrencyLimit *int
+	SoftConcurrencyShare *int
+	CurrentConcurrency   int
+	WaitingCount         int
+	LoadRate             int
+}
+
+type UpstreamCapacityPressureReader interface {
+	ListUpstreamCapacityPressures(ctx context.Context) ([]UpstreamCapacityPressure, error)
+}
+
+type UpstreamCapacityMemberWriter interface {
+	UpdateUpstreamAccountSetMemberCapacity(ctx context.Context, setID, accountID int64, hardLimit, softShare *int) error
+}
+
+type UpstreamAccountSetCapacityMemberConfig struct {
+	AccountID            int64
+	HardConcurrencyLimit *int
+	SoftConcurrencyShare *int
+}
+
+func ValidateUpstreamAccountSetCapacityConfig(
+	sharedConcurrencyLimit *int,
+	members []UpstreamAccountSetCapacityMemberConfig,
+) error {
+	if sharedConcurrencyLimit == nil {
+		if len(members) > 0 {
+			return errors.New("shared_concurrency_limit is required when capacity members are configured")
+		}
+		return nil
+	}
+	if *sharedConcurrencyLimit <= 0 {
+		return errors.New("shared_concurrency_limit must be greater than 0")
+	}
+
+	seen := make(map[int64]struct{}, len(members))
+	for _, member := range members {
+		if member.AccountID <= 0 {
+			return errors.New("capacity member account_id must be greater than 0")
+		}
+		if _, exists := seen[member.AccountID]; exists {
+			return fmt.Errorf("capacity member account_id %d is duplicated", member.AccountID)
+		}
+		seen[member.AccountID] = struct{}{}
+
+		if member.HardConcurrencyLimit != nil {
+			if *member.HardConcurrencyLimit <= 0 {
+				return fmt.Errorf("capacity member %d hard_concurrency_limit must be greater than 0", member.AccountID)
+			}
+			if *member.HardConcurrencyLimit > *sharedConcurrencyLimit {
+				return fmt.Errorf(
+					"capacity member %d hard_concurrency_limit must not exceed shared_concurrency_limit",
+					member.AccountID,
+				)
+			}
+		}
+		if member.SoftConcurrencyShare != nil && *member.SoftConcurrencyShare <= 0 {
+			return fmt.Errorf("capacity member %d soft_concurrency_share must be greater than 0", member.AccountID)
+		}
+	}
+	return nil
 }
 
 type UpstreamPoolMemberSet struct {
@@ -229,6 +329,7 @@ type CreateUpstreamPoolInput struct {
 	StickyEscapeTTFTMSThreshold    int
 	LoadBalanceEnabled             bool
 	AutoWeightEnabled              bool
+	AutoWeightMode                 string
 	FailoverEnabled                bool
 	TopK                           int
 	MaxFailoverHops                int
@@ -254,6 +355,7 @@ type UpdateUpstreamPoolInput struct {
 	StickyEscapeTTFTMSThreshold    *int
 	LoadBalanceEnabled             *bool
 	AutoWeightEnabled              *bool
+	AutoWeightMode                 *string
 	FailoverEnabled                *bool
 	TopK                           *int
 	MaxFailoverHops                *int
@@ -308,19 +410,22 @@ type UpdateUpstreamPoolBindingInput struct {
 }
 
 type CreateUpstreamAccountSetInput struct {
-	Name        string
-	Code        string
-	Platform    string
-	Description string
-	Enabled     bool
+	Name                   string
+	Code                   string
+	Platform               string
+	Description            string
+	Enabled                bool
+	SharedConcurrencyLimit *int
 }
 
 type UpdateUpstreamAccountSetInput struct {
-	Name        *string
-	Code        *string
-	Platform    *string
-	Description *string
-	Enabled     *bool
+	Name                      *string
+	Code                      *string
+	Platform                  *string
+	Description               *string
+	Enabled                   *bool
+	SharedConcurrencyLimitSet bool
+	SharedConcurrencyLimit    *int
 }
 
 type AddUpstreamAccountSetMembersInput struct {
@@ -464,22 +569,49 @@ func SetUpstreamPoolAccountTypeStrategyPolicyJSON(policyJSON map[string]any, str
 }
 
 func UpstreamPoolAutoWeightEnabledFromPolicyJSON(policyJSON map[string]any) bool {
-	autoWeight := policyJSONMap(policyJSON, "auto_weight")
-	enabled, _ := policyJSONBool(autoWeight, "enabled")
-	return enabled
+	return UpstreamPoolAutoWeightModeFromPolicyJSON(policyJSON) != "off"
 }
 
-func SetUpstreamPoolAutoWeightPolicyJSON(policyJSON map[string]any, enabled bool) map[string]any {
+func UpstreamPoolAutoWeightModeFromPolicyJSON(policyJSON map[string]any) string {
+	autoWeight := policyJSONMap(policyJSON, "auto_weight")
+	if mode, ok := policyJSONString(autoWeight, "mode"); ok {
+		switch strings.ToLower(strings.TrimSpace(mode)) {
+		case "observe", "active":
+			return strings.ToLower(strings.TrimSpace(mode))
+		case "off":
+			return "off"
+		}
+	}
+	enabled, _ := policyJSONBool(autoWeight, "enabled")
+	if enabled {
+		return "active"
+	}
+	return "off"
+}
+
+func SetUpstreamPoolAutoWeightModePolicyJSON(policyJSON map[string]any, mode string) map[string]any {
 	if policyJSON == nil {
 		policyJSON = map[string]any{}
+	}
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	if normalized != "observe" && normalized != "active" {
+		normalized = "off"
 	}
 	autoWeight := policyJSONMap(policyJSON, "auto_weight")
 	if autoWeight == nil {
 		autoWeight = map[string]any{}
 	}
-	autoWeight["enabled"] = enabled
+	autoWeight["mode"] = normalized
+	autoWeight["enabled"] = normalized != "off"
 	policyJSON["auto_weight"] = autoWeight
 	return policyJSON
+}
+
+func SetUpstreamPoolAutoWeightPolicyJSON(policyJSON map[string]any, enabled bool) map[string]any {
+	if enabled {
+		return SetUpstreamPoolAutoWeightModePolicyJSON(policyJSON, "active")
+	}
+	return SetUpstreamPoolAutoWeightModePolicyJSON(policyJSON, "off")
 }
 
 func (p OpenAIRoutingPolicy) EffectivePoolMode5xxCooldown(defaultCooldown time.Duration) time.Duration {

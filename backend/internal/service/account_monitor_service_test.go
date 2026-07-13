@@ -26,7 +26,7 @@ func (s *poolSnapshotPruneRepoStub) DeletePoolAvailabilityBefore(_ context.Conte
 func TestPoolAvailabilitySnapshotPruneRunsDailyWithThirtyDayRetention(t *testing.T) {
 	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
 	repo := &poolSnapshotPruneRepoStub{deleted: 12}
-	svc := NewAccountMonitorService(repo, nil, nil)
+	svc := NewAccountMonitorService(repo, nil, nil, nil, nil)
 	svc.now = func() time.Time { return now }
 
 	deleted, err := svc.prunePoolAvailabilitySnapshots(t.Context())
@@ -66,7 +66,7 @@ func TestPoolRuntimeWeightRequiresThreeObservationsAndRecovers(t *testing.T) {
 func TestUpstreamHealthAlertRequiresThreeObservationsRemindsAndResolves(t *testing.T) {
 	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
 	var events []upstreamHealthAlertEvent
-	svc := NewAccountMonitorService(nil, nil, nil)
+	svc := NewAccountMonitorService(nil, nil, nil, nil, nil)
 	svc.now = func() time.Time { return now }
 	svc.healthAlertEmitter = func(event upstreamHealthAlertEvent) {
 		events = append(events, event)
@@ -140,11 +140,42 @@ func TestAutoWeightTargetUsesRuntimeStateAndPoolRelativeLatency(t *testing.T) {
 	require.Equal(t, "much_slower_than_pool", reason)
 }
 
+func TestAutoWeightTargetPrefersRealRequestTTFTWhenEnoughSamplesExist(t *testing.T) {
+	now := time.Date(2026, 7, 12, 10, 0, 0, 0, time.UTC)
+	target, reason, observed := autoWeightTargetWithRuntime(&Account{}, nil, 100,
+		AccountRuntimeHealthSnapshot{SampleCount: 5, P95TTFTMs: 36000}, 12000, now)
+	require.True(t, observed)
+	require.Equal(t, 0.5, target)
+	require.Equal(t, "real_ttft_much_slower", reason)
+
+	target, reason, observed = autoWeightTargetWithRuntime(&Account{}, nil, 100,
+		AccountRuntimeHealthSnapshot{SampleCount: 5, P95TTFTMs: 18000}, 0, now)
+	require.True(t, observed)
+	require.Equal(t, 0.5, target)
+	require.Equal(t, "real_ttft_much_slower", reason)
+
+	target, reason, observed = autoWeightTargetWithRuntime(&Account{}, &AccountMonitorHistoryRow{
+		Status: MonitorStatusOperational,
+	}, 100, AccountRuntimeHealthSnapshot{SampleCount: 2, P95TTFTMs: 36000}, 12000, now)
+	require.True(t, observed)
+	require.Equal(t, 1.0, target)
+	require.Equal(t, "healthy", reason)
+}
+
 func TestUpstreamPoolAutoWeightPolicyPreservesRoutingPolicy(t *testing.T) {
 	policy := SetUpstreamPoolAccountTypeStrategyPolicyJSON(nil, UpstreamPoolAccountTypeStrategyOAuthPreferred)
 	policy = SetUpstreamPoolAutoWeightPolicyJSON(policy, true)
 	require.True(t, UpstreamPoolAutoWeightEnabledFromPolicyJSON(policy))
 	require.Equal(t, UpstreamPoolAccountTypeStrategyOAuthPreferred, UpstreamPoolAccountTypeStrategyFromPolicyJSON(policy))
+}
+
+func TestUpstreamPoolAutoWeightModes(t *testing.T) {
+	policy := SetUpstreamPoolAutoWeightModePolicyJSON(nil, "observe")
+	require.Equal(t, "observe", UpstreamPoolAutoWeightModeFromPolicyJSON(policy))
+	require.True(t, UpstreamPoolAutoWeightEnabledFromPolicyJSON(policy))
+	policy = SetUpstreamPoolAutoWeightModePolicyJSON(policy, "off")
+	require.Equal(t, "off", UpstreamPoolAutoWeightModeFromPolicyJSON(policy))
+	require.False(t, UpstreamPoolAutoWeightEnabledFromPolicyJSON(policy))
 }
 
 func TestNormalizeUpstreamPoolRejectsAutoWeightOutsideOpenAI(t *testing.T) {

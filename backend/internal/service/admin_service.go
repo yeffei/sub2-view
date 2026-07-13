@@ -590,6 +590,7 @@ type adminServiceImpl struct {
 	openAIAccountRuntime OpenAIAccountRuntimeObserver
 	runtimeBlocker       AccountRuntimeBlocker
 	accountMonitorRepo   AccountMonitorRepository
+	concurrencyService   *ConcurrencyService
 }
 
 type userGroupRateBatchReader interface {
@@ -618,6 +619,7 @@ func NewAdminService(
 	privacyClientFactory PrivacyClientFactory,
 	openAIAccountRuntime OpenAIAccountRuntimeObserver,
 	runtimeBlocker AccountRuntimeBlocker,
+	concurrencyService *ConcurrencyService,
 ) AdminService {
 	return &adminServiceImpl{
 		userRepo:             userRepo,
@@ -640,6 +642,7 @@ func NewAdminService(
 		privacyClientFactory: privacyClientFactory,
 		openAIAccountRuntime: openAIAccountRuntime,
 		runtimeBlocker:       runtimeBlocker,
+		concurrencyService:   concurrencyService,
 	}
 }
 
@@ -690,6 +693,7 @@ func (s *adminServiceImpl) CreateUpstreamPool(ctx context.Context, input *Create
 		StickyEscapeTTFTMSThreshold:    input.StickyEscapeTTFTMSThreshold,
 		LoadBalanceEnabled:             input.LoadBalanceEnabled,
 		AutoWeightEnabled:              input.AutoWeightEnabled,
+		AutoWeightMode:                 strings.TrimSpace(input.AutoWeightMode),
 		FailoverEnabled:                input.FailoverEnabled,
 		TopK:                           input.TopK,
 		MaxFailoverHops:                input.MaxFailoverHops,
@@ -768,6 +772,9 @@ func (s *adminServiceImpl) UpdateUpstreamPool(ctx context.Context, id int64, inp
 	}
 	if input.AutoWeightEnabled != nil {
 		pool.AutoWeightEnabled = *input.AutoWeightEnabled
+	}
+	if input.AutoWeightMode != nil {
+		pool.AutoWeightMode = strings.TrimSpace(*input.AutoWeightMode)
 	}
 	if input.FailoverEnabled != nil {
 		pool.FailoverEnabled = *input.FailoverEnabled
@@ -1286,16 +1293,122 @@ func (s *adminServiceImpl) ListUpstreamAccountSets(ctx context.Context) ([]Upstr
 	return s.upstreamPoolRepo.ListUpstreamAccountSets(ctx)
 }
 
+func (s *adminServiceImpl) ListUpstreamCapacityPressures(ctx context.Context) ([]UpstreamCapacityPressure, error) {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return []UpstreamCapacityPressure{}, nil
+	}
+	sets, err := s.upstreamPoolRepo.ListUpstreamAccountSets(ctx)
+	if err != nil {
+		return nil, err
+	}
+	since := time.Now().Add(-5 * time.Minute)
+	setIDs := make([]int64, 0, len(sets))
+	for _, set := range sets {
+		if set.SharedConcurrencyLimit != nil && *set.SharedConcurrencyLimit > 0 {
+			setIDs = append(setIDs, set.ID)
+		}
+	}
+	snapshotStats := map[int64]UpstreamCapacitySnapshotStats{}
+	if s.accountMonitorRepo != nil {
+		if values, statsErr := s.accountMonitorRepo.ListUpstreamCapacitySnapshotStats(ctx, setIDs, since); statsErr == nil {
+			snapshotStats = values
+		}
+	}
+	out := make([]UpstreamCapacityPressure, 0)
+	for _, set := range sets {
+		if set.SharedConcurrencyLimit == nil || *set.SharedConcurrencyLimit <= 0 {
+			continue
+		}
+		members, err := s.upstreamPoolRepo.ListUpstreamAccountSetMembers(ctx, set.ID)
+		if err != nil {
+			return nil, err
+		}
+		pressure := UpstreamCapacityPressure{
+			SetID:         set.ID,
+			SetName:       set.Name,
+			SetCode:       set.Code,
+			Platform:      set.Platform,
+			Enabled:       set.Enabled,
+			CapacityLimit: *set.SharedConcurrencyLimit,
+			Members:       make([]UpstreamCapacityMemberPressure, 0, len(members)),
+		}
+		for _, member := range members {
+			if member.CapacityHardLimit == nil && member.CapacitySoftShare == nil {
+				continue
+			}
+			memberPressure := UpstreamCapacityMemberPressure{
+				AccountID:            member.AccountID,
+				AccountName:          member.AccountName,
+				HardConcurrencyLimit: clonePositiveIntPointer(member.CapacityHardLimit),
+				SoftConcurrencyShare: clonePositiveIntPointer(member.CapacitySoftShare),
+			}
+			if s.concurrencyService != nil {
+				counts, countErr := s.concurrencyService.GetCapacitySlotCounts(ctx, set.ID, member.AccountID)
+				if countErr != nil {
+					return nil, countErr
+				}
+				if counts.GroupConcurrency > pressure.CurrentConcurrency {
+					pressure.CurrentConcurrency = counts.GroupConcurrency
+				}
+				memberPressure.CurrentConcurrency = counts.MemberConcurrency
+				waiting, waitErr := s.concurrencyService.GetAccountWaitingCount(ctx, member.AccountID)
+				if waitErr != nil {
+					return nil, waitErr
+				}
+				memberPressure.WaitingCount = waiting
+				pressure.WaitingCount += waiting
+			}
+			denominator := pressure.CapacityLimit
+			if memberPressure.HardConcurrencyLimit != nil && *memberPressure.HardConcurrencyLimit > 0 {
+				denominator = *memberPressure.HardConcurrencyLimit
+			} else if memberPressure.SoftConcurrencyShare != nil && *memberPressure.SoftConcurrencyShare > 0 {
+				denominator = *memberPressure.SoftConcurrencyShare
+			}
+			if denominator > 0 {
+				memberPressure.LoadRate = (memberPressure.CurrentConcurrency + memberPressure.WaitingCount) * 100 / denominator
+			}
+			pressure.Members = append(pressure.Members, memberPressure)
+		}
+		if s.concurrencyService != nil {
+			metrics, metricsErr := s.concurrencyService.GetCapacityMetrics(ctx, set.ID, since)
+			if metricsErr != nil {
+				return nil, metricsErr
+			}
+			pressure.GroupFullCount = metrics.GroupFullCount
+			pressure.MemberFullCount = metrics.MemberFullCount
+			pressure.BorrowedSlotCount = metrics.BorrowedSlotCount
+		}
+		pressure.AvailableCapacity = pressure.CapacityLimit - pressure.CurrentConcurrency
+		if pressure.AvailableCapacity < 0 {
+			pressure.AvailableCapacity = 0
+		}
+		pressure.PeakConcurrency5m = snapshotStats[set.ID].PeakConcurrency5m
+		pressure.P95LoadRate5m = snapshotStats[set.ID].P95LoadRate5m
+		maxMemberConcurrency := 0
+		for _, member := range pressure.Members {
+			if member.CurrentConcurrency > maxMemberConcurrency {
+				maxMemberConcurrency = member.CurrentConcurrency
+			}
+		}
+		if pressure.CurrentConcurrency > 0 {
+			pressure.SchedulingConcentration = maxMemberConcurrency * 100 / pressure.CurrentConcurrency
+		}
+		out = append(out, pressure)
+	}
+	return out, nil
+}
+
 func (s *adminServiceImpl) CreateUpstreamAccountSet(ctx context.Context, input *CreateUpstreamAccountSetInput) (*UpstreamAccountSet, error) {
 	if s == nil || s.upstreamPoolRepo == nil || input == nil {
 		return nil, ErrUpstreamPoolNotFound
 	}
 	item := &UpstreamAccountSet{
-		Name:        strings.TrimSpace(input.Name),
-		Code:        strings.TrimSpace(input.Code),
-		Platform:    strings.TrimSpace(input.Platform),
-		Description: strings.TrimSpace(input.Description),
-		Enabled:     input.Enabled,
+		Name:                   strings.TrimSpace(input.Name),
+		Code:                   strings.TrimSpace(input.Code),
+		Platform:               strings.TrimSpace(input.Platform),
+		Description:            strings.TrimSpace(input.Description),
+		Enabled:                input.Enabled,
+		SharedConcurrencyLimit: clonePositiveIntPointer(input.SharedConcurrencyLimit),
 	}
 	if item.Code == "" {
 		item.Code = buildAutoUpstreamAccountSetCode(item.Platform, item.Name)
@@ -1334,6 +1447,9 @@ func (s *adminServiceImpl) UpdateUpstreamAccountSet(ctx context.Context, id int6
 	}
 	if input.Enabled != nil {
 		item.Enabled = *input.Enabled
+	}
+	if input.SharedConcurrencyLimitSet {
+		item.SharedConcurrencyLimit = clonePositiveIntPointer(input.SharedConcurrencyLimit)
 	}
 	if err := normalizeUpstreamAccountSetForCreate(item); err != nil {
 		return nil, err
@@ -1383,6 +1499,19 @@ func (s *adminServiceImpl) DeleteUpstreamAccountSetMember(ctx context.Context, s
 		return ErrUpstreamPoolNotFound
 	}
 	return s.upstreamPoolRepo.DeleteUpstreamAccountSetMember(ctx, setID, accountID)
+}
+
+func (s *adminServiceImpl) UpdateUpstreamAccountSetMemberCapacity(ctx context.Context, setID, accountID int64, hardLimit, softShare *int) error {
+	if s == nil || s.upstreamPoolRepo == nil {
+		return ErrUpstreamPoolNotFound
+	}
+	writer, ok := s.upstreamPoolRepo.(interface {
+		UpdateUpstreamAccountSetMemberCapacity(context.Context, int64, int64, *int, *int) error
+	})
+	if !ok {
+		return errors.New("capacity member configuration is unavailable")
+	}
+	return writer.UpdateUpstreamAccountSetMemberCapacity(ctx, setID, accountID, hardLimit, softShare)
 }
 
 func (s *adminServiceImpl) ListUpstreamPoolMemberSets(ctx context.Context, poolID int64) ([]UpstreamPoolMemberSet, error) {
@@ -1656,7 +1785,15 @@ func normalizeUpstreamPoolForCreate(pool *UpstreamPool) error {
 		pool.AccountTypeStrategy = UpstreamPoolAccountTypeStrategyFromPolicyJSON(pool.PolicyJSON)
 	}
 	pool.PolicyJSON = SetUpstreamPoolAccountTypeStrategyPolicyJSON(pool.PolicyJSON, pool.AccountTypeStrategy)
-	pool.PolicyJSON = SetUpstreamPoolAutoWeightPolicyJSON(pool.PolicyJSON, pool.AutoWeightEnabled)
+	if pool.AutoWeightMode == "" {
+		if pool.AutoWeightEnabled {
+			pool.AutoWeightMode = "active"
+		} else {
+			pool.AutoWeightMode = UpstreamPoolAutoWeightModeFromPolicyJSON(pool.PolicyJSON)
+		}
+	}
+	pool.PolicyJSON = SetUpstreamPoolAutoWeightModePolicyJSON(pool.PolicyJSON, pool.AutoWeightMode)
+	pool.AutoWeightEnabled = pool.AutoWeightMode != "off"
 	return nil
 }
 
@@ -1722,7 +1859,18 @@ func normalizeUpstreamAccountSetForCreate(item *UpstreamAccountSet) error {
 	if item.Platform == "" {
 		return errors.New("platform is required")
 	}
+	if item.SharedConcurrencyLimit != nil && *item.SharedConcurrencyLimit <= 0 {
+		return errors.New("shared_concurrency_limit must be greater than 0")
+	}
 	return nil
+}
+
+func clonePositiveIntPointer(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func buildAutoUpstreamAccountSetCode(platform, name string) string {

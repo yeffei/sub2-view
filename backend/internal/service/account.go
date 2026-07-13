@@ -64,6 +64,9 @@ type Account struct {
 	// 上游池成员覆盖（非持久化字段，仅当前次路由决策使用）
 	PoolMemberWeight int
 
+	// 共享容量组归属（非持久化业务字段；由账号 Repository/调度快照注入）。
+	CapacityScope *AccountCapacityScope
+
 	// model_mapping 热路径缓存（非持久化字段）
 	modelMappingCache               map[string]string
 	modelMappingCacheReady          bool
@@ -79,6 +82,17 @@ type Account struct {
 	headerOverrideCacheRawPtr         uintptr
 	headerOverrideCacheRawLen         int
 	headerOverrideCacheRawSig         uint64
+}
+
+func (a *Account) ConcurrencyScope() AccountConcurrencyScope {
+	if a == nil {
+		return AccountConcurrencyScope{}
+	}
+	return AccountConcurrencyScope{
+		AccountID:    a.ID,
+		AccountLimit: a.Concurrency,
+		Capacity:     a.CapacityScope,
+	}
 }
 
 type OpenAIEndpointCapability string

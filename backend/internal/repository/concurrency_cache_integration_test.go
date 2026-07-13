@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -41,10 +43,144 @@ type apiKeyConcurrencyCacheForTest interface {
 	GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error)
 }
 
+type capacityConcurrencyCacheForTest interface {
+	service.CapacityConcurrencyCache
+}
+
 func (s *ConcurrencyCacheSuite) apiKeyConcurrencyCache() apiKeyConcurrencyCacheForTest {
 	cache, ok := s.cache.(apiKeyConcurrencyCacheForTest)
 	require.True(s.T(), ok)
 	return cache
+}
+
+func (s *ConcurrencyCacheSuite) capacityConcurrencyCache() capacityConcurrencyCacheForTest {
+	cache, ok := s.cache.(capacityConcurrencyCacheForTest)
+	require.True(s.T(), ok)
+	return cache
+}
+
+func (s *ConcurrencyCacheSuite) TestCapacitySlot_SharedGroupLimitAcrossMembers() {
+	cache := s.capacityConcurrencyCache()
+	groupID := int64(701)
+
+	first, err := cache.AcquireCapacitySlot(s.ctx, groupID, 101, 2, 2, 1, "req-1")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, first.Status)
+	require.False(s.T(), first.Borrowed)
+
+	second, err := cache.AcquireCapacitySlot(s.ctx, groupID, 102, 2, 2, 1, "req-2")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, second.Status)
+
+	denied, err := cache.AcquireCapacitySlot(s.ctx, groupID, 101, 2, 2, 1, "req-3")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusGroupFull, denied.Status)
+
+	counts, err := cache.GetCapacitySlotCounts(s.ctx, groupID, 101)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 2, counts.GroupConcurrency)
+	require.Equal(s.T(), 1, counts.MemberConcurrency)
+
+	require.NoError(s.T(), cache.ReleaseCapacitySlot(s.ctx, groupID, 102, "req-2"))
+	retried, err := cache.AcquireCapacitySlot(s.ctx, groupID, 101, 2, 2, 1, "req-3")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, retried.Status)
+	require.True(s.T(), retried.Borrowed)
+
+	metrics, err := s.rdb.HGetAll(s.ctx, capacityMetricsKey(groupID)).Result()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 1, sumCapacityMetricForTest(metrics, "group_full:"))
+	require.Equal(s.T(), 1, sumCapacityMetricForTest(metrics, "borrowed_slot:"))
+}
+
+func (s *ConcurrencyCacheSuite) TestCapacitySlot_MemberHardLimitWithoutGroupFull() {
+	cache := s.capacityConcurrencyCache()
+	groupID := int64(702)
+
+	first, err := cache.AcquireCapacitySlot(s.ctx, groupID, 201, 10, 1, 1, "req-1")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, first.Status)
+
+	denied, err := cache.AcquireCapacitySlot(s.ctx, groupID, 201, 10, 1, 1, "req-2")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusMemberFull, denied.Status)
+
+	otherMember, err := cache.AcquireCapacitySlot(s.ctx, groupID, 202, 10, 1, 1, "req-3")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, otherMember.Status)
+
+	metrics, err := s.rdb.HGetAll(s.ctx, capacityMetricsKey(groupID)).Result()
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 1, sumCapacityMetricForTest(metrics, "member_full:"))
+}
+
+func (s *ConcurrencyCacheSuite) TestCapacitySlot_IdempotentAcquireAndRelease() {
+	cache := s.capacityConcurrencyCache()
+	groupID := int64(703)
+
+	first, err := cache.AcquireCapacitySlot(s.ctx, groupID, 301, 2, 0, 1, "same-req")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, first.Status)
+
+	second, err := cache.AcquireCapacitySlot(s.ctx, groupID, 301, 2, 0, 1, "same-req")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, second.Status)
+	require.False(s.T(), second.Borrowed)
+
+	counts, err := cache.GetCapacitySlotCounts(s.ctx, groupID, 301)
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 1, counts.GroupConcurrency)
+	require.Equal(s.T(), 1, counts.MemberConcurrency)
+
+	require.NoError(s.T(), cache.ReleaseCapacitySlot(s.ctx, groupID, 301, "same-req"))
+	require.NoError(s.T(), cache.ReleaseCapacitySlot(s.ctx, groupID, 301, "same-req"))
+	counts, err = cache.GetCapacitySlotCounts(s.ctx, groupID, 301)
+	require.NoError(s.T(), err)
+	require.Zero(s.T(), counts.GroupConcurrency)
+	require.Zero(s.T(), counts.MemberConcurrency)
+}
+
+func (s *ConcurrencyCacheSuite) TestCapacitySlot_LoadBatchUsesMemberAndGroupPressure() {
+	cache := s.capacityConcurrencyCache()
+	groupID := int64(704)
+	for _, requestID := range []string{"a1-1", "a1-2"} {
+		result, err := cache.AcquireCapacitySlot(s.ctx, groupID, 401, 4, 2, 2, requestID)
+		require.NoError(s.T(), err)
+		require.Equal(s.T(), service.CapacityAcquireStatusAcquired, result.Status)
+	}
+	result, err := cache.AcquireCapacitySlot(s.ctx, groupID, 402, 4, 2, 2, "a2-1")
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), service.CapacityAcquireStatusAcquired, result.Status)
+
+	capacity := &service.AccountCapacityScope{
+		GroupID:         groupID,
+		GroupLimit:      4,
+		MemberHardLimit: 2,
+		MemberSoftShare: 2,
+	}
+	loadMap, err := s.cache.GetAccountsLoadBatch(s.ctx, []service.AccountWithConcurrency{
+		{ID: 401, MaxConcurrency: 2, Capacity: capacity},
+		{ID: 402, MaxConcurrency: 2, Capacity: capacity},
+	})
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), 2, loadMap[401].CurrentConcurrency)
+	require.Equal(s.T(), 100, loadMap[401].LoadRate)
+	require.Equal(s.T(), 1, loadMap[402].CurrentConcurrency)
+	require.Equal(s.T(), 75, loadMap[402].LoadRate)
+}
+
+func sumCapacityMetricForTest(metrics map[string]string, prefix string) int {
+	total := 0
+	for field, value := range metrics {
+		if !strings.HasPrefix(field, prefix) {
+			continue
+		}
+		parsed, err := strconv.Atoi(value)
+		if err == nil {
+			total += parsed
+		}
+	}
+	return total
 }
 
 func (s *ConcurrencyCacheSuite) TestAccountSlot_AcquireAndRelease() {

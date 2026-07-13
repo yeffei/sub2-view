@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/redis/go-redis/v9"
@@ -29,6 +31,12 @@ const (
 	userSlotKeyPrefix = "concurrency:user:"
 	// 格式: concurrency:api_key:{apiKeyID}
 	apiKeySlotKeyPrefix = "concurrency:api_key:"
+	// 共享容量组键使用相同 hash tag，确保 Redis Cluster 下可由单个 Lua 原子读写。
+	// 格式:
+	// concurrency:capacity:{set:<setID>}:group
+	// concurrency:capacity:{set:<setID>}:member:<accountID>
+	// concurrency:capacity:{set:<setID>}:metrics
+	capacitySlotKeyPrefix = "concurrency:capacity:"
 	// 等待队列计数器格式: concurrency:wait:{userID}
 	waitQueueKeyPrefix = "concurrency:wait:"
 	// 账号级等待队列计数器格式: wait:account:{accountID}
@@ -36,6 +44,7 @@ const (
 
 	// 默认槽位过期时间（分钟），可通过配置覆盖
 	defaultSlotTTLMinutes = 15
+	capacityMetricsTTL    = 48 * 60 * 60
 )
 
 var (
@@ -79,6 +88,88 @@ var (
 		end
 
 		return 0
+	`)
+
+	capacityAcquireScript = redis.NewScript(`
+		redis.replicate_commands()
+		local groupKey = KEYS[1]
+		local memberKey = KEYS[2]
+		local metricsKey = KEYS[3]
+		local groupLimit = tonumber(ARGV[1])
+		local memberHardLimit = tonumber(ARGV[2])
+		local ttl = tonumber(ARGV[3])
+		local requestID = ARGV[4]
+		local memberSoftShare = tonumber(ARGV[5])
+		local metricsTTL = tonumber(ARGV[6])
+
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
+		local expireBefore = now - ttl
+		local minuteBucket = math.floor(now / 60)
+
+		redis.call('ZREMRANGEBYSCORE', groupKey, '-inf', expireBefore)
+		redis.call('ZREMRANGEBYSCORE', memberKey, '-inf', expireBefore)
+
+		local groupExists = redis.call('ZSCORE', groupKey, requestID)
+		local memberExists = redis.call('ZSCORE', memberKey, requestID)
+		if groupExists ~= false and memberExists ~= false then
+			redis.call('ZADD', groupKey, now, requestID)
+			redis.call('ZADD', memberKey, now, requestID)
+			redis.call('EXPIRE', groupKey, ttl)
+			redis.call('EXPIRE', memberKey, ttl)
+			return {1, 0}
+		end
+
+		if groupExists ~= false then
+			redis.call('ZREM', groupKey, requestID)
+		end
+		if memberExists ~= false then
+			redis.call('ZREM', memberKey, requestID)
+		end
+
+		local groupCount = redis.call('ZCARD', groupKey)
+		if groupCount >= groupLimit then
+			redis.call('HINCRBY', metricsKey, 'group_full:' .. minuteBucket, 1)
+			redis.call('EXPIRE', metricsKey, metricsTTL)
+			return {2, 0}
+		end
+
+		local memberCount = redis.call('ZCARD', memberKey)
+		if memberHardLimit > 0 and memberCount >= memberHardLimit then
+			redis.call('HINCRBY', metricsKey, 'member_full:' .. minuteBucket, 1)
+			redis.call('EXPIRE', metricsKey, metricsTTL)
+			return {3, 0}
+		end
+
+		local borrowed = 0
+		if memberSoftShare > 0 and memberCount >= memberSoftShare then
+			borrowed = 1
+			redis.call('HINCRBY', metricsKey, 'borrowed_slot:' .. minuteBucket, 1)
+			redis.call('EXPIRE', metricsKey, metricsTTL)
+		end
+
+		redis.call('ZADD', groupKey, now, requestID)
+		redis.call('ZADD', memberKey, now, requestID)
+		redis.call('EXPIRE', groupKey, ttl)
+		redis.call('EXPIRE', memberKey, ttl)
+		return {1, borrowed}
+	`)
+
+	capacityReleaseScript = redis.NewScript(`
+		redis.call('ZREM', KEYS[1], ARGV[1])
+		redis.call('ZREM', KEYS[2], ARGV[1])
+		return 1
+	`)
+
+	capacityCountScript = redis.NewScript(`
+		redis.replicate_commands()
+		local timeResult = redis.call('TIME')
+		local now = tonumber(timeResult[1])
+		local ttl = tonumber(ARGV[1])
+		local expireBefore = now - ttl
+		redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', expireBefore)
+		redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', expireBefore)
+		return {redis.call('ZCARD', KEYS[1]), redis.call('ZCARD', KEYS[2])}
 	`)
 
 	// getCountScript 统计有序集合中的槽位数量并清理过期条目
@@ -259,6 +350,22 @@ func apiKeySlotKey(apiKeyID int64) string {
 	return fmt.Sprintf("%s%d", apiKeySlotKeyPrefix, apiKeyID)
 }
 
+func capacityGroupHashTag(groupID int64) string {
+	return fmt.Sprintf("{set:%d}", groupID)
+}
+
+func capacityGroupSlotKey(groupID int64) string {
+	return capacitySlotKeyPrefix + capacityGroupHashTag(groupID) + ":group"
+}
+
+func capacityMemberSlotKey(groupID, accountID int64) string {
+	return fmt.Sprintf("%s%s:member:%d", capacitySlotKeyPrefix, capacityGroupHashTag(groupID), accountID)
+}
+
+func capacityMetricsKey(groupID int64) string {
+	return capacitySlotKeyPrefix + capacityGroupHashTag(groupID) + ":metrics"
+}
+
 func waitQueueKey(userID int64) string {
 	return fmt.Sprintf("%s%d", waitQueueKeyPrefix, userID)
 }
@@ -282,6 +389,145 @@ func (c *concurrencyCache) AcquireAccountSlot(ctx context.Context, accountID int
 func (c *concurrencyCache) ReleaseAccountSlot(ctx context.Context, accountID int64, requestID string) error {
 	key := accountSlotKey(accountID)
 	return c.rdb.ZRem(ctx, key, requestID).Err()
+}
+
+func (c *concurrencyCache) AcquireCapacitySlot(
+	ctx context.Context,
+	groupID int64,
+	accountID int64,
+	groupLimit int,
+	memberHardLimit int,
+	memberSoftShare int,
+	requestID string,
+) (service.CapacitySlotAcquireResult, error) {
+	if groupID <= 0 || accountID <= 0 || groupLimit <= 0 || requestID == "" {
+		return service.CapacitySlotAcquireResult{}, errors.New("invalid shared capacity slot input")
+	}
+	keys := []string{
+		capacityGroupSlotKey(groupID),
+		capacityMemberSlotKey(groupID, accountID),
+		capacityMetricsKey(groupID),
+	}
+	result, err := capacityAcquireScript.Run(
+		ctx,
+		c.rdb,
+		keys,
+		groupLimit,
+		memberHardLimit,
+		c.slotTTLSeconds,
+		requestID,
+		memberSoftShare,
+		capacityMetricsTTL,
+	).Slice()
+	if err != nil {
+		return service.CapacitySlotAcquireResult{}, err
+	}
+	if len(result) != 2 {
+		return service.CapacitySlotAcquireResult{}, fmt.Errorf("unexpected shared capacity acquire result length: %d", len(result))
+	}
+	status, err := redisResultInt(result[0])
+	if err != nil {
+		return service.CapacitySlotAcquireResult{}, fmt.Errorf("parse shared capacity acquire status: %w", err)
+	}
+	borrowed, err := redisResultInt(result[1])
+	if err != nil {
+		return service.CapacitySlotAcquireResult{}, fmt.Errorf("parse shared capacity borrowed flag: %w", err)
+	}
+	return service.CapacitySlotAcquireResult{
+		Status:   service.CapacityAcquireStatus(status),
+		Borrowed: borrowed == 1,
+	}, nil
+}
+
+func (c *concurrencyCache) ReleaseCapacitySlot(ctx context.Context, groupID, accountID int64, requestID string) error {
+	if groupID <= 0 || accountID <= 0 || requestID == "" {
+		return nil
+	}
+	_, err := capacityReleaseScript.Run(
+		ctx,
+		c.rdb,
+		[]string{capacityGroupSlotKey(groupID), capacityMemberSlotKey(groupID, accountID)},
+		requestID,
+	).Result()
+	return err
+}
+
+func (c *concurrencyCache) GetCapacitySlotCounts(ctx context.Context, groupID, accountID int64) (service.CapacitySlotCounts, error) {
+	if groupID <= 0 || accountID <= 0 {
+		return service.CapacitySlotCounts{}, nil
+	}
+	result, err := capacityCountScript.Run(
+		ctx,
+		c.rdb,
+		[]string{capacityGroupSlotKey(groupID), capacityMemberSlotKey(groupID, accountID)},
+		c.slotTTLSeconds,
+	).Slice()
+	if err != nil {
+		return service.CapacitySlotCounts{}, err
+	}
+	if len(result) != 2 {
+		return service.CapacitySlotCounts{}, fmt.Errorf("unexpected shared capacity count result length: %d", len(result))
+	}
+	groupCount, err := redisResultInt(result[0])
+	if err != nil {
+		return service.CapacitySlotCounts{}, fmt.Errorf("parse shared capacity group count: %w", err)
+	}
+	memberCount, err := redisResultInt(result[1])
+	if err != nil {
+		return service.CapacitySlotCounts{}, fmt.Errorf("parse shared capacity member count: %w", err)
+	}
+	return service.CapacitySlotCounts{
+		GroupConcurrency:  groupCount,
+		MemberConcurrency: memberCount,
+	}, nil
+}
+
+func (c *concurrencyCache) GetCapacityMetrics(ctx context.Context, groupID int64, since time.Time) (service.CapacityMetrics, error) {
+	if groupID <= 0 {
+		return service.CapacityMetrics{}, nil
+	}
+	values, err := c.rdb.HGetAll(ctx, capacityMetricsKey(groupID)).Result()
+	if err != nil {
+		return service.CapacityMetrics{}, err
+	}
+	minBucket := since.Unix() / 60
+	metrics := service.CapacityMetrics{}
+	for field, raw := range values {
+		parts := strings.SplitN(field, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		bucket, parseErr := strconv.ParseInt(parts[1], 10, 64)
+		if parseErr != nil || bucket < minBucket {
+			continue
+		}
+		value, parseErr := strconv.Atoi(raw)
+		if parseErr != nil {
+			continue
+		}
+		switch parts[0] {
+		case "group_full":
+			metrics.GroupFullCount += value
+		case "member_full":
+			metrics.MemberFullCount += value
+		case "borrowed_slot":
+			metrics.BorrowedSlotCount += value
+		}
+	}
+	return metrics, nil
+}
+
+func redisResultInt(value any) (int, error) {
+	switch typed := value.(type) {
+	case int64:
+		return int(typed), nil
+	case string:
+		return strconv.Atoi(typed)
+	case []byte:
+		return strconv.Atoi(string(typed))
+	default:
+		return 0, fmt.Errorf("unsupported redis result type %T", value)
+	}
 }
 
 func (c *concurrencyCache) GetAccountConcurrency(ctx context.Context, accountID int64) (int, error) {
@@ -471,17 +717,33 @@ func (c *concurrencyCache) GetAccountsLoadBatch(ctx context.Context, accounts []
 		id             int64
 		maxConcurrency int
 		zcardCmd       *redis.IntCmd
+		groupZCardCmd  *redis.IntCmd
+		capacity       *service.AccountCapacityScope
 		getCmd         *redis.StringCmd
 	}
 	cmds := make([]accountCmds, 0, len(accounts))
+	groupZCardCmds := make(map[int64]*redis.IntCmd)
 	for _, acc := range accounts {
 		slotKey := accountSlotKeyPrefix + strconv.FormatInt(acc.ID, 10)
+		var groupZCardCmd *redis.IntCmd
+		if acc.Capacity != nil && acc.Capacity.GroupID > 0 && acc.Capacity.GroupLimit > 0 {
+			slotKey = capacityMemberSlotKey(acc.Capacity.GroupID, acc.ID)
+			groupZCardCmd = groupZCardCmds[acc.Capacity.GroupID]
+			if groupZCardCmd == nil {
+				groupKey := capacityGroupSlotKey(acc.Capacity.GroupID)
+				pipe.ZRemRangeByScore(ctx, groupKey, "-inf", strconv.FormatInt(cutoffTime, 10))
+				groupZCardCmd = pipe.ZCard(ctx, groupKey)
+				groupZCardCmds[acc.Capacity.GroupID] = groupZCardCmd
+			}
+		}
 		waitKey := accountWaitKeyPrefix + strconv.FormatInt(acc.ID, 10)
 		pipe.ZRemRangeByScore(ctx, slotKey, "-inf", strconv.FormatInt(cutoffTime, 10))
 		ac := accountCmds{
 			id:             acc.ID,
 			maxConcurrency: acc.MaxConcurrency,
 			zcardCmd:       pipe.ZCard(ctx, slotKey),
+			groupZCardCmd:  groupZCardCmd,
+			capacity:       acc.Capacity,
 			getCmd:         pipe.Get(ctx, waitKey),
 		}
 		cmds = append(cmds, ac)
@@ -499,8 +761,22 @@ func (c *concurrencyCache) GetAccountsLoadBatch(ctx context.Context, accounts []
 			waitingCount = v
 		}
 		loadRate := 0
-		if ac.maxConcurrency > 0 {
-			loadRate = (currentConcurrency + waitingCount) * 100 / ac.maxConcurrency
+		memberLimit := ac.maxConcurrency
+		if ac.capacity != nil {
+			if ac.capacity.MemberHardLimit > 0 {
+				memberLimit = ac.capacity.MemberHardLimit
+			} else if ac.capacity.MemberSoftShare > 0 {
+				memberLimit = ac.capacity.MemberSoftShare
+			}
+		}
+		if memberLimit > 0 {
+			loadRate = (currentConcurrency + waitingCount) * 100 / memberLimit
+		}
+		if ac.capacity != nil && ac.capacity.GroupLimit > 0 && ac.groupZCardCmd != nil {
+			groupLoadRate := int(ac.groupZCardCmd.Val()) * 100 / ac.capacity.GroupLimit
+			if groupLoadRate > loadRate {
+				loadRate = groupLoadRate
+			}
 		}
 		loadMap[ac.id] = &service.AccountLoadInfo{
 			AccountID:          ac.id,
@@ -591,6 +867,15 @@ func (c *concurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeR
 			return err
 		}
 	}
+	capacitySlotPatterns := []string{
+		capacitySlotKeyPrefix + "*:group",
+		capacitySlotKeyPrefix + "*:member:*",
+	}
+	for _, pattern := range capacitySlotPatterns {
+		if err := c.cleanupSlotsByPatternOneByOne(ctx, pattern, activeRequestPrefix); err != nil {
+			return err
+		}
+	}
 
 	// 2. 删除所有等待队列计数器（重启后计数器失效）
 	waitPatterns := []string{accountWaitKeyPrefix + "*", waitQueueKeyPrefix + "*"}
@@ -601,6 +886,26 @@ func (c *concurrencyCache) CleanupStaleProcessSlots(ctx context.Context, activeR
 	}
 
 	return nil
+}
+
+func (c *concurrencyCache) cleanupSlotsByPatternOneByOne(ctx context.Context, pattern, activePrefix string) error {
+	const scanCount = 200
+	var cursor uint64
+	for {
+		keys, nextCursor, err := c.rdb.Scan(ctx, cursor, pattern, scanCount).Result()
+		if err != nil {
+			return fmt.Errorf("scan %s: %w", pattern, err)
+		}
+		for _, key := range keys {
+			if _, err := startupCleanupScript.Run(ctx, c.rdb, []string{key}, activePrefix, c.slotTTLSeconds).Result(); err != nil {
+				return fmt.Errorf("cleanup slot %s: %w", key, err)
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			return nil
+		}
+	}
 }
 
 // cleanupSlotsByPattern 扫描匹配 pattern 的有序集合键，批量调用 Lua 脚本清理非当前进程成员。

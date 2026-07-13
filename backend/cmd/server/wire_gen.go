@@ -166,7 +166,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	accountMonitorRepository := repository.NewAccountMonitorRepository(client, db)
 	channelMonitorService := service.ProvideChannelMonitorService(channelMonitorRepository, secretEncryptor, groupRepository, upstreamPoolRepository, accountRepository)
 	channelMonitorUserHandler := handler.NewChannelMonitorUserHandler(channelMonitorService, settingService)
-	accountMonitorService := service.NewAccountMonitorService(accountMonitorRepository, upstreamPoolRepository, accountRepository)
+	accountMonitorService := service.NewAccountMonitorService(accountMonitorRepository, upstreamPoolRepository, accountRepository, gatewayService, openAIGatewayService)
 	poolHealthService := service.NewPoolHealthService(upstreamPoolRepository, accountRepository, accountMonitorRepository)
 	upstreamPoolHealthUserHandler := handler.NewUpstreamPoolHealthUserHandler(poolHealthService, settingService)
 	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
@@ -177,7 +177,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	dashboardHandler := admin.NewDashboardHandler(dashboardService, dashboardAggregationService)
 	proxyExitInfoProber := repository.NewProxyExitInfoProber(configConfig)
 	proxyLatencyCache := repository.NewProxyLatencyCache(redisClient)
-	adminService := service.NewAdminService(userRepository, groupRepository, accountRepository, upstreamPoolRepository, proxyRepository, apiKeyRepository, redeemCodeRepository, userGroupRateRepository, userRPMCache, billingCacheService, proxyExitInfoProber, proxyLatencyCache, apiKeyAuthCacheInvalidator, client, settingService, subscriptionService, userSubscriptionRepository, privacyClientFactory, openAIGatewayService, openAIGatewayService)
+	adminService := service.NewAdminService(userRepository, groupRepository, accountRepository, upstreamPoolRepository, proxyRepository, apiKeyRepository, redeemCodeRepository, userGroupRateRepository, userRPMCache, billingCacheService, proxyExitInfoProber, proxyLatencyCache, apiKeyAuthCacheInvalidator, client, settingService, subscriptionService, userSubscriptionRepository, privacyClientFactory, openAIGatewayService, openAIGatewayService, concurrencyService)
+	poolHealthService.SetCapacityPressureReader(adminService.(service.UpstreamCapacityPressureReader))
+	accountMonitorService.SetCapacityPressureReader(adminService.(service.UpstreamCapacityPressureReader))
 	if setter, ok := adminService.(interface {
 		SetAccountMonitorRepository(service.AccountMonitorRepository)
 	}); ok {

@@ -68,6 +68,30 @@ func (r *accountMonitorRepository) InsertHistoryBatch(ctx context.Context, rows 
 	return nil
 }
 
+func (r *accountMonitorRepository) ListRecentAccountRuntimeHealth(ctx context.Context, accountIDs []int64, since time.Time) (map[int64]service.AccountRuntimeHealthSnapshot, error) {
+	out := make(map[int64]service.AccountRuntimeHealthSnapshot, len(accountIDs))
+	if len(accountIDs) == 0 || r.db == nil {
+		return out, nil
+	}
+	const q = `SELECT account_id, COUNT(*)::int, COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY first_token_ms), 0)::int
+		FROM usage_logs
+		WHERE account_id = ANY($1) AND created_at >= $2 AND first_token_ms IS NOT NULL AND first_token_ms > 0
+		GROUP BY account_id`
+	rows, err := r.db.QueryContext(ctx, q, pq.Array(accountIDs), since)
+	if err != nil {
+		return nil, fmt.Errorf("query recent account runtime health: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var snapshot service.AccountRuntimeHealthSnapshot
+		if err := rows.Scan(&snapshot.AccountID, &snapshot.SampleCount, &snapshot.P95TTFTMs); err != nil {
+			return nil, fmt.Errorf("scan recent account runtime health: %w", err)
+		}
+		out[snapshot.AccountID] = snapshot
+	}
+	return out, rows.Err()
+}
+
 func (r *accountMonitorRepository) InsertPoolAvailabilitySnapshots(ctx context.Context, rows []*service.PoolAvailabilitySnapshotRow) error {
 	if len(rows) == 0 {
 		return nil
@@ -91,6 +115,51 @@ func (r *accountMonitorRepository) InsertPoolAvailabilitySnapshots(ctx context.C
 		return fmt.Errorf("insert pool availability snapshots: %w", err)
 	}
 	return nil
+}
+
+func (r *accountMonitorRepository) InsertUpstreamCapacitySnapshots(ctx context.Context, rows []*service.UpstreamCapacitySnapshotRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	parts := make([]string, 0, len(rows))
+	args := make([]any, 0, len(rows)*6)
+	for _, row := range rows {
+		if row == nil || row.SetID <= 0 {
+			continue
+		}
+		base := len(args) + 1
+		parts = append(parts, fmt.Sprintf("($%d,$%d,$%d,$%d,$%d,$%d)", base, base+1, base+2, base+3, base+4, base+5))
+		args = append(args, row.SetID, row.CapacityLimit, row.CurrentConcurrency, row.WaitingCount, row.LoadRate, row.CheckedAt)
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	_, err := r.db.ExecContext(ctx, `INSERT INTO upstream_capacity_snapshots (set_id,capacity_limit,current_concurrency,waiting_count,load_rate,checked_at) VALUES `+strings.Join(parts, ","), args...)
+	if err != nil {
+		return fmt.Errorf("insert upstream capacity snapshots: %w", err)
+	}
+	return nil
+}
+
+func (r *accountMonitorRepository) ListUpstreamCapacitySnapshotStats(ctx context.Context, setIDs []int64, since time.Time) (map[int64]service.UpstreamCapacitySnapshotStats, error) {
+	out := make(map[int64]service.UpstreamCapacitySnapshotStats, len(setIDs))
+	if len(setIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT set_id, MAX(current_concurrency), COALESCE(ROUND(percentile_cont(0.95) WITHIN GROUP (ORDER BY load_rate))::int,0) FROM upstream_capacity_snapshots WHERE set_id = ANY($1) AND checked_at >= $2 GROUP BY set_id`, pq.Array(setIDs), since)
+	if err != nil {
+		return nil, fmt.Errorf("list upstream capacity snapshot stats: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var setID int64
+		var stats service.UpstreamCapacitySnapshotStats
+		if err := rows.Scan(&setID, &stats.PeakConcurrency5m, &stats.P95LoadRate5m); err != nil {
+			return nil, err
+		}
+		out[setID] = stats
+	}
+	return out, rows.Err()
 }
 
 func (r *accountMonitorRepository) ListPoolAvailabilitySince(ctx context.Context, poolIDs []int64, since time.Time) (map[int64][]*service.PoolAvailabilitySnapshotEntry, error) {

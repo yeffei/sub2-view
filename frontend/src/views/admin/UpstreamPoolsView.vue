@@ -85,7 +85,7 @@
               <div class="flex flex-col gap-1 text-xs text-gray-600 dark:text-gray-300">
                 <div class="flex flex-wrap gap-1">
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">负载均衡 {{ row.load_balance_enabled ? '开' : '关' }}</span>
-                  <span v-if="row.auto_weight_enabled" class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">自动调权</span>
+                  <span v-if="row.auto_weight_mode && row.auto_weight_mode !== 'off'" class="rounded bg-emerald-50 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">调权 {{ row.auto_weight_mode === 'observe' ? '观察' : '应用' }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">故障转移 {{ row.failover_enabled ? '开' : '关' }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">TopK {{ row.top_k }}</span>
                   <span class="rounded bg-gray-100 px-2 py-0.5 dark:bg-dark-700">{{ accountTypeStrategyLabel(row.account_type_strategy) }}</span>
@@ -105,14 +105,22 @@
             </template>
 
             <template #cell-members="{ row }">
-                <button class="text-sm text-primary-700 hover:underline dark:text-primary-300" @click="selectPool(row)">
-                {{ selectedPool?.id === row.id ? (members.length || 0) : '—' }} 个成员
-                </button>
-              </template>
+              <button
+                class="text-sm text-primary-700 hover:underline dark:text-primary-300"
+                :title="`启用 ${row.member_enabled_count ?? 0}，共 ${row.member_total_count ?? 0} 个成员`"
+                @click="selectPool(row)"
+              >
+                {{ row.member_enabled_count ?? 0 }} / {{ row.member_total_count ?? 0 }}
+              </button>
+            </template>
 
             <template #cell-bindings="{ row }">
-              <button class="text-sm text-primary-700 hover:underline dark:text-primary-300" @click="selectPool(row)">
-                {{ selectedPool?.id === row.id ? (bindings.filter(item => item.pool_id === row.id).length || 0) : '—' }} 个绑定
+              <button
+                class="text-sm text-primary-700 hover:underline dark:text-primary-300"
+                :title="`启用 ${row.binding_enabled_count ?? 0}，共 ${row.binding_total_count ?? 0} 个绑定`"
+                @click="selectPool(row)"
+              >
+                {{ row.binding_enabled_count ?? 0 }} / {{ row.binding_total_count ?? 0 }}
               </button>
             </template>
 
@@ -193,6 +201,10 @@
             <span class="font-mono text-sm">{{ value || 0 }}</span>
           </template>
 
+          <template #cell-shared_concurrency_limit="{ value }">
+            <span class="font-mono text-sm">{{ value || '未启用' }}</span>
+          </template>
+
           <template #cell-updated_at="{ value }">
             <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
           </template>
@@ -224,9 +236,15 @@
                 当前集合平台：{{ platformLabel(selectedAccountSet.platform) }}，只会加入同平台账号。
               </p>
             </div>
-            <button class="btn btn-secondary btn-sm" :disabled="accountSetAvailableAccounts.length === 0" @click="addAccountsToSelectedSet()">
-              补齐当前平台账号
-            </button>
+            <div class="flex flex-wrap gap-2">
+              <button class="btn btn-primary btn-sm" :disabled="accountSetSelectableAccounts.length === 0" @click="openAccountSetMemberPicker">
+                <Icon name="plus" size="sm" class="mr-1" />
+                选择账号
+              </button>
+              <button class="btn btn-secondary btn-sm" :disabled="accountSetSelectableAccounts.length === 0" @click="addAccountsToSelectedSet()">
+                补齐平台账号
+              </button>
+            </div>
           </div>
           <DataTable :columns="accountSetMemberColumns" :data="pagedAccountSetMembers" :loading="accountSetMembersLoading" :row-key="accountSetMemberRowKey">
             <template #cell-account_name="{ row, value }">
@@ -290,14 +308,30 @@
               </div>
             </template>
 
+            <template #cell-capacity="{ row }">
+              <div v-if="capacityEditingAccountId === row.account_id" class="flex min-w-[12rem] flex-wrap gap-1">
+                <input v-model.number="capacityDraft.hard" class="input w-24 px-2 py-1 text-xs" type="number" min="1" placeholder="硬上限" />
+                <input v-model.number="capacityDraft.soft" class="input w-24 px-2 py-1 text-xs" type="number" min="1" placeholder="软份额" />
+              </div>
+              <div v-else class="text-xs text-gray-600 dark:text-gray-300">
+                <span>硬 {{ row.capacity_hard_limit || '共享' }}</span>
+                <span class="ml-2">软 {{ row.capacity_soft_share || '—' }}</span>
+              </div>
+            </template>
+
             <template #cell-added_at="{ value }">
               <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatCompactDateTime(value) }}</span>
             </template>
 
             <template #cell-actions="{ row }">
-              <button class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20" @click="confirmDeleteAccountSetMember(row)">
-                移除
-              </button>
+              <div class="flex flex-wrap gap-1">
+                <template v-if="capacityEditingAccountId === row.account_id">
+                  <button class="rounded px-2 py-1 text-xs text-primary-700 hover:bg-primary-50 dark:text-primary-300" @click="saveAccountSetMemberCapacity(row)">保存</button>
+                  <button class="rounded px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:text-gray-300" @click="cancelAccountSetMemberCapacity">取消</button>
+                </template>
+                <button v-else class="rounded px-2 py-1 text-xs text-primary-700 hover:bg-primary-50 dark:text-primary-300" @click="editAccountSetMemberCapacity(row)">容量</button>
+                <button class="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-900/20" @click="confirmDeleteAccountSetMember(row)">移除</button>
+              </div>
             </template>
 
             <template #empty>
@@ -314,6 +348,70 @@
             @update:page="handleAccountSetMembersPageChange"
             @update:pageSize="handleAccountSetMembersPageSizeChange"
           />
+        </div>
+      </section>
+
+      <section class="sst-admin-panel mb-4 p-4">
+        <div class="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 class="text-base font-semibold text-gray-900 dark:text-white">共享容量压力</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">同一上游账号集合的实时并发、余量、排队和近 5 分钟满载观测。</p>
+          </div>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm self-start md:self-auto"
+            :disabled="capacityPressuresLoading"
+            @click="loadCapacityPressures"
+          >
+            <Icon name="refresh" size="sm" :class="capacityPressuresLoading ? 'mr-1 animate-spin' : 'mr-1'" />
+            刷新压力
+          </button>
+        </div>
+        <div v-if="capacityPressuresLoading" class="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
+          正在读取共享容量…
+        </div>
+        <div v-else-if="capacityPressuresError" class="rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-3 text-sm text-rose-800 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-200">
+          {{ capacityPressuresError }}
+        </div>
+        <div v-else-if="capacityPressures.length === 0" class="rounded-xl border border-dashed border-gray-300 px-3 py-6 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
+          当前没有启用共享容量组。
+        </div>
+        <div v-else class="grid gap-3 lg:grid-cols-2">
+          <article
+            v-for="pressure in capacityPressures"
+            :key="pressure.set_id"
+            class="rounded-2xl border border-gray-200 bg-white/80 p-4 dark:border-dark-700 dark:bg-dark-900/60"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <h4 class="truncate text-sm font-semibold text-gray-900 dark:text-white">{{ pressure.set_name }}</h4>
+                  <span :class="['badge', capacityPressureClass(pressure)]">{{ capacityPressureLabel(pressure) }}</span>
+                </div>
+                <div class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ pressure.set_code }} · {{ platformLabel(pressure.platform) }}</div>
+              </div>
+              <div class="text-right">
+                <div class="font-mono text-2xl font-semibold text-gray-900 dark:text-white">{{ pressure.current_concurrency }} / {{ pressure.capacity_limit }}</div>
+                <div class="text-[11px] text-gray-500 dark:text-gray-400">可用 {{ pressure.available_capacity }} · 排队 {{ pressure.waiting_count }}</div>
+              </div>
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-2 text-xs">
+              <div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-dark-800/70"><div class="text-gray-500 dark:text-gray-400">组满载</div><strong class="font-mono text-gray-900 dark:text-white">{{ pressure.group_full_count }}</strong></div>
+              <div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-dark-800/70"><div class="text-gray-500 dark:text-gray-400">成员满载</div><strong class="font-mono text-gray-900 dark:text-white">{{ pressure.member_full_count }}</strong></div>
+              <div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-dark-800/70"><div class="text-gray-500 dark:text-gray-400">借用槽位</div><strong class="font-mono text-gray-900 dark:text-white">{{ pressure.borrowed_slot_count }}</strong></div>
+            </div>
+            <div class="mt-2 grid grid-cols-3 gap-2 text-xs">
+              <div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-dark-800/70"><div class="text-gray-500 dark:text-gray-400">5 分钟峰值</div><strong class="font-mono text-gray-900 dark:text-white">{{ pressure.peak_concurrency_5m }}</strong></div>
+              <div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-dark-800/70"><div class="text-gray-500 dark:text-gray-400">P95 负载</div><strong class="font-mono text-gray-900 dark:text-white">{{ pressure.p95_load_rate_5m }}%</strong></div>
+              <div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-dark-800/70"><div class="text-gray-500 dark:text-gray-400">调度集中度</div><strong class="font-mono text-gray-900 dark:text-white">{{ pressure.scheduling_concentration }}%</strong></div>
+            </div>
+            <div v-if="pressure.members.length > 0" class="mt-3 divide-y divide-gray-200/80 rounded-xl border border-gray-200 dark:divide-dark-700/70 dark:border-dark-700">
+              <div v-for="member in pressure.members" :key="member.account_id" class="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+                <div class="min-w-0"><div class="truncate font-medium text-gray-800 dark:text-gray-200">{{ member.account_name || `账号 #${member.account_id}` }}</div><div class="text-[11px] text-gray-500 dark:text-gray-400">{{ member.current_concurrency }} 并发 · 排队 {{ member.waiting_count }}</div></div>
+                <div class="text-right"><div class="font-mono text-gray-800 dark:text-gray-200">{{ member.load_rate }}%</div><div class="text-[11px] text-gray-500 dark:text-gray-400">{{ member.hard_concurrency_limit ? `硬 ${member.hard_concurrency_limit}` : '共享' }}</div></div>
+              </div>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -1063,13 +1161,11 @@
             </span>
             <Toggle :model-value="poolForm.failover_enabled" @update:modelValue="poolForm.failover_enabled = $event" />
           </label>
-          <label class="flex items-center justify-between gap-3 rounded-xl border border-gray-200 px-3 py-2 dark:border-dark-600">
-            <span>
-              <span class="block text-sm">自动健康调权</span>
-              <span class="field-hint mb-0 block">OpenAI 池稳定观测后自动升降流量。</span>
-            </span>
-            <Toggle :model-value="poolForm.auto_weight_enabled" :disabled="poolForm.platform !== 'openai'" @update:modelValue="poolForm.auto_weight_enabled = $event" />
-          </label>
+          <div>
+            <label class="input-label">自动健康调权</label>
+            <p class="field-hint">观察模式只保存建议，不改变实际权重。</p>
+            <Select v-model="poolForm.auto_weight_mode" :options="autoWeightModeOptions" :disabled="poolForm.platform !== 'openai'" />
+          </div>
         </div>
         <div class="grid gap-4 md:grid-cols-3">
           <div>
@@ -1216,6 +1312,11 @@
           </label>
         </div>
         <div>
+          <label class="input-label">共享并发上限</label>
+          <p class="field-hint">留空表示不启用共享容量组；启用后集合成员共享此总上限。</p>
+          <input v-model.number="accountSetForm.shared_concurrency_limit" type="number" min="1" step="1" class="input" placeholder="例如 3000" />
+        </div>
+        <div>
           <label class="input-label">备注</label>
           <p class="field-hint">说明这批账号的来源或用途。</p>
           <textarea v-model="accountSetForm.description" rows="2" class="input" />
@@ -1225,6 +1326,71 @@
           <button type="submit" class="btn btn-primary" :disabled="submitting">保存</button>
         </div>
       </form>
+    </BaseDialog>
+
+    <BaseDialog
+      :show="showAccountSetMemberPicker"
+      :title="selectedAccountSet ? `${selectedAccountSet.name} · 选择账号` : '选择账号'"
+      width="extra-wide"
+      @close="closeAccountSetMemberPicker"
+    >
+      <div class="space-y-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div class="relative min-w-0 flex-1 md:max-w-md">
+            <Icon name="search" size="sm" class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input v-model="accountSetMemberSearch" class="input pl-9" placeholder="搜索账号名称或 ID" />
+          </div>
+          <div class="inline-flex w-full rounded border border-gray-200 p-1 dark:border-dark-600 md:w-auto" role="group" aria-label="账号类型">
+            <button
+              v-for="option in accountSetMemberTypeOptions"
+              :key="option.value"
+              type="button"
+              :class="['min-h-9 flex-1 px-3 text-sm md:flex-none', accountSetMemberType === option.value ? 'bg-primary-600 text-white' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700']"
+              @click="accountSetMemberType = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-2 border-b border-gray-200 pb-3 text-sm dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
+          <label class="inline-flex items-center gap-2 text-gray-700 dark:text-gray-200">
+            <input
+              type="checkbox"
+              :checked="allFilteredAccountSetCandidatesSelected"
+              :disabled="filteredAccountSetCandidates.length === 0"
+              @change="toggleAllFilteredAccountSetCandidates"
+            />
+            选择当前结果
+          </label>
+          <span class="text-gray-500 dark:text-gray-400">已选 {{ selectedAccountSetMemberIDs.length }} 个</span>
+        </div>
+
+        <div class="max-h-[26rem] overflow-y-auto rounded border border-gray-200 dark:border-dark-700">
+          <label
+            v-for="account in filteredAccountSetCandidates"
+            :key="account.id"
+            class="grid min-h-14 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 px-3 py-2 last:border-b-0 hover:bg-gray-50 dark:border-dark-700 dark:hover:bg-dark-800"
+          >
+            <input v-model="selectedAccountSetMemberIDs" type="checkbox" :value="account.id" />
+            <span class="min-w-0">
+              <span class="block truncate text-sm font-medium text-gray-900 dark:text-white">{{ account.name }}</span>
+              <span class="block text-xs text-gray-500 dark:text-gray-400">#{{ account.id }} · {{ accountSetAccountTypeLabel(account.type) }}</span>
+            </span>
+            <span :class="['badge', account.status === 'active' ? 'badge-success' : 'badge-gray']">{{ account.status }}</span>
+          </label>
+          <div v-if="filteredAccountSetCandidates.length === 0" class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+            没有符合条件的可选账号
+          </div>
+        </div>
+
+        <div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" class="btn btn-secondary" @click="closeAccountSetMemberPicker">取消</button>
+          <button type="button" class="btn btn-primary" :disabled="submitting || selectedAccountSetMemberIDs.length === 0" @click="addSelectedAccountsToSet">
+            加入 {{ selectedAccountSetMemberIDs.length }} 个账号
+          </button>
+        </div>
+      </div>
     </BaseDialog>
 
     <BaseDialog
@@ -1407,7 +1573,8 @@ import type {
   UpstreamPoolMember,
   UpstreamPoolMemberSet,
   UpstreamPoolMemberSyncMode,
-  UpstreamPoolMemberSyncResult
+  UpstreamPoolMemberSyncResult,
+  UpstreamCapacityPressure
 } from '@/types'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import {
@@ -1435,6 +1602,7 @@ type PoolForm = {
   sticky_escape_ttft_ms_threshold: number
   load_balance_enabled: boolean
   auto_weight_enabled: boolean
+  auto_weight_mode: 'off' | 'observe' | 'active'
   failover_enabled: boolean
   top_k: number
   max_failover_hops: number
@@ -1478,7 +1646,11 @@ type AccountSetForm = {
   platform: string
   description: string
   enabled: boolean
+  shared_concurrency_limit: number | null
 }
+
+type CapacityDraft = { hard: number | null; soft: number | null }
+type AccountSetMemberTypeFilter = 'all' | 'oauth' | 'apikey'
 
 type MemberSetForm = {
   set_id: number | null
@@ -1520,6 +1692,9 @@ const accountSetMembersLoading = ref(false)
 const memberSetsLoading = ref(false)
 const bindingsLoading = ref(false)
 const syncingMembers = ref(false)
+const capacityPressures = ref<UpstreamCapacityPressure[]>([])
+const capacityPressuresLoading = ref(false)
+const capacityPressuresError = ref('')
 const togglingPoolStatusIds = ref<Set<number>>(new Set())
 const accountSetMembersPagination = ref({ page: 1, page_size: 10, total: 0 })
 const poolRoutingObservability = ref<PoolRoutingObservabilityState>({
@@ -1544,6 +1719,7 @@ let poolHealthAlertRequestToken = 0
 const showPoolModal = ref(false)
 const showMemberModal = ref(false)
 const showAccountSetModal = ref(false)
+const showAccountSetMemberPicker = ref(false)
 const showMemberSetManagerModal = ref(false)
 const showMemberSetModal = ref(false)
 const showBindingModal = ref(false)
@@ -1553,6 +1729,9 @@ const editingMember = ref<UpstreamPoolMember | null>(null)
 const editingAccountSet = ref<UpstreamAccountSet | null>(null)
 const editingMemberSet = ref<UpstreamPoolMemberSet | null>(null)
 const editingBinding = ref<UpstreamPoolBinding | null>(null)
+const accountSetMemberSearch = ref('')
+const accountSetMemberType = ref<AccountSetMemberTypeFilter>('all')
+const selectedAccountSetMemberIDs = ref<number[]>([])
 
 function createEmptyPoolRoutingObservabilityState(): PoolRoutingObservabilityState {
   return {
@@ -1600,6 +1779,7 @@ const poolForm = ref<PoolForm>({
   sticky_escape_ttft_ms_threshold: 6000,
   load_balance_enabled: true,
   auto_weight_enabled: false,
+  auto_weight_mode: 'off',
   failover_enabled: true,
   top_k: 2,
   max_failover_hops: 3,
@@ -1624,7 +1804,10 @@ const accountSetForm = ref<AccountSetForm>({
   platform: 'openai',
   description: '',
   enabled: true,
+  shared_concurrency_limit: null,
 })
+const capacityEditingAccountId = ref<number | null>(null)
+const capacityDraft = ref<CapacityDraft>({ hard: null, soft: null })
 
 const memberSetForm = ref<MemberSetForm>({
   set_id: null,
@@ -1660,6 +1843,12 @@ const accountTypeStrategyOptions = [
   { value: 'oauth_preferred', label: 'OAuth 优先，API Key 兜底' },
   { value: 'oauth_only', label: '仅 OAuth' },
   { value: 'apikey_preferred', label: 'API Key 优先，OAuth 兜底' },
+]
+
+const autoWeightModeOptions = [
+  { value: 'off', label: '关闭' },
+  { value: 'observe', label: '观察模式' },
+  { value: 'active', label: '正式应用' },
 ]
 
 const boolSelectOptions = [
@@ -1898,6 +2087,7 @@ const accountSetColumns = [
   { key: 'platform', label: '平台' },
   { key: 'enabled', label: '状态' },
   { key: 'account_count', label: '账号数' },
+  { key: 'shared_concurrency_limit', label: '共享上限' },
   { key: 'updated_at', label: '更新时间' },
   { key: 'actions', label: '操作' },
 ]
@@ -1907,6 +2097,7 @@ const accountSetMemberColumns = [
   { key: 'account_platform', label: '平台' },
   { key: 'runtime_status', label: '运行态' },
   { key: 'usage', label: '使用情况' },
+  { key: 'capacity', label: '容量策略' },
   { key: 'added_at', label: '加入时间' },
   { key: 'actions', label: '操作' },
 ]
@@ -2007,6 +2198,21 @@ const formatThresholdMs = (value?: number | null) => {
 const formatRateThreshold = (value?: number | null) => {
   if (typeof value !== 'number' || Number.isNaN(value) || value < 0) return '-'
   return value.toFixed(2)
+}
+
+function capacityPressureClass(pressure: UpstreamCapacityPressure) {
+  if (pressure.waiting_count > 0 || pressure.available_capacity <= 0) return 'badge-danger'
+  const ratio = pressure.capacity_limit > 0 ? pressure.current_concurrency / pressure.capacity_limit : 0
+  if (ratio >= 0.8) return 'badge-warning'
+  return 'badge-success'
+}
+
+function capacityPressureLabel(pressure: UpstreamCapacityPressure) {
+  if (pressure.waiting_count > 0) return '排队中'
+  if (pressure.available_capacity <= 0) return '余量紧张'
+  const ratio = pressure.capacity_limit > 0 ? pressure.current_concurrency / pressure.capacity_limit : 0
+  if (ratio >= 0.8) return '需要观察'
+  return '余量充足'
 }
 
 const isPoolStatusToggling = (poolID: number) => togglingPoolStatusIds.value.has(poolID)
@@ -2275,6 +2481,35 @@ const accountSetAvailableAccounts = computed(() => {
   return syncableAccounts.value.filter(account => account.platform === platform)
 })
 
+const accountSetSelectableAccounts = computed(() => {
+  const existing = new Set(accountSetMembers.value.map(item => item.account_id))
+  return accountSetAvailableAccounts.value.filter(account => !existing.has(account.id))
+})
+
+const accountSetMemberTypeOptions: Array<{ value: AccountSetMemberTypeFilter; label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'oauth', label: 'OAuth' },
+  { value: 'apikey', label: 'API Key' },
+]
+
+const filteredAccountSetCandidates = computed(() => {
+  const query = accountSetMemberSearch.value.trim().toLowerCase()
+  return accountSetSelectableAccounts.value.filter((account) => {
+    const typeMatches = accountSetMemberType.value === 'all'
+      || (accountSetMemberType.value === 'oauth' && (account.type === 'oauth' || account.type === 'setup-token'))
+      || (accountSetMemberType.value === 'apikey' && account.type === 'apikey')
+    if (!typeMatches) return false
+    if (!query) return true
+    return account.name.toLowerCase().includes(query) || String(account.id).includes(query)
+  })
+})
+
+const allFilteredAccountSetCandidatesSelected = computed(() => {
+  if (filteredAccountSetCandidates.value.length === 0) return false
+  const selected = new Set(selectedAccountSetMemberIDs.value)
+  return filteredAccountSetCandidates.value.every(account => selected.has(account.id))
+})
+
 const accountOptions = computed(() =>
   availablePoolAccounts.value.map((account) => ({
     value: account.id,
@@ -2335,6 +2570,7 @@ function resetPoolForm() {
     sticky_escape_ttft_ms_threshold: 6000,
     load_balance_enabled: true,
     auto_weight_enabled: false,
+    auto_weight_mode: 'off',
     failover_enabled: true,
     top_k: 2,
     max_failover_hops: 3,
@@ -2375,6 +2611,7 @@ function resetAccountSetForm() {
     platform: selectedPool.value?.platform ?? 'openai',
     description: '',
     enabled: true,
+    shared_concurrency_limit: null,
   }
 }
 
@@ -2424,11 +2661,25 @@ async function loadAll() {
     } else {
       selectAccountSet(accountSetList[0])
     }
+    await loadCapacityPressures()
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '加载上游池失败'))
   } finally {
     loading.value = false
     accountSetsLoading.value = false
+  }
+}
+
+async function loadCapacityPressures() {
+  capacityPressuresLoading.value = true
+  capacityPressuresError.value = ''
+  try {
+    capacityPressures.value = await adminAPI.upstreamPools.getCapacityPressures()
+  } catch (error) {
+    capacityPressures.value = []
+    capacityPressuresError.value = extractApiErrorMessage(error, '加载共享容量压力失败')
+  } finally {
+    capacityPressuresLoading.value = false
   }
 }
 
@@ -2631,6 +2882,7 @@ function openPoolModal(pool?: UpstreamPool | null) {
       sticky_escape_ttft_ms_threshold: pool.sticky_escape_ttft_ms_threshold,
       load_balance_enabled: pool.load_balance_enabled,
       auto_weight_enabled: Boolean(pool.auto_weight_enabled),
+      auto_weight_mode: pool.auto_weight_mode || (pool.auto_weight_enabled ? 'active' : 'off'),
       failover_enabled: pool.failover_enabled,
       top_k: pool.top_k,
       max_failover_hops: pool.max_failover_hops,
@@ -2686,6 +2938,7 @@ function openAccountSetModal(item?: UpstreamAccountSet | null) {
       platform: item.platform,
       description: item.description || '',
       enabled: item.enabled,
+      shared_concurrency_limit: item.shared_concurrency_limit,
     }
   } else {
     resetAccountSetForm()
@@ -2777,6 +3030,7 @@ async function submitPool() {
       ...poolForm.value,
       description: poolForm.value.description || undefined,
       auto_weight_enabled: poolForm.value.platform === 'openai' && poolForm.value.auto_weight_enabled,
+      auto_weight_mode: poolForm.value.platform === 'openai' ? poolForm.value.auto_weight_mode : 'off',
     }
     if (editingPool.value) {
       await adminAPI.upstreamPools.update(editingPool.value.id, payload)
@@ -2866,6 +3120,7 @@ async function submitAccountSet() {
       platform: accountSetForm.value.platform,
       enabled: accountSetForm.value.enabled,
       description: accountSetForm.value.description || undefined,
+      shared_concurrency_limit: accountSetForm.value.shared_concurrency_limit || null,
       ...(editingAccountSet.value ? { code: accountSetForm.value.code } : {}),
     }
     if (editingAccountSet.value) {
@@ -2993,31 +3248,70 @@ async function addMissingSelectedPoolMembers() {
   }
 }
 
-async function addAccountsToSelectedSet() {
-  if (!selectedAccountSet.value) return
-  const existing = new Set(accountSetMembers.value.map(item => item.account_id))
-  const targetIDs = accountSetAvailableAccounts.value
-    .map(account => account.id)
-    .filter(accountID => !existing.has(accountID))
+function accountSetAccountTypeLabel(type: string) {
+  if (type === 'apikey') return 'API Key'
+  if (type === 'setup-token') return 'Setup Token'
+  if (type === 'oauth') return 'OAuth'
+  return type || '-'
+}
+
+function openAccountSetMemberPicker() {
+  accountSetMemberSearch.value = ''
+  accountSetMemberType.value = 'all'
+  selectedAccountSetMemberIDs.value = []
+  showAccountSetMemberPicker.value = true
+}
+
+function closeAccountSetMemberPicker() {
+  showAccountSetMemberPicker.value = false
+  selectedAccountSetMemberIDs.value = []
+}
+
+function toggleAllFilteredAccountSetCandidates() {
+  const visibleIDs = filteredAccountSetCandidates.value.map(account => account.id)
+  const selected = new Set(selectedAccountSetMemberIDs.value)
+  if (allFilteredAccountSetCandidatesSelected.value) {
+    visibleIDs.forEach(id => selected.delete(id))
+  } else {
+    visibleIDs.forEach(id => selected.add(id))
+  }
+  selectedAccountSetMemberIDs.value = Array.from(selected)
+}
+
+async function addAccountIDsToSelectedSet(targetIDs: number[], successMessage: string): Promise<boolean> {
+  if (!selectedAccountSet.value) return false
   if (targetIDs.length === 0) {
     appStore.showError('当前没有可加入的新账号')
-    return
+    return false
   }
   submitting.value = true
   try {
     await adminAPI.upstreamPools.addAccountSetMembers(selectedAccountSet.value.id, {
       account_ids: targetIDs,
     })
-    appStore.showSuccess(`已加入 ${targetIDs.length} 个账号`)
+    appStore.showSuccess(successMessage)
     await Promise.all([
       loadAccountSetMembers(selectedAccountSet.value.id),
       loadAll(),
     ])
+    return true
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '加入账号集合失败'))
+    return false
   } finally {
     submitting.value = false
   }
+}
+
+async function addSelectedAccountsToSet() {
+  const targetIDs = [...selectedAccountSetMemberIDs.value]
+  const added = await addAccountIDsToSelectedSet(targetIDs, `已加入 ${targetIDs.length} 个账号`)
+  if (added) closeAccountSetMemberPicker()
+}
+
+async function addAccountsToSelectedSet() {
+  const targetIDs = accountSetSelectableAccounts.value.map(account => account.id)
+  await addAccountIDsToSelectedSet(targetIDs, `已补齐 ${targetIDs.length} 个账号`)
 }
 
 async function submitBinding() {
@@ -3122,6 +3416,41 @@ async function confirmDeleteAccountSetMember(item: UpstreamAccountSetMember) {
     ])
   } catch (error) {
     appStore.showError(extractApiErrorMessage(error, '移除集合成员失败'))
+  }
+}
+
+function editAccountSetMemberCapacity(item: UpstreamAccountSetMember) {
+  capacityEditingAccountId.value = item.account_id
+  capacityDraft.value = {
+    hard: item.capacity_hard_limit || null,
+    soft: item.capacity_soft_share || null,
+  }
+}
+
+function cancelAccountSetMemberCapacity() {
+  capacityEditingAccountId.value = null
+  capacityDraft.value = { hard: null, soft: null }
+}
+
+async function saveAccountSetMemberCapacity(item: UpstreamAccountSetMember) {
+  if (!selectedAccountSet.value) return
+  const normalize = (value: number | null) => typeof value === 'number' && value > 0 ? Math.round(value) : null
+  const hard = normalize(capacityDraft.value.hard)
+  const soft = normalize(capacityDraft.value.soft)
+  if (hard && selectedAccountSet.value.shared_concurrency_limit && hard > selectedAccountSet.value.shared_concurrency_limit) {
+    appStore.showError('成员硬上限不能超过集合共享上限')
+    return
+  }
+  try {
+    await adminAPI.upstreamPools.updateAccountSetMemberCapacity(selectedAccountSet.value.id, item.account_id, {
+      hard_concurrency_limit: hard,
+      soft_concurrency_share: soft,
+    })
+    appStore.showSuccess(hard || soft ? '成员容量策略已更新' : '成员容量策略已清空')
+    cancelAccountSetMemberCapacity()
+    await Promise.all([loadAccountSetMembers(selectedAccountSet.value.id), loadCapacityPressures()])
+  } catch (error) {
+    appStore.showError(extractApiErrorMessage(error, '保存成员容量策略失败'))
   }
 }
 

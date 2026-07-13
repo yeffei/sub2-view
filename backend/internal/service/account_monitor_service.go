@@ -37,18 +37,30 @@ type AccountMonitorRepository interface {
 	DeletePoolAvailabilityBefore(ctx context.Context, before time.Time) (int64, error)
 	ListPoolRuntimeWeightStates(ctx context.Context, poolIDs []int64) (map[int64]map[int64]*PoolRuntimeWeightState, error)
 	UpsertPoolRuntimeWeightStates(ctx context.Context, states []*PoolRuntimeWeightState) error
+	ListRecentAccountRuntimeHealth(ctx context.Context, accountIDs []int64, since time.Time) (map[int64]AccountRuntimeHealthSnapshot, error)
+	InsertUpstreamCapacitySnapshots(ctx context.Context, rows []*UpstreamCapacitySnapshotRow) error
+	ListUpstreamCapacitySnapshotStats(ctx context.Context, setIDs []int64, since time.Time) (map[int64]UpstreamCapacitySnapshotStats, error)
 }
 
 type AccountMonitorService struct {
-	repo                AccountMonitorRepository
-	upstreamPoolRepo    UpstreamPoolRepository
-	accountRepo         AccountRepository
-	pruneMu             sync.Mutex
-	nextSnapshotPruneAt time.Time
-	healthAlertMu       sync.Mutex
-	healthAlertStates   map[string]*upstreamHealthAlertState
-	healthAlertEmitter  func(upstreamHealthAlertEvent)
-	now                 func() time.Time
+	repo                 AccountMonitorRepository
+	upstreamPoolRepo     UpstreamPoolRepository
+	accountRepo          AccountRepository
+	pruneMu              sync.Mutex
+	nextSnapshotPruneAt  time.Time
+	healthAlertMu        sync.Mutex
+	healthAlertStates    map[string]*upstreamHealthAlertState
+	healthAlertEmitter   func(upstreamHealthAlertEvent)
+	now                  func() time.Time
+	capacityReader       UpstreamCapacityPressureReader
+	gatewayService       *GatewayService
+	openAIGatewayService *OpenAIGatewayService
+}
+
+func (s *AccountMonitorService) SetCapacityPressureReader(reader UpstreamCapacityPressureReader) {
+	if s != nil {
+		s.capacityReader = reader
+	}
 }
 
 type accountProbeTarget struct {
@@ -67,9 +79,12 @@ func NewAccountMonitorService(
 	repo AccountMonitorRepository,
 	upstreamPoolRepo UpstreamPoolRepository,
 	accountRepo AccountRepository,
+	gatewayService *GatewayService,
+	openAIGatewayService *OpenAIGatewayService,
 ) *AccountMonitorService {
 	return &AccountMonitorService{
 		repo: repo, upstreamPoolRepo: upstreamPoolRepo, accountRepo: accountRepo,
+		gatewayService: gatewayService, openAIGatewayService: openAIGatewayService,
 		healthAlertStates:  make(map[string]*upstreamHealthAlertState),
 		healthAlertEmitter: emitUpstreamHealthAlert,
 		now:                time.Now,
@@ -86,6 +101,23 @@ func (s *AccountMonitorService) RunOnce(ctx context.Context) error {
 	}
 	if err := s.repo.InsertPoolAvailabilitySnapshots(ctx, snapshots); err != nil {
 		return fmt.Errorf("insert pool availability snapshots: %w", err)
+	}
+	if s.capacityReader != nil {
+		pressures, pressureErr := s.capacityReader.ListUpstreamCapacityPressures(ctx)
+		if pressureErr != nil {
+			return fmt.Errorf("list upstream capacity pressures: %w", pressureErr)
+		}
+		rows := make([]*UpstreamCapacitySnapshotRow, 0, len(pressures))
+		for _, pressure := range pressures {
+			loadRate := 0
+			if pressure.CapacityLimit > 0 {
+				loadRate = (pressure.CurrentConcurrency + pressure.WaitingCount) * 100 / pressure.CapacityLimit
+			}
+			rows = append(rows, &UpstreamCapacitySnapshotRow{SetID: pressure.SetID, CapacityLimit: pressure.CapacityLimit, CurrentConcurrency: pressure.CurrentConcurrency, WaitingCount: pressure.WaitingCount, LoadRate: loadRate, CheckedAt: s.currentTime()})
+		}
+		if err := s.repo.InsertUpstreamCapacitySnapshots(ctx, rows); err != nil {
+			return fmt.Errorf("insert upstream capacity snapshots: %w", err)
+		}
 	}
 	if _, err := s.prunePoolAvailabilitySnapshots(ctx); err != nil {
 		slog.Warn("account_monitor: prune pool availability snapshots failed", "error", err)
@@ -118,7 +150,7 @@ func (s *AccountMonitorService) adjustPoolRuntimeWeights(ctx context.Context, pr
 	autoPools := make([]UpstreamPool, 0, len(pools))
 	poolIDs := make([]int64, 0, len(pools))
 	for _, pool := range pools {
-		if pool.Enabled && pool.AutoWeightEnabled && strings.EqualFold(pool.Platform, PlatformOpenAI) {
+		if pool.Enabled && UpstreamPoolAutoWeightModeFromPolicyJSON(pool.PolicyJSON) != "off" && strings.EqualFold(pool.Platform, PlatformOpenAI) {
 			autoPools = append(autoPools, pool)
 			poolIDs = append(poolIDs, pool.ID)
 		}
@@ -131,6 +163,24 @@ func (s *AccountMonitorService) adjustPoolRuntimeWeights(ctx context.Context, pr
 		return err
 	}
 	membersByPool, accountsByID := s.loadPoolMembersAndAccounts(ctx, autoPools)
+	accountIDs := make([]int64, 0)
+	seenAccountIDs := make(map[int64]struct{})
+	for _, members := range membersByPool {
+		for _, member := range members {
+			if member.AccountID > 0 {
+				if _, ok := seenAccountIDs[member.AccountID]; !ok {
+					seenAccountIDs[member.AccountID] = struct{}{}
+					accountIDs = append(accountIDs, member.AccountID)
+				}
+			}
+		}
+	}
+	realHealth, err := s.repo.ListRecentAccountRuntimeHealth(ctx, accountIDs, s.currentTime().UTC().Add(-30*time.Minute))
+	if err != nil {
+		slog.Warn("account_monitor: list recent account runtime health failed; falling back to probes", "error", err)
+		realHealth = nil
+	}
+	s.seedGatewayRuntimeHealth(realHealth)
 	rowsByPool := make(map[int64]map[int64]*AccountMonitorHistoryRow, len(autoPools))
 	for _, row := range probeRows {
 		if row == nil || row.PoolID == nil || *row.PoolID <= 0 || row.AccountID <= 0 {
@@ -149,9 +199,10 @@ func (s *AccountMonitorService) adjustPoolRuntimeWeights(ctx context.Context, pr
 			continue
 		}
 		medianLatency := medianOperationalProbeLatency(rowsByPool[pool.ID])
+		medianRealTTFT := medianRuntimeTTFT(realHealth, members)
 		for _, member := range members {
 			account := accountsByID[member.AccountID]
-			target, reason, observed := autoWeightTarget(account, rowsByPool[pool.ID][member.AccountID], medianLatency, now)
+			target, reason, observed := autoWeightTargetWithRuntime(account, rowsByPool[pool.ID][member.AccountID], medianLatency, realHealth[member.AccountID], medianRealTTFT, now)
 			if !observed {
 				continue
 			}
@@ -168,11 +219,46 @@ func (s *AccountMonitorService) adjustPoolRuntimeWeights(ctx context.Context, pr
 	return s.repo.UpsertPoolRuntimeWeightStates(ctx, updates)
 }
 
+func (s *AccountMonitorService) seedGatewayRuntimeHealth(health map[int64]AccountRuntimeHealthSnapshot) {
+	for accountID, snapshot := range health {
+		if snapshot.SampleCount < 3 || snapshot.P95TTFTMs <= 0 {
+			continue
+		}
+		if s.gatewayService != nil {
+			s.gatewayService.SeedAccountRuntimeTTFT(accountID, snapshot.P95TTFTMs)
+		}
+		if s.openAIGatewayService != nil {
+			s.openAIGatewayService.SeedOpenAIAccountRuntimeTTFT(accountID, snapshot.P95TTFTMs)
+		}
+	}
+}
+
 func (s *AccountMonitorService) currentTime() time.Time {
 	if s != nil && s.now != nil {
 		return s.now()
 	}
 	return time.Now()
+}
+
+func (s *AccountMonitorService) WarmRuntimeHealth(ctx context.Context) error {
+	if s == nil || s.repo == nil || s.upstreamPoolRepo == nil || s.accountRepo == nil {
+		return nil
+	}
+	pools, err := s.upstreamPoolRepo.ListUpstreamPools(ctx)
+	if err != nil {
+		return err
+	}
+	_, accounts := s.loadPoolMembersAndAccounts(ctx, pools)
+	accountIDs := make([]int64, 0, len(accounts))
+	for accountID := range accounts {
+		accountIDs = append(accountIDs, accountID)
+	}
+	health, err := s.repo.ListRecentAccountRuntimeHealth(ctx, accountIDs, s.currentTime().UTC().Add(-30*time.Minute))
+	if err != nil {
+		return err
+	}
+	s.seedGatewayRuntimeHealth(health)
+	return nil
 }
 
 func activeAutoWeightMembers(members []UpstreamPoolMember, accounts map[int64]*Account) []UpstreamPoolMember {
@@ -206,6 +292,28 @@ func medianOperationalProbeLatency(rows map[int64]*AccountMonitorHistoryRow) int
 }
 
 func autoWeightTarget(account *Account, row *AccountMonitorHistoryRow, medianLatency int, now time.Time) (float64, string, bool) {
+	return autoWeightTargetWithRuntime(account, row, medianLatency, AccountRuntimeHealthSnapshot{}, 0, now)
+}
+
+func medianRuntimeTTFT(health map[int64]AccountRuntimeHealthSnapshot, members []UpstreamPoolMember) int {
+	values := make([]int, 0, len(members))
+	for _, member := range members {
+		if snapshot, ok := health[member.AccountID]; ok && snapshot.SampleCount >= 3 && snapshot.P95TTFTMs > 0 {
+			values = append(values, snapshot.P95TTFTMs)
+		}
+	}
+	if len(values) == 0 {
+		return 0
+	}
+	sort.Ints(values)
+	middle := len(values) / 2
+	if len(values)%2 == 1 {
+		return values[middle]
+	}
+	return (values[middle-1] + values[middle]) / 2
+}
+
+func autoWeightTargetWithRuntime(account *Account, row *AccountMonitorHistoryRow, medianLatency int, runtime AccountRuntimeHealthSnapshot, medianRealTTFT int, now time.Time) (float64, string, bool) {
 	if account == nil {
 		return 1, "", false
 	}
@@ -217,6 +325,22 @@ func autoWeightTarget(account *Account, row *AccountMonitorHistoryRow, medianLat
 	}
 	if account.TempUnschedulableUntil != nil && now.Before(*account.TempUnschedulableUntil) {
 		return 0.5, "temporarily_unschedulable", true
+	}
+	if runtime.SampleCount >= 3 && runtime.P95TTFTMs > 0 {
+		ratio := 0.0
+		if medianRealTTFT > 0 {
+			ratio = float64(runtime.P95TTFTMs) / float64(medianRealTTFT)
+		}
+		switch {
+		case runtime.P95TTFTMs > 15000 && (medianRealTTFT <= 0 || ratio >= 2):
+			return 0.5, "real_ttft_much_slower", true
+		case runtime.P95TTFTMs > 15000 || ratio >= 1.5:
+			return 0.75, "real_ttft_slower", true
+		case ratio <= 0.75:
+			return 1.25, "real_ttft_faster", true
+		default:
+			return 1, "real_ttft_healthy", true
+		}
 	}
 	if row == nil {
 		return 1, "", false
@@ -562,6 +686,11 @@ func (r *AccountMonitorRunner) Start() {
 	if r == nil || r.svc == nil {
 		return
 	}
+	warmCtx, cancel := context.WithTimeout(r.parentCtx, 5*time.Second)
+	if err := r.svc.WarmRuntimeHealth(warmCtx); err != nil {
+		slog.Warn("account_monitor: warm runtime health failed", "error", err)
+	}
+	cancel()
 	r.wg.Add(1)
 	go r.loop()
 }
