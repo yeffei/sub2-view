@@ -180,7 +180,6 @@ func (s *AccountMonitorService) adjustPoolRuntimeWeights(ctx context.Context, pr
 		slog.Warn("account_monitor: list recent account runtime health failed; falling back to probes", "error", err)
 		realHealth = nil
 	}
-	s.seedGatewayRuntimeHealth(realHealth)
 	rowsByPool := make(map[int64]map[int64]*AccountMonitorHistoryRow, len(autoPools))
 	for _, row := range probeRows {
 		if row == nil || row.PoolID == nil || *row.PoolID <= 0 || row.AccountID <= 0 {

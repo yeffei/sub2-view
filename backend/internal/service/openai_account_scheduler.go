@@ -3,6 +3,7 @@ package service
 import (
 	"container/heap"
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"log/slog"
@@ -158,6 +159,7 @@ type openAIAccountRuntimeStat struct {
 }
 
 type openAIStickyEscapeEvent struct {
+	AccountID int64
 	Reason    string
 	ErrorRate float64
 	TTFTMs    *int
@@ -379,10 +381,28 @@ func (s *defaultOpenAIAccountScheduler) Select(
 			errorRate := stickyEscapeEvent.ErrorRate
 			decision.StickyEscapeObservedErrorRate = &errorRate
 		}
-		req.PreserveStickyBinding = true
+		if stickyEscapeEvent.AccountID > 0 {
+			req.ExcludedIDs = cloneExcludedAccountIDs(req.ExcludedIDs)
+			if req.ExcludedIDs == nil {
+				req.ExcludedIDs = make(map[int64]struct{})
+			}
+			req.ExcludedIDs[stickyEscapeEvent.AccountID] = struct{}{}
+			req.PreserveStickyBinding = false
+		}
 	}
 
 	selection, candidateCount, topK, loadSkew, cacheAffinityKeyHash, cacheAffinityTopKIDs, skipped, err := s.selectByLoadBalance(ctx, req)
+	if stickyEscapeEvent != nil && stickyEscapeEvent.AccountID > 0 && isNoAvailableOpenAIAccountSelectionError(err) {
+		fallbackReq := req
+		fallbackReq.ExcludedIDs = cloneExcludedAccountIDs(req.ExcludedIDs)
+		delete(fallbackReq.ExcludedIDs, stickyEscapeEvent.AccountID)
+		fallbackReq.PreserveStickyBinding = true
+		selection, candidateCount, topK, loadSkew, cacheAffinityKeyHash, cacheAffinityTopKIDs, skipped, err = s.selectByLoadBalance(ctx, fallbackReq)
+		if skipped == nil {
+			skipped = make(map[string]int)
+		}
+		skipped["sticky_escape_no_alternative"]++
+	}
 	decision.Layer = openAIAccountScheduleLayerLoadBalance
 	decision.CandidateCount = candidateCount
 	decision.TopK = topK
@@ -398,6 +418,16 @@ func (s *defaultOpenAIAccountScheduler) Select(
 		decision.SelectedAccountType = selection.Account.Type
 	}
 	return selection, decision, nil
+}
+
+func isNoAvailableOpenAIAccountSelectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrNoAvailableAccounts) || errors.Is(err, ErrNoAvailableCompactAccounts) {
+		return true
+	}
+	return strings.HasPrefix(err.Error(), "no available OpenAI accounts")
 }
 
 func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
@@ -494,6 +524,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			"ttft", ttft,
 		)
 		return nil, &openAIStickyEscapeEvent{
+			AccountID: accountID,
 			Reason:    reason,
 			ErrorRate: errorRate,
 			TTFTMs:    ttftMsPtr,
@@ -526,6 +557,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 				"ttft", ttft,
 			)
 			return nil, &openAIStickyEscapeEvent{
+				AccountID: accountID,
 				Reason:    "concurrency_full",
 				ErrorRate: errorRate,
 				TTFTMs:    ttftMsPtr,
@@ -1208,9 +1240,10 @@ func (s *defaultOpenAIAccountScheduler) buildOpenAISelectionOrder(
 		if groupTopK > len(pool) {
 			groupTopK = len(pool)
 		}
-		ranked, affinityHash, affinityIDs := selectCacheAffinityTopKOpenAICandidates(pool, groupTopK, req)
-		if len(ranked) == 0 {
-			ranked = selectTopKOpenAICandidates(pool, groupTopK)
+		ranked := selectTopKOpenAICandidates(pool, groupTopK)
+		affinityRanked, affinityHash, affinityIDs := selectCacheAffinityTopKOpenAICandidates(ranked, len(ranked), req)
+		if len(affinityRanked) > 0 {
+			ranked = affinityRanked
 		}
 		return buildOpenAIWeightedSelectionOrder(ranked, req), affinityHash, affinityIDs
 	}
