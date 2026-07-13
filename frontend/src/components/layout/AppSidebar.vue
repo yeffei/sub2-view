@@ -398,7 +398,6 @@ const adminNavItems = computed((): NavItem[] => {
     { path: '/admin/risk-control', label: t('nav.riskControl'), icon: 'shield', hideInSimpleMode: true, featureFlag: flagRiskControl },
     { path: '/admin/accounts', label: t('nav.accounts'), icon: 'globe', hideInSimpleMode: true },
     { path: '/admin/channels/upstream-pools', label: t('nav.upstreamPools'), icon: 'server', hideInSimpleMode: true },
-    { path: '/admin/channels/monitor', label: t('nav.channelMonitor'), icon: 'signal', hideInSimpleMode: true, featureFlag: flagChannelMonitor },
     { path: '/admin/proxies', label: t('nav.proxies'), icon: 'server', hideInSimpleMode: true },
     { path: '/admin/usage', label: '计量记录', icon: 'chart' },
     { path: '/admin/affiliates', label: '团队引荐', icon: 'users', hideInSimpleMode: true, featureFlag: flagAffiliate },
