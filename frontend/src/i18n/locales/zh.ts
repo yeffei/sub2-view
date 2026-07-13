@@ -4093,6 +4093,8 @@ export default {
       retryFailedUpstreamRatesPartial: '重试完成：成功 {success} 个，仍失败 {failed} 个',
 	  viewUpstreamRateSyncResult: '查看同步结果',
 	  upstreamRateSyncResultTitle: '倍率同步结果',
+	  upstreamRateSyncResultSuccessHint: '上游倍率已写入账号，以下为本次探测摘要。',
+	  upstreamRateSyncResultPartialHint: '同步已完成，仍有失败项需要复核。',
 	  upstreamRateSyncResultTotal: '本次账号',
 	  upstreamRateSyncResultChanged: '已变更',
 	  upstreamRateSyncResultSignificant: '大幅跳变',

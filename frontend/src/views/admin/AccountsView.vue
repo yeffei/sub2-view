@@ -554,59 +554,109 @@
 	  width="wide"
 	  @close="showUpstreamRateSyncResult = false"
 	>
-	  <div v-if="lastUpstreamRateSyncResult" class="space-y-4">
-		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultTotal') }}</p>
-			<p class="mt-1 text-lg font-semibold">{{ lastUpstreamRateSyncResult.total }}</p>
+	  <div v-if="lastUpstreamRateSyncResult" class="rate-sync-result">
+		<section class="rate-sync-result-hero">
+		  <div class="rate-sync-result-mark" :class="lastUpstreamRateSyncResult.failed > 0 ? 'rate-sync-result-mark-partial' : ''">
+			<Icon :name="lastUpstreamRateSyncResult.failed > 0 ? 'exclamationCircle' : 'checkCircle'" size="lg" />
 		  </div>
-		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultChanged') }}</p>
-			<p class="mt-1 text-lg font-semibold text-emerald-600">{{ upstreamRateSyncChangedCount }}</p>
+		  <div class="min-w-0 flex-1">
+			<p class="rate-sync-result-kicker">{{ t('admin.accounts.upstreamRateSyncResultTitle') }}</p>
+			<h2 class="rate-sync-result-heading">
+			  {{ lastUpstreamRateSyncResult.failed > 0
+				? t('admin.accounts.syncAllUpstreamRatesPartial', { success: lastUpstreamRateSyncResult.success, failed: lastUpstreamRateSyncResult.failed })
+				: t('admin.accounts.syncAllUpstreamRatesSuccess', { count: lastUpstreamRateSyncResult.success }) }}
+			</h2>
+			<p class="rate-sync-result-subtitle">
+			  {{ lastUpstreamRateSyncResult.failed > 0
+				? t('admin.accounts.upstreamRateSyncResultPartialHint')
+				: t('admin.accounts.upstreamRateSyncResultSuccessHint') }}
+			</p>
 		  </div>
-		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultSignificant') }}</p>
-			<p class="mt-1 text-lg font-semibold text-amber-600">{{ upstreamRateSyncSignificantCount }}</p>
+		  <div class="rate-sync-result-seal" aria-hidden="true">SST</div>
+		</section>
+
+		<section class="rate-sync-result-stats" :aria-label="t('admin.accounts.upstreamRateSyncResultTitle')">
+		  <div class="rate-sync-result-stat">
+			<span class="rate-sync-result-stat-label">{{ t('admin.accounts.upstreamRateSyncResultTotal') }}</span>
+			<strong>{{ lastUpstreamRateSyncResult.total }}</strong>
 		  </div>
-		  <div class="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-			<p class="text-xs text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultFailed') }}</p>
-			<p class="mt-1 text-lg font-semibold" :class="lastUpstreamRateSyncResult.failed > 0 ? 'text-rose-600' : 'text-gray-900 dark:text-white'">{{ lastUpstreamRateSyncResult.failed }}</p>
+		  <div class="rate-sync-result-stat">
+			<span class="rate-sync-result-stat-label">{{ t('admin.accounts.upstreamRateSyncResultChanged') }}</span>
+			<strong class="rate-sync-result-stat-positive">{{ upstreamRateSyncChangedCount }}</strong>
 		  </div>
-		</div>
-		<div class="max-h-[26rem] overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
-		  <table class="w-full text-sm">
-			<thead class="sticky top-0 bg-gray-50 text-left text-xs text-gray-500 dark:bg-gray-800">
-			  <tr>
-				<th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultAccount') }}</th>
-				<th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultChange') }}</th>
-				<th class="px-3 py-2">{{ t('admin.accounts.upstreamRateSyncResultStatus') }}</th>
-			  </tr>
-			</thead>
-			<tbody>
-			  <tr v-for="item in lastUpstreamRateSyncResult.results" :key="item.account_id" class="border-t border-gray-100 dark:border-gray-700">
-				<td class="px-3 py-2">
-				  <span class="font-medium text-gray-900 dark:text-white">{{ upstreamRateSyncAccountLabel(item) }}</span>
-				  <span class="ml-1 text-xs text-gray-400">#{{ item.account_id }}</span>
-				</td>
-				<td class="px-3 py-2 font-mono text-xs">
-				  <template v-if="item.success">
-					{{ formatRateMultiplier(item.previous_rate_multiplier) }} → {{ formatRateMultiplier(item.rate_multiplier) }}
-				  </template>
-				  <span v-else class="text-gray-400">—</span>
-				</td>
-				<td class="px-3 py-2">
-				  <span v-if="!item.success" class="text-rose-600">{{ item.error || t('admin.accounts.syncUpstreamRateMultiplierFailed') }}</span>
-				  <span v-else-if="item.significant_change" class="text-amber-600">{{ t('admin.accounts.upstreamRateSyncResultLargeChange') }}</span>
-				  <span v-else-if="item.changed" class="text-emerald-600">{{ t('admin.accounts.upstreamRateSyncResultUpdated') }}</span>
-				  <span v-else class="text-gray-500">{{ t('admin.accounts.upstreamRateSyncResultUnchanged') }}</span>
-				</td>
-			  </tr>
-			</tbody>
-		  </table>
-		</div>
+		  <div class="rate-sync-result-stat">
+			<span class="rate-sync-result-stat-label">{{ t('admin.accounts.upstreamRateSyncResultSignificant') }}</span>
+			<strong class="rate-sync-result-stat-warning">{{ upstreamRateSyncSignificantCount }}</strong>
+		  </div>
+		  <div class="rate-sync-result-stat">
+			<span class="rate-sync-result-stat-label">{{ t('admin.accounts.upstreamRateSyncResultFailed') }}</span>
+			<strong :class="lastUpstreamRateSyncResult.failed > 0 ? 'rate-sync-result-stat-danger' : ''">{{ lastUpstreamRateSyncResult.failed }}</strong>
+		  </div>
+		</section>
+
+		<section class="rate-sync-result-ledger">
+		  <div class="rate-sync-result-ledger-heading">
+			<div class="flex min-w-0 items-center gap-2">
+			  <span class="rate-sync-result-ledger-icon"><Icon name="sync" size="sm" /></span>
+			  <div class="min-w-0">
+				<p class="rate-sync-result-ledger-title">{{ t('admin.accounts.upstreamRateSyncResultAccount') }}</p>
+				<p class="rate-sync-result-ledger-caption">{{ t('admin.accounts.upstreamRateSyncResultChange') }}</p>
+			  </div>
+			</div>
+			<span class="rate-sync-result-ledger-count">{{ lastUpstreamRateSyncResult.results.length }}</span>
+		  </div>
+		  <div class="rate-sync-result-table-wrap">
+			<table class="rate-sync-result-table">
+			  <thead>
+				<tr>
+				  <th>{{ t('admin.accounts.upstreamRateSyncResultAccount') }}</th>
+				  <th>{{ t('admin.accounts.upstreamRateSyncResultChange') }}</th>
+				  <th>{{ t('admin.accounts.upstreamRateSyncResultStatus') }}</th>
+				</tr>
+			  </thead>
+			  <tbody>
+				<tr v-for="item in lastUpstreamRateSyncResult.results" :key="item.account_id">
+				  <td>
+					<div class="rate-sync-result-account">
+					  <span class="rate-sync-result-account-dot" :class="item.success ? 'rate-sync-result-account-dot-success' : 'rate-sync-result-account-dot-failed'" />
+					  <span class="min-w-0">
+						<span class="block truncate font-medium">{{ upstreamRateSyncAccountLabel(item) }}</span>
+						<span class="block text-xs opacity-55">#{{ item.account_id }}</span>
+					  </span>
+					</div>
+				  </td>
+				  <td class="rate-sync-result-change-cell">
+					<template v-if="item.success">
+					  <span class="rate-sync-result-change-value">{{ `${formatRateMultiplier(item.previous_rate_multiplier)} → ${formatRateMultiplier(item.rate_multiplier)}` }}</span>
+					</template>
+					<span v-else class="opacity-40">—</span>
+				  </td>
+				  <td>
+					<span v-if="!item.success" class="rate-sync-result-status rate-sync-result-status-failed">
+					  <Icon name="xCircle" size="xs" />
+					  <span>{{ item.error || t('admin.accounts.syncUpstreamRateMultiplierFailed') }}</span>
+					</span>
+					<span v-else-if="item.significant_change" class="rate-sync-result-status rate-sync-result-status-warning">
+					  <Icon name="exclamationTriangle" size="xs" />
+					  <span>{{ t('admin.accounts.upstreamRateSyncResultLargeChange') }}</span>
+					</span>
+					<span v-else-if="item.changed" class="rate-sync-result-status rate-sync-result-status-success">
+					  <Icon name="check" size="xs" />
+					  <span>{{ t('admin.accounts.upstreamRateSyncResultUpdated') }}</span>
+					</span>
+					<span v-else class="rate-sync-result-status rate-sync-result-status-muted">
+					  <Icon name="clock" size="xs" />
+					  <span>{{ t('admin.accounts.upstreamRateSyncResultUnchanged') }}</span>
+					</span>
+				  </td>
+				</tr>
+			  </tbody>
+			</table>
+		  </div>
+		</section>
 	  </div>
 	  <template #footer>
-		<button type="button" class="btn btn-primary" @click="showUpstreamRateSyncResult = false">{{ t('common.close') }}</button>
+		<button type="button" class="btn btn-primary rate-sync-result-close" @click="showUpstreamRateSyncResult = false">{{ t('common.close') }}</button>
 	  </template>
 	</BaseDialog>
     <BaseDialog
@@ -2507,6 +2557,339 @@ onUnmounted(() => {
   transform: translateX(-0.2rem);
 }
 
+.rate-sync-result {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(198, 184, 157, 0.72);
+  border-radius: 1rem;
+  color: #38413a;
+  background: #faf7ef;
+  box-shadow: 0 16px 36px rgba(67, 57, 43, 0.08);
+}
+
+.rate-sync-result::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.28rem;
+  content: '';
+  background: #a73a2a;
+}
+
+.rate-sync-result-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 1.1rem 1.25rem 1rem 1.4rem;
+}
+
+.rate-sync-result-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.7rem;
+  height: 2.7rem;
+  border: 1px solid rgba(81, 98, 79, 0.3);
+  border-radius: 50%;
+  color: #51624f;
+  background: rgba(226, 235, 220, 0.78);
+  animation: rate-sync-result-mark-in 420ms ease-out both;
+}
+
+.rate-sync-result-mark-partial {
+  border-color: rgba(138, 100, 36, 0.3);
+  color: #8a6424;
+  background: rgba(250, 238, 204, 0.86);
+}
+
+.rate-sync-result-kicker,
+.rate-sync-result-stat-label,
+.rate-sync-result-ledger-caption {
+  color: #8d7d66;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.rate-sync-result-heading {
+  margin-top: 0.25rem;
+  color: #38413a;
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.rate-sync-result-subtitle {
+  margin-top: 0.3rem;
+  color: #6a6255;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.rate-sync-result-seal {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border: 1px solid rgba(167, 58, 42, 0.58);
+  border-radius: 0.55rem;
+  color: #a73a2a;
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', serif;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  transform: rotate(-5deg);
+}
+
+.rate-sync-result-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid rgba(198, 184, 157, 0.58);
+  border-bottom: 1px solid rgba(198, 184, 157, 0.58);
+}
+
+.rate-sync-result-stat {
+  min-width: 0;
+  padding: 0.85rem 1rem;
+}
+
+.rate-sync-result-stat + .rate-sync-result-stat {
+  border-left: 1px solid rgba(198, 184, 157, 0.5);
+}
+
+.rate-sync-result-stat strong {
+  display: block;
+  margin-top: 0.28rem;
+  color: #38413a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rate-sync-result-stat-positive {
+  color: #51624f !important;
+}
+
+.rate-sync-result-stat-warning {
+  color: #8a6424 !important;
+}
+
+.rate-sync-result-stat-danger {
+  color: #9b3f31 !important;
+}
+
+.rate-sync-result-ledger {
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.rate-sync-result-ledger-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.1rem 0.7rem;
+}
+
+.rate-sync-result-ledger-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid rgba(198, 184, 157, 0.65);
+  border-radius: 0.5rem;
+  color: #a73a2a;
+  background: rgba(255, 252, 245, 0.76);
+}
+
+.rate-sync-result-ledger-title {
+  color: #38413a;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.rate-sync-result-ledger-count {
+  color: #8d7d66;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.rate-sync-result-table-wrap {
+  max-height: 26rem;
+  overflow: auto;
+  border: 1px solid rgba(198, 184, 157, 0.62);
+  border-radius: 0.7rem;
+  background: rgba(255, 252, 245, 0.58);
+}
+
+.rate-sync-result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.rate-sync-result-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.65rem 0.75rem;
+  color: #8d7d66;
+  background: #f3eee3;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rate-sync-result-table td {
+  padding: 0.7rem 0.75rem;
+  border-top: 1px solid rgba(198, 184, 157, 0.42);
+  vertical-align: middle;
+}
+
+.rate-sync-result-table tbody tr {
+  transition: background-color 160ms ease;
+}
+
+.rate-sync-result-table tbody tr:hover {
+  background: rgba(167, 58, 42, 0.045);
+}
+
+.rate-sync-result-account {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.rate-sync-result-account-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.rate-sync-result-account-dot-success {
+  background: #51624f;
+  box-shadow: 0 0 0 3px rgba(81, 98, 79, 0.12);
+}
+
+.rate-sync-result-account-dot-failed {
+  background: #a73a2a;
+  box-shadow: 0 0 0 3px rgba(167, 58, 42, 0.12);
+}
+
+.rate-sync-result-change-cell {
+  color: #6a6255;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.rate-sync-result-change-cell strong {
+  color: #38413a;
+}
+
+.rate-sync-result-arrow {
+  margin: 0 0.25rem;
+  color: #a73a2a;
+}
+
+.rate-sync-result-status {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.rate-sync-result-status-success {
+  color: #51624f;
+}
+
+.rate-sync-result-status-warning {
+  color: #8a6424;
+}
+
+.rate-sync-result-status-failed {
+  color: #9b3f31;
+}
+
+.rate-sync-result-status-muted {
+  color: #8d7d66;
+}
+
+.rate-sync-result-close {
+  min-width: 5.5rem;
+}
+
+@keyframes rate-sync-result-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.78) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@media (max-width: 640px) {
+  .rate-sync-result-hero {
+    align-items: flex-start;
+    padding: 1rem 1rem 0.9rem 1.15rem;
+  }
+
+  .rate-sync-result-heading {
+    font-size: 1.08rem;
+  }
+
+  .rate-sync-result-seal {
+    width: 2.35rem;
+    height: 2.35rem;
+    font-size: 0.6rem;
+  }
+
+  .rate-sync-result-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rate-sync-result-stat:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .rate-sync-result-stat:nth-child(n + 3) {
+    border-top: 1px solid rgba(198, 184, 157, 0.5);
+  }
+
+  .rate-sync-result-stat:nth-child(even) {
+    border-left: 1px solid rgba(198, 184, 157, 0.5);
+  }
+
+  .rate-sync-result-ledger {
+    padding: 0.9rem 0.75rem 1rem;
+  }
+
+  .rate-sync-result-table th,
+  .rate-sync-result-table td {
+    padding-right: 0.55rem;
+    padding-left: 0.55rem;
+  }
+
+  .rate-sync-result-table th:nth-child(2),
+  .rate-sync-result-table td:nth-child(2) {
+    display: none;
+  }
+}
+
 </style>
 <style>
 .dark .account-tools-menu-item {
@@ -2539,6 +2922,98 @@ onUnmounted(() => {
 .dark .account-health-pill-critical {
   color: #df9a8d;
   background: rgba(111, 46, 38, 0.34);
+}
+
+.dark .rate-sync-result {
+  border-color: rgba(91, 82, 64, 0.82);
+  color: #e2dccd;
+  background: #1b201b;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.dark .rate-sync-result-heading,
+.dark .rate-sync-result-stat strong,
+.dark .rate-sync-result-change-cell strong,
+.dark .rate-sync-result-ledger-title {
+  color: #e2dccd;
+}
+
+.dark .rate-sync-result-subtitle,
+.dark .rate-sync-result-change-cell {
+  color: #b5ad9c;
+}
+
+.dark .rate-sync-result-kicker,
+.dark .rate-sync-result-stat-label,
+.dark .rate-sync-result-ledger-caption,
+.dark .rate-sync-result-ledger-count,
+.dark .rate-sync-result-status-muted {
+  color: #a99a82;
+}
+
+.dark .rate-sync-result-mark {
+  border-color: rgba(168, 184, 158, 0.32);
+  color: #b4c6a8;
+  background: rgba(64, 80, 56, 0.46);
+}
+
+.dark .rate-sync-result-mark-partial {
+  border-color: rgba(212, 177, 107, 0.34);
+  color: #d4b16b;
+  background: rgba(105, 76, 30, 0.42);
+}
+
+.dark .rate-sync-result-seal {
+  border-color: rgba(207, 121, 102, 0.7);
+  color: #df9a8d;
+}
+
+.dark .rate-sync-result-stats {
+  border-color: rgba(91, 82, 64, 0.72);
+}
+
+.dark .rate-sync-result-stat + .rate-sync-result-stat,
+.dark .rate-sync-result-stat:nth-child(even) {
+  border-color: rgba(91, 82, 64, 0.62);
+}
+
+.dark .rate-sync-result-ledger-icon {
+  border-color: rgba(91, 82, 64, 0.82);
+  color: #df9a8d;
+  background: rgba(24, 26, 21, 0.82);
+}
+
+.dark .rate-sync-result-table-wrap {
+  border-color: rgba(91, 82, 64, 0.82);
+  background: rgba(24, 26, 21, 0.64);
+}
+
+.dark .rate-sync-result-table th {
+  color: #a99a82;
+  background: #24291f;
+}
+
+.dark .rate-sync-result-table td {
+  border-color: rgba(91, 82, 64, 0.6);
+}
+
+.dark .rate-sync-result-table tbody tr:hover {
+  background: rgba(167, 58, 42, 0.12);
+}
+
+.dark .rate-sync-result-stat-positive,
+.dark .rate-sync-result-status-success {
+  color: #a8b89e !important;
+}
+
+.dark .rate-sync-result-stat-warning,
+.dark .rate-sync-result-status-warning {
+  color: #d4b16b;
+}
+
+.dark .rate-sync-result-stat-danger,
+.dark .rate-sync-result-status-failed {
+  color: #df9a8d;
 }
 </style>
 

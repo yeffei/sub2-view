@@ -4019,6 +4019,8 @@ export default {
       retryFailedUpstreamRatesPartial: 'Retry completed: {success} succeeded, {failed} still failed',
 	  viewUpstreamRateSyncResult: 'View Sync Result',
 	  upstreamRateSyncResultTitle: 'Rate Sync Result',
+	  upstreamRateSyncResultSuccessHint: 'Upstream rates are now saved. Here is the probe summary.',
+	  upstreamRateSyncResultPartialHint: 'Sync completed with failures that still need review.',
 	  upstreamRateSyncResultTotal: 'Accounts',
 	  upstreamRateSyncResultChanged: 'Changed',
 	  upstreamRateSyncResultSignificant: 'Large Changes',
