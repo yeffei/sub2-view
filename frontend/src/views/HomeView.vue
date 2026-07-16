@@ -58,9 +58,8 @@
         </div>
 
         <div class="hero-visual relative lg:min-h-[34rem]" aria-hidden="true">
-          <div class="hero-courtyard-flow"></div>
           <div class="hero-logo-stage">
-            <img src="/logo.png" alt="" class="hero-logo-image" />
+            <GoldfishScene :dark="isDark" />
           </div>
           <div class="hero-seal-imprint">
             <img src="/sst-seal.svg" alt="" />
@@ -157,6 +156,7 @@ import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
+import GoldfishScene from '@/components/brand/GoldfishScene.vue'
 import PublicSiteFooter from '@/components/layout/PublicSiteFooter.vue'
 import PublicSiteHeader from '@/components/layout/PublicSiteHeader.vue'
 import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem } from '@/utils/imageWorkshop'
@@ -463,16 +463,6 @@ onMounted(() => {
   isolation: isolate;
 }
 
-.hero-visual::before,
-.hero-visual::after {
-  content: '';
-  position: absolute;
-  display: none;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.hero-courtyard-flow,
 .hero-seal-imprint {
   display: none;
 }
@@ -481,29 +471,11 @@ onMounted(() => {
   position: absolute;
   right: 8%;
   top: 8%;
-  width: min(100%, 29.8rem);
-  aspect-ratio: 2048 / 1490;
+  width: min(100%, 31.5rem);
+  aspect-ratio: 1.48;
   transform: translateY(-0.25rem);
   overflow: visible;
   pointer-events: none;
-}
-
-.hero-logo-image {
-  --hero-logo-opacity: 0.94;
-  width: 100%;
-  height: 100%;
-  display: block;
-  position: relative;
-  z-index: 2;
-  object-fit: contain;
-  opacity: var(--hero-logo-opacity);
-  filter:
-    brightness(0.93)
-    contrast(1.08)
-    sepia(0.045)
-    saturate(0.9)
-    drop-shadow(0 1px 0 rgba(83, 76, 63, 0.18))
-    drop-shadow(0 18px 32px rgba(63, 45, 28, 0.06));
 }
 
 .hero-seal-imprint img {
@@ -511,18 +483,6 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-
-.sst-home.is-dark .hero-logo-image {
-  --hero-logo-opacity: 0.9;
-  filter:
-    brightness(0.96)
-    contrast(1.02)
-    sepia(0.1)
-    saturate(0.9)
-    drop-shadow(0 1px 0 rgba(246, 227, 195, 0.1))
-    drop-shadow(0 24px 42px rgba(0, 0, 0, 0.28))
-    drop-shadow(0 0 18px rgba(176, 120, 57, 0.08));
 }
 
 .hero-glyph-notes {
@@ -554,60 +514,7 @@ onMounted(() => {
 }
 
 @media (min-width: 1024px) {
-  .hero-visual::before {
-    display: block;
-    left: 3%;
-    right: 8%;
-    top: 55%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(161, 139, 106, 0.26) 18%, rgba(167, 58, 42, 0.16) 54%, transparent);
-    opacity: 0;
-    transform: scaleX(0.2);
-    transform-origin: left center;
-    animation: heroAxisReveal 1500ms cubic-bezier(0.19, 1, 0.22, 1) 220ms forwards;
-  }
-
-  .hero-visual::after {
-    display: block;
-    top: 8%;
-    bottom: 8%;
-    left: 58%;
-    width: 1px;
-    background: linear-gradient(180deg, transparent, rgba(161, 139, 106, 0.18) 18%, rgba(167, 58, 42, 0.09) 50%, transparent);
-    opacity: 0;
-    transform: scaleY(0.18);
-    transform-origin: top center;
-    animation: heroAxisRevealY 1800ms cubic-bezier(0.19, 1, 0.22, 1) 360ms forwards;
-  }
-
-  .hero-courtyard-flow {
-    position: absolute;
-    inset: 0;
-    display: block;
-    pointer-events: none;
-    z-index: 1;
-  }
-
-  .hero-courtyard-flow::before {
-    content: '';
-    position: absolute;
-    left: 14%;
-    top: calc(55% - 0.18rem);
-    width: 0.36rem;
-    height: 0.36rem;
-    border-radius: 999px;
-    background: #a73a2a;
-    box-shadow: 0 0 0 4px rgba(167, 58, 42, 0.032), 0 0 14px rgba(167, 58, 42, 0.08);
-    opacity: 0;
-    animation: heroCourtyardFlow 9.6s ease-in-out 1800ms infinite;
-  }
-
   .hero-logo-stage {
-    animation: heroLogoDrift 15s ease-in-out infinite;
-    will-change: transform;
-  }
-
-  .hero-logo-image {
     animation: heroLogoSettle 1100ms cubic-bezier(0.19, 1, 0.22, 1) both;
   }
 
@@ -650,10 +557,6 @@ onMounted(() => {
     animation-delay: 1120ms;
   }
 
-  .sst-home.is-dark .hero-courtyard-flow::before {
-    background: #b87f42;
-    box-shadow: 0 0 0 5px rgba(184, 127, 66, 0.055), 0 0 18px rgba(184, 127, 66, 0.15);
-  }
 }
 
 .home-notice-shell {
@@ -1104,53 +1007,6 @@ onMounted(() => {
   color: #c27e4a;
 }
 
-@keyframes heroAxisReveal {
-  0% {
-    opacity: 0;
-    transform: scaleX(0.2);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
-@keyframes heroAxisRevealY {
-  0% {
-    opacity: 0;
-    transform: scaleY(0.18);
-  }
-
-  100% {
-    opacity: 1;
-    transform: scaleY(1);
-  }
-}
-
-@keyframes heroCourtyardFlow {
-  0%,
-  18% {
-    opacity: 0;
-    transform: translate3d(0, 0, 0) scale(0.72);
-  }
-
-  28% {
-    opacity: 0.42;
-    transform: translate3d(6.5rem, 0, 0) scale(1);
-  }
-
-  70% {
-    opacity: 0.3;
-    transform: translate3d(23rem, 0, 0) scale(0.88);
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate3d(31rem, 0, 0) scale(0.72);
-  }
-}
-
 @keyframes heroLogoSettle {
   0% {
     transform: translate3d(0.8rem, 0.7rem, 0) scale(0.985);
@@ -1158,17 +1014,6 @@ onMounted(() => {
 
   100% {
     transform: translate3d(0, 0, 0) scale(1);
-  }
-}
-
-@keyframes heroLogoDrift {
-  0%,
-  100% {
-    transform: translate3d(0, -0.25rem, 0) rotate(-0.18deg);
-  }
-
-  50% {
-    transform: translate3d(-0.28rem, 0.12rem, 0) rotate(0.24deg);
   }
 }
 
@@ -1402,12 +1247,7 @@ onMounted(() => {
   }
 
   .hero-logo-stage {
-    left: 50%;
-    right: auto;
-    top: auto;
-    bottom: 0;
-    width: min(72vw, 13rem);
-    transform: translateX(-50%);
+    display: none;
   }
 
   .hero-glyph-notes {
@@ -1416,21 +1256,11 @@ onMounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-visual::before,
-  .hero-visual::after,
-  .hero-courtyard-flow::before,
   .hero-logo-stage,
-  .hero-logo-image,
   .hero-seal-imprint,
   .hero-glyph-note,
   .hero-glyph-notes {
     animation: none;
-  }
-
-  .hero-visual::before,
-  .hero-visual::after {
-    opacity: 0.72;
-    transform: none;
   }
 
   .hero-seal-imprint,
