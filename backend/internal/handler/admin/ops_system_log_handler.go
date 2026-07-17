@@ -15,12 +15,14 @@ import (
 type opsSystemLogCleanupRequest struct {
 	StartTime string `json:"start_time"`
 	EndTime   string `json:"end_time"`
+	Host      string `json:"host"`
 
 	Level           string `json:"level"`
 	Component       string `json:"component"`
 	RequestID       string `json:"request_id"`
 	ClientRequestID string `json:"client_request_id"`
 	UserID          *int64 `json:"user_id"`
+	APIKeyID        *int64 `json:"api_key_id"`
 	AccountID       *int64 `json:"account_id"`
 	PoolID          *int64 `json:"pool_id"`
 	Platform        string `json:"platform"`
@@ -56,6 +58,7 @@ func (h *OpsHandler) ListSystemLogs(c *gin.Context) {
 		PageSize:        pageSize,
 		StartTime:       &start,
 		EndTime:         &end,
+		Host:            strings.TrimSpace(c.Query("host")),
 		Level:           strings.TrimSpace(c.Query("level")),
 		Component:       strings.TrimSpace(c.Query("component")),
 		RequestID:       strings.TrimSpace(c.Query("request_id")),
@@ -120,6 +123,10 @@ func (h *OpsHandler) CleanupSystemLogs(c *gin.Context) {
 		response.BadRequest(c, "Invalid request body")
 		return
 	}
+	if req.APIKeyID != nil && *req.APIKeyID <= 0 {
+		response.BadRequest(c, "Invalid api_key_id")
+		return
+	}
 
 	parseTS := func(raw string) (*time.Time, error) {
 		raw = strings.TrimSpace(raw)
@@ -149,6 +156,7 @@ func (h *OpsHandler) CleanupSystemLogs(c *gin.Context) {
 	filter := &service.OpsSystemLogCleanupFilter{
 		StartTime:       start,
 		EndTime:         end,
+		Host:            strings.TrimSpace(req.Host),
 		Level:           strings.TrimSpace(req.Level),
 		Component:       strings.TrimSpace(req.Component),
 		RequestID:       strings.TrimSpace(req.RequestID),

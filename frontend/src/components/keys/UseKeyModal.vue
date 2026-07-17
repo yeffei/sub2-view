@@ -46,6 +46,57 @@
           </nav>
         </div>
 
+        <!-- Codex Authentication Mode -->
+        <div
+          v-if="showCodexAuthMode"
+          class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+        >
+          <div class="mb-2">
+            <p class="text-sm font-medium text-gray-900 dark:text-white">
+              {{ t('keys.useKeyModal.openai.authModeTitle') }}
+            </p>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('keys.useKeyModal.openai.authModeDescription') }}
+            </p>
+          </div>
+          <div
+            class="grid grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 dark:bg-dark-700"
+            role="radiogroup"
+            :aria-label="t('keys.useKeyModal.openai.authModeTitle')"
+          >
+            <button
+              type="button"
+              role="radio"
+              data-testid="codex-auth-mode-legacy"
+              :aria-checked="codexAuthMode === 'legacy'"
+              :class="[
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                codexAuthMode === 'legacy'
+                  ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
+              ]"
+              @click="codexAuthMode = 'legacy'"
+            >
+              {{ t('keys.useKeyModal.openai.authModeLegacy') }}
+            </button>
+            <button
+              type="button"
+              role="radio"
+              data-testid="codex-auth-mode-api-key"
+              :aria-checked="codexAuthMode === 'api-key'"
+              :class="[
+                'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                codexAuthMode === 'api-key'
+                  ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
+                  : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
+              ]"
+              @click="codexAuthMode = 'api-key'"
+            >
+              {{ t('keys.useKeyModal.openai.authModeApiKey') }}
+            </button>
+          </div>
+        </div>
+
         <!-- OS/Shell Tabs -->
         <div v-if="showShellTabs" class="use-key-tabs use-key-tabs-secondary">
           <span>环境</span>
@@ -164,12 +215,16 @@ const { copyToClipboard: clipboardCopy } = useClipboard()
 const copiedIndex = ref<number | null>(null)
 const activeTab = ref<string>('unix')
 const activeClientTab = ref<string>('claude')
+type CodexAuthMode = 'legacy' | 'api-key'
+const codexAuthMode = ref<CodexAuthMode>('legacy')
 
 // Reset tabs when platform changes
 const defaultClientTab = computed(() => {
   switch (props.platform) {
     case 'openai':
       return 'codex'
+    case 'grok':
+      return 'grok'
     case 'gemini':
       return 'gemini'
     case 'antigravity':
@@ -182,7 +237,14 @@ const defaultClientTab = computed(() => {
 watch(() => props.platform, () => {
   activeTab.value = 'unix'
   activeClientTab.value = defaultClientTab.value
+  codexAuthMode.value = 'legacy'
 }, { immediate: true })
+
+watch(() => props.show, (show) => {
+  if (show) {
+    codexAuthMode.value = 'legacy'
+  }
+})
 
 // Reset shell tab when client changes
 watch(activeClientTab, () => {
@@ -277,6 +339,11 @@ const clientTabs = computed((): TabConfig[] => {
         { id: 'gemini', label: t('keys.useKeyModal.cliTabs.geminiCli'), icon: SparkleIcon },
         { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
       ]
+    case 'grok':
+      return [
+        { id: 'grok', label: t('keys.useKeyModal.cliTabs.grokCli'), icon: TerminalIcon },
+        { id: 'opencode', label: t('keys.useKeyModal.cliTabs.opencode'), icon: TerminalIcon }
+      ]
     default:
       return [
         { id: 'claude', label: t('keys.useKeyModal.cliTabs.claudeCode'), icon: TerminalIcon },
@@ -300,9 +367,14 @@ const openaiTabs: TabConfig[] = [
 
 const showShellTabs = computed(() => activeClientTab.value !== 'opencode')
 
+const showCodexAuthMode = computed(() =>
+  props.platform === 'openai' &&
+  (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws')
+)
+
 const currentTabs = computed(() => {
   if (!showShellTabs.value) return []
-  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws') {
+  if (activeClientTab.value === 'codex' || activeClientTab.value === 'codex-ws' || activeClientTab.value === 'grok') {
     return openaiTabs
   }
   return shellTabs
@@ -319,6 +391,8 @@ const platformDescription = computed(() => {
       return t('keys.useKeyModal.gemini.description')
     case 'antigravity':
       return t('keys.useKeyModal.antigravity.description')
+    case 'grok':
+      return t('keys.useKeyModal.grok.description')
     default:
       return t('keys.useKeyModal.description')
   }
@@ -339,6 +413,10 @@ const platformNote = computed(() => {
       return activeClientTab.value === 'claude'
         ? t('keys.useKeyModal.antigravity.claudeNote')
         : t('keys.useKeyModal.antigravity.geminiNote')
+    case 'grok':
+      return activeTab.value === 'windows'
+        ? t('keys.useKeyModal.grok.noteWindows')
+        : t('keys.useKeyModal.grok.note')
     default:
       return t('keys.useKeyModal.note')
   }
@@ -396,6 +474,8 @@ const currentFiles = computed((): FileConfig[] => {
           generateOpenCodeConfig('antigravity-claude', antigravityBase, apiKey, 'opencode.json (Claude)'),
           generateOpenCodeConfig('antigravity-gemini', antigravityGeminiBase, apiKey, 'opencode.json (Gemini)')
         ]
+      case 'grok':
+        return [generateOpenCodeConfig('grok', apiBase, apiKey)]
       default:
         return [generateOpenCodeConfig('openai', apiBase, apiKey)]
     }
@@ -417,6 +497,8 @@ const currentFiles = computed((): FileConfig[] => {
         return [generateGeminiCliContent(`${baseUrl}/antigravity`, apiKey)]
       }
       return generateAnthropicFiles(`${baseUrl}/antigravity`, apiKey)
+    case 'grok':
+      return generateGrokFiles(apiBase, apiKey)
     default:
       return generateAnthropicFiles(baseUrl, apiKey)
   }
@@ -531,7 +613,7 @@ windows_wsl_setup_acknowledged = true
 name = "OpenAI"
 base_url = "${baseUrl}"
 wire_api = "responses"
-requires_openai_auth = true
+${generateCodexProviderAuthConfig()}
 
 [features]
 goals = true`
@@ -554,6 +636,38 @@ goals = true`
   ]
 }
 
+function generateCodexProviderAuthConfig(): string {
+  if (codexAuthMode.value === 'api-key') {
+    return `requires_openai_auth = false
+http_headers = { "x-openai-actor-authorization" = "local-image-extension" }`
+  }
+
+  return 'requires_openai_auth = true'
+}
+
+function generateGrokFiles(baseUrl: string, apiKey: string): FileConfig[] {
+  const isWindows = activeTab.value === 'windows'
+  const configDir = isWindows ? '%userprofile%\\.grok' : '~/.grok'
+  const configContent = `[models]
+default = "grok"
+web_search = "grok"
+
+[model."grok"]
+model = "grok-4.5"
+base_url = "${baseUrl}"
+name = "Grok 4.5"
+api_key = "${apiKey}"
+api_backend = "responses"
+context_window = 1000000
+supports_backend_search = true`
+
+  return [{
+    path: `${configDir}/config.toml`,
+    content: configContent,
+    hint: t('keys.useKeyModal.grok.configTomlHint')
+  }]
+}
+
 function generateOpenAIWsFiles(baseUrl: string, apiKey: string): FileConfig[] {
   const isWindows = activeTab.value === 'windows'
   const configDir = isWindows ? '%userprofile%\\.codex' : '~/.codex'
@@ -572,7 +686,7 @@ name = "OpenAI"
 base_url = "${baseUrl}"
 wire_api = "responses"
 supports_websockets = true
-requires_openai_auth = true
+${generateCodexProviderAuthConfig()}
 
 [features]
 responses_websockets_v2 = true
@@ -622,6 +736,23 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         xhigh: {}
       }
     },
+    'gpt-5.6': {
+      name: 'GPT-5.6 (Sol)',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
     'gpt-5.6-sol': {
       name: 'GPT-5.6 Sol',
       limit: {
@@ -635,7 +766,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         low: {},
         medium: {},
         high: {},
-        xhigh: {}
+        xhigh: {},
+        max: {}
       }
     },
     'gpt-5.6-terra': {
@@ -651,7 +783,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         low: {},
         medium: {},
         high: {},
-        xhigh: {}
+        xhigh: {},
+        max: {}
       }
     },
     'gpt-5.6-luna': {
@@ -667,7 +800,8 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         low: {},
         medium: {},
         high: {},
-        xhigh: {}
+        xhigh: {},
+        max: {}
       }
     },
     'gpt-5.5': {
@@ -1054,6 +1188,24 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
       }
     }
   }
+  const grokModels = {
+    'grok-4.5': {
+      name: 'Grok 4.5',
+      limit: { context: 1000000, output: 128000 }
+    },
+    'grok-4.3': {
+      name: 'Grok 4.3',
+      limit: { context: 1000000, output: 128000 }
+    },
+    'grok-build-0.1': {
+      name: 'Grok Build 0.1',
+      limit: { context: 256000, output: 128000 }
+    },
+    'grok-composer-2.5-fast': {
+      name: 'Grok Composer 2.5 Fast',
+      limit: { context: 500000, output: 128000 }
+    }
+  }
 
   if (platform === 'gemini') {
     provider[platform].npm = '@ai-sdk/google'
@@ -1070,6 +1222,10 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
     provider[platform].models = antigravityGeminiModels
   } else if (platform === 'openai') {
     provider[platform].models = openaiModels
+  } else if (platform === 'grok') {
+    provider[platform].npm = '@ai-sdk/openai'
+    provider[platform].name = 'Grok'
+    provider[platform].models = grokModels
   }
 
   const agent =

@@ -149,6 +149,17 @@ func NewBillingCacheService(
 	return svc
 }
 
+func (s *BillingCacheService) balanceBelowEligibilityThreshold(balance float64) bool {
+	if balance <= 0 {
+		return true
+	}
+	if s == nil || s.cfg == nil {
+		return false
+	}
+	minimumReserve := s.cfg.Billing.MinimumBalanceReserve
+	return minimumReserve > 0 && balance < minimumReserve
+}
+
 // Stop 关闭缓存写入工作池
 func (s *BillingCacheService) Stop() {
 	s.cacheWriteStopOnce.Do(func() {
@@ -847,7 +858,7 @@ func (s *BillingCacheService) checkBalanceEligibility(ctx context.Context, userI
 		s.circuitBreaker.OnSuccess()
 	}
 
-	if balance <= 0 {
+	if s.balanceBelowEligibilityThreshold(balance) {
 		return ErrInsufficientBalance
 	}
 

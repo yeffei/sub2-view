@@ -161,7 +161,7 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 		opsNullString(input.ErrorBody),
 		opsNullString(input.ErrorSource),
 		opsNullString(input.ErrorOwner),
-		opsNullInt(input.UpstreamStatusCode),
+		opsNullableIntPointer(input.UpstreamStatusCode),
 		opsNullString(input.UpstreamErrorMessage),
 		opsNullString(input.UpstreamErrorDetail),
 		opsNullString(input.UpstreamErrorsJSON),
@@ -537,7 +537,7 @@ LIMIT 1`
 		s := clientIP.String
 		out.ClientIP = &s
 	}
-	if upstreamStatusCode.Valid && upstreamStatusCode.Int64 > 0 {
+	if upstreamStatusCode.Valid {
 		v := int(upstreamStatusCode.Int64)
 		out.UpstreamStatusCode = &v
 	}
@@ -786,6 +786,7 @@ func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*ser
 	stmt, err := tx.PrepareContext(ctx, pq.CopyIn(
 		"ops_system_logs",
 		"created_at",
+		"host",
 		"level",
 		"component",
 		"message",
@@ -827,6 +828,7 @@ func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*ser
 		if _, err := stmt.ExecContext(
 			ctx,
 			createdAt.UTC(),
+			opsNullString(input.Host),
 			level,
 			component,
 			message,
@@ -893,6 +895,7 @@ func (r *opsRepository) ListSystemLogs(ctx context.Context, filter *service.OpsS
 SELECT
   l.id,
   l.created_at,
+  COALESCE(l.host, ''),
   l.level,
   COALESCE(l.component, ''),
   COALESCE(l.message, ''),
@@ -923,6 +926,7 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 		if err := rows.Scan(
 			&item.ID,
 			&item.CreatedAt,
+			&item.Host,
 			&item.Level,
 			&item.Component,
 			&item.Message,
@@ -1032,12 +1036,14 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	if filter != nil {
 		resolvedFilter = filter.Resolved
 	}
-	// Keep list endpoints scoped to client errors unless explicitly filtering upstream phase.
+	// Keep list endpoints scoped to client errors unless the caller explicitly opts
+	// into recovered provider-health rows (upstream/account_auth). Request-error
+	// endpoints never set the opt-in and retain this guard.
 	// cyber_policy is exempt from the status >= 400 guard: streaming cyber hits arrive with
 	// status 200 (the SSE stream opened successfully before upstream returned response.failed),
 	// but they are always client-visible blocked requests that belong in admin + user error
 	// lists.  Without the exemption the entire streaming-path cyber sink would be invisible.
-	if phaseFilter != "upstream" {
+	if !opsFilterIncludesRecoveredProviderRows(filter, phaseFilter) {
 		clauses = append(clauses, "(COALESCE(e.status_code, 0) >= 400 OR e.error_type = 'cyber_policy')")
 	}
 
@@ -1170,6 +1176,28 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	return "WHERE " + strings.Join(clauses, " AND "), args
 }
 
+func opsFilterIncludesRecoveredProviderRows(filter *service.OpsErrorLogFilter, phaseFilter string) bool {
+	if filter == nil || !filter.IncludeRecoveredUpstream {
+		return false
+	}
+	if phaseFilter != "" {
+		return phaseFilter == "upstream" || phaseFilter == "account_auth"
+	}
+	if len(filter.ErrorPhasesAny) == 0 {
+		return false
+	}
+	sawProviderPhase := false
+	for _, rawPhase := range filter.ErrorPhasesAny {
+		switch strings.TrimSpace(strings.ToLower(rawPhase)) {
+		case "upstream", "account_auth":
+			sawProviderPhase = true
+		default:
+			return false
+		}
+	}
+	return sawProviderPhase
+}
+
 func buildOpsSystemLogsWhere(filter *service.OpsSystemLogFilter) (string, []any, bool) {
 	clauses := make([]string, 0, 10)
 	args := make([]any, 0, 10)
@@ -1187,6 +1215,11 @@ func buildOpsSystemLogsWhere(filter *service.OpsSystemLogFilter) (string, []any,
 		hasConstraint = true
 	}
 	if filter != nil {
+		if v := strings.TrimSpace(filter.Host); v != "" {
+			args = append(args, v)
+			clauses = append(clauses, "l.host = $"+itoa(len(args)))
+			hasConstraint = true
+		}
 		if v := strings.ToLower(strings.TrimSpace(filter.Level)); v != "" {
 			args = append(args, v)
 			clauses = append(clauses, "LOWER(COALESCE(l.level,'')) = $"+itoa(len(args)))
@@ -1251,6 +1284,7 @@ func buildOpsSystemLogsCleanupWhere(filter *service.OpsSystemLogCleanupFilter) (
 	listFilter := &service.OpsSystemLogFilter{
 		StartTime:       filter.StartTime,
 		EndTime:         filter.EndTime,
+		Host:            filter.Host,
 		Level:           filter.Level,
 		Component:       filter.Component,
 		RequestID:       filter.RequestID,
@@ -1314,6 +1348,16 @@ func opsNullInt(v any) any {
 	default:
 		return sql.NullInt64{}
 	}
+}
+
+// opsNullableIntPointer distinguishes an absent value from an explicitly
+// observed zero. Credential-stage failures intentionally persist upstream
+// status 0 because no inference request was sent.
+func opsNullableIntPointer(v *int) any {
+	if v == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: int64(*v), Valid: true}
 }
 
 func opsNullInt16(v *int16) any {

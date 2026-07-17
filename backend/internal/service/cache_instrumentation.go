@@ -106,6 +106,7 @@ func RecordCacheInstrumentationUpstreamSessionAnchor(c *gin.Context, source stri
 }
 
 func setCacheInstrumentationOpenAIResponsesState(c *gin.Context, body []byte, promptCacheKey string, promptCacheKeyAutoInjected bool, previousResponseIDPresent bool) {
+	setOpenAIResponsesAutoUpstreamSessionAnchor(c, body, previousResponseIDPresent)
 	state := getOrCreateCacheInstrumentationState(c)
 	if state == nil {
 		return

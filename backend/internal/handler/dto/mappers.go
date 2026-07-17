@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/usagestats"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -18,6 +19,7 @@ func UserFromServiceShallow(u *service.User) *User {
 		Username:                   u.Username,
 		Role:                       u.Role,
 		Balance:                    u.Balance,
+		FrozenBalance:              u.FrozenBalance,
 		Concurrency:                u.Concurrency,
 		Status:                     u.Status,
 		AllowedGroups:              u.AllowedGroups,
@@ -88,6 +90,7 @@ func APIKeyFromService(k *service.APIKey) *APIKey {
 		IPWhitelist:        k.IPWhitelist,
 		IPBlacklist:        k.IPBlacklist,
 		LastUsedAt:         k.LastUsedAt,
+		LastUsedIP:         k.LastUsedIP,
 		Quota:              k.Quota,
 		QuotaUsed:          k.QuotaUsed,
 		ExpiresAt:          k.ExpiresAt,
@@ -180,11 +183,24 @@ func groupFromServiceBase(g *service.Group) Group {
 		WeeklyLimitUSD:                  g.WeeklyLimitUSD,
 		MonthlyLimitUSD:                 g.MonthlyLimitUSD,
 		AllowImageGeneration:            g.AllowImageGeneration,
+		AllowBatchImageGeneration:       g.AllowBatchImageGeneration,
 		ImageRateIndependent:            g.ImageRateIndependent,
 		ImageRateMultiplier:             g.ImageRateMultiplier,
+		BatchImageDiscountMultiplier:    g.BatchImageDiscountMultiplier,
+		BatchImageHoldMultiplier:        g.BatchImageHoldMultiplier,
+		VideoRateIndependent:            g.VideoRateIndependent,
+		VideoRateMultiplier:             g.VideoRateMultiplier,
+		PeakRateEnabled:                 g.PeakRateEnabled,
+		PeakStart:                       g.PeakStart,
+		PeakEnd:                         g.PeakEnd,
+		PeakRateMultiplier:              g.PeakRateMultiplier,
 		ImagePrice1K:                    g.ImagePrice1K,
 		ImagePrice2K:                    g.ImagePrice2K,
 		ImagePrice4K:                    g.ImagePrice4K,
+		VideoPrice480P:                  g.VideoPrice480P,
+		VideoPrice720P:                  g.VideoPrice720P,
+		VideoPrice1080P:                 g.VideoPrice1080P,
+		WebSearchPricePerCall:           g.WebSearchPricePerCall,
 		ClaudeCodeOnly:                  g.ClaudeCodeOnly,
 		FallbackGroupID:                 g.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
@@ -582,54 +598,55 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		requestedModel = l.Model
 	}
 	return UsageLog{
-		ID:                    l.ID,
-		UserID:                l.UserID,
-		APIKeyID:              l.APIKeyID,
-		AccountID:             l.AccountID,
-		RequestID:             l.RequestID,
-		Model:                 requestedModel,
-		ServiceTier:           l.ServiceTier,
-		ReasoningEffort:       l.ReasoningEffort,
-		InboundEndpoint:       l.InboundEndpoint,
-		UpstreamEndpoint:      l.UpstreamEndpoint,
-		GroupID:               l.GroupID,
-		SubscriptionID:        l.SubscriptionID,
-		InputTokens:           l.InputTokens,
-		OutputTokens:          l.OutputTokens,
-		CacheCreationTokens:   l.CacheCreationTokens,
-		CacheReadTokens:       l.CacheReadTokens,
-		CacheCreation5mTokens: l.CacheCreation5mTokens,
-		CacheCreation1hTokens: l.CacheCreation1hTokens,
-		InputCost:             l.InputCost,
-		OutputCost:            l.OutputCost,
-		CacheCreationCost:     l.CacheCreationCost,
-		CacheReadCost:         l.CacheReadCost,
-		TotalCost:             l.TotalCost,
-		ActualCost:            l.ActualCost,
-		RateMultiplier:        l.RateMultiplier,
-		BillingType:           l.BillingType,
-		RequestType:           requestType.String(),
-		Stream:                stream,
-		OpenAIWSMode:          openAIWSMode,
-		DurationMs:            l.DurationMs,
-		FirstTokenMs:          l.FirstTokenMs,
-		ImageCount:            l.ImageCount,
-		ImageSize:             l.ImageSize,
-		ImageInputSize:        l.ImageInputSize,
-		ImageOutputSize:       l.ImageOutputSize,
-		ImageOutputTokens:     l.ImageOutputTokens,
-		ImageOutputCost:       l.ImageOutputCost,
-		ImageSizeSource:       l.ImageSizeSource,
-		ImageSizeBreakdown:    l.ImageSizeBreakdown,
-		MediaType:             l.MediaType,
-		UserAgent:             l.UserAgent,
-		CacheTTLOverridden:    l.CacheTTLOverridden,
-		BillingMode:           l.BillingMode,
-		CreatedAt:             l.CreatedAt,
-		User:                  UserFromServiceShallow(l.User),
-		APIKey:                APIKeyFromService(l.APIKey),
-		Group:                 GroupFromServiceShallow(l.Group),
-		Subscription:          UserSubscriptionFromService(l.Subscription),
+		ID:                        l.ID,
+		UserID:                    l.UserID,
+		APIKeyID:                  l.APIKeyID,
+		AccountID:                 l.AccountID,
+		RequestID:                 l.RequestID,
+		Model:                     requestedModel,
+		ServiceTier:               l.ServiceTier,
+		ReasoningEffort:           l.ReasoningEffort,
+		InboundEndpoint:           l.InboundEndpoint,
+		UpstreamEndpoint:          l.UpstreamEndpoint,
+		GroupID:                   l.GroupID,
+		SubscriptionID:            l.SubscriptionID,
+		InputTokens:               l.InputTokens,
+		OutputTokens:              l.OutputTokens,
+		CacheCreationTokens:       l.CacheCreationTokens,
+		CacheReadTokens:           l.CacheReadTokens,
+		CacheCreation5mTokens:     l.CacheCreation5mTokens,
+		CacheCreation1hTokens:     l.CacheCreation1hTokens,
+		InputCost:                 l.InputCost,
+		OutputCost:                l.OutputCost,
+		CacheCreationCost:         l.CacheCreationCost,
+		CacheReadCost:             l.CacheReadCost,
+		TotalCost:                 l.TotalCost,
+		ActualCost:                l.ActualCost,
+		RateMultiplier:            l.RateMultiplier,
+		LongContextBillingApplied: l.LongContextBillingApplied,
+		BillingType:               l.BillingType,
+		RequestType:               requestType.String(),
+		Stream:                    stream,
+		OpenAIWSMode:              openAIWSMode,
+		DurationMs:                l.DurationMs,
+		FirstTokenMs:              l.FirstTokenMs,
+		ImageCount:                l.ImageCount,
+		ImageSize:                 l.ImageSize,
+		ImageInputSize:            l.ImageInputSize,
+		ImageOutputSize:           l.ImageOutputSize,
+		ImageOutputTokens:         l.ImageOutputTokens,
+		ImageOutputCost:           l.ImageOutputCost,
+		ImageSizeSource:           l.ImageSizeSource,
+		ImageSizeBreakdown:        l.ImageSizeBreakdown,
+		MediaType:                 l.MediaType,
+		UserAgent:                 l.UserAgent,
+		CacheTTLOverridden:        l.CacheTTLOverridden,
+		BillingMode:               l.BillingMode,
+		CreatedAt:                 l.CreatedAt,
+		User:                      UserFromServiceShallow(l.User),
+		APIKey:                    APIKeyFromService(l.APIKey),
+		Group:                     GroupFromServiceShallow(l.Group),
+		Subscription:              UserSubscriptionFromService(l.Subscription),
 	}
 }
 
@@ -641,6 +658,47 @@ func UsageLogFromService(l *service.UsageLog) *UsageLog {
 	}
 	u := usageLogFromServiceUser(l)
 	return &u
+}
+
+// UserModelStat is the user-facing model usage aggregate. Account cost is admin-only.
+type UserModelStat struct {
+	Model                        string  `json:"model"`
+	Requests                     int64   `json:"requests"`
+	InputTokens                  int64   `json:"input_tokens"`
+	OutputTokens                 int64   `json:"output_tokens"`
+	CacheCreationTokens          int64   `json:"cache_creation_tokens"`
+	CacheReadTokens              int64   `json:"cache_read_tokens"`
+	CacheReadHitRequests         int64   `json:"cache_read_hit_requests"`
+	CacheCreationRequests        int64   `json:"cache_creation_requests"`
+	CacheReadHitRatio            float64 `json:"cache_read_hit_ratio"`
+	AverageCacheReadTokensPerHit float64 `json:"average_cache_read_tokens_per_hit"`
+	AverageActualInputTokens     float64 `json:"average_actual_input_tokens"`
+	TotalTokens                  int64   `json:"total_tokens"`
+	Cost                         float64 `json:"cost"`
+	ActualCost                   float64 `json:"actual_cost"`
+}
+
+func UserModelStatsFromService(stats []usagestats.ModelStat) []UserModelStat {
+	result := make([]UserModelStat, 0, len(stats))
+	for _, stat := range stats {
+		result = append(result, UserModelStat{
+			Model:                        stat.Model,
+			Requests:                     stat.Requests,
+			InputTokens:                  stat.InputTokens,
+			OutputTokens:                 stat.OutputTokens,
+			CacheCreationTokens:          stat.CacheCreationTokens,
+			CacheReadTokens:              stat.CacheReadTokens,
+			CacheReadHitRequests:         stat.CacheReadHitRequests,
+			CacheCreationRequests:        stat.CacheCreationRequests,
+			CacheReadHitRatio:            stat.CacheReadHitRatio,
+			AverageCacheReadTokensPerHit: stat.AverageCacheReadTokensPerHit,
+			AverageActualInputTokens:     stat.AverageActualInputTokens,
+			TotalTokens:                  stat.TotalTokens,
+			Cost:                         stat.Cost,
+			ActualCost:                   stat.ActualCost,
+		})
+	}
+	return result
 }
 
 // UsageLogFromServiceAdmin converts a service UsageLog to DTO for admin users.

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import PaymentView from '../PaymentView.vue'
 import { PAYMENT_RECOVERY_STORAGE_KEY } from '@/components/payment/paymentFlow'
+import type { CheckoutInfoResponse, MethodLimit } from '@/types/payment'
 
 const routeState = vi.hoisted(() => ({
   path: '/purchase',
@@ -86,30 +87,33 @@ vi.mock('@/utils/device', () => ({
   isMobileDevice: () => true,
 }))
 
-function checkoutInfoFixture() {
-  return {
-    data: {
-      methods: {
-        wxpay: {
-          daily_limit: 0,
-          daily_used: 0,
-          daily_remaining: 0,
-          single_min: 0,
-          single_max: 0,
-          fee_rate: 0,
-          available: true,
-        },
-      },
-      global_min: 0,
-      global_max: 0,
-      plans: [],
-      balance_disabled: false,
-      balance_recharge_multiplier: 1,
-      recharge_fee_rate: 0,
-      help_text: '',
-      help_image_url: '',
-      stripe_publishable_key: '',
+function checkoutInfoFixture(overrides: Partial<CheckoutInfoResponse> = {}) {
+  const wxpayMethod: MethodLimit = {
+    daily_limit: 0,
+    daily_used: 0,
+    daily_remaining: 0,
+    single_min: 0,
+    single_max: 0,
+    fee_rate: 0,
+    available: true,
+  }
+  const data: CheckoutInfoResponse = {
+    methods: {
+      wxpay: wxpayMethod,
     },
+    global_min: 0,
+    global_max: 0,
+    plans: [],
+    balance_disabled: false,
+    balance_recharge_multiplier: 1,
+    subscription_usd_to_cny_rate: 0,
+    recharge_fee_rate: 0,
+    help_text: '',
+    help_image_url: '',
+    stripe_publishable_key: '',
+  }
+  return {
+    data: { ...data, ...overrides },
   }
 }
 
@@ -117,27 +121,25 @@ function checkoutInfoWithPlansFixture() {
   return {
     data: {
       ...checkoutInfoFixture().data,
-      plans: [
-        {
-          id: 7,
-          group_id: 3,
-          name: 'Starter',
-          description: '',
-          price: 128,
-          original_price: 0,
-          validity_days: 30,
-          validity_unit: 'day',
-          rate_multiplier: 1,
-          daily_limit_usd: null,
-          weekly_limit_usd: null,
-          monthly_limit_usd: null,
-          features: [],
-          group_platform: 'openai',
-          sort_order: 1,
-          for_sale: true,
-          group_name: 'OpenAI',
-        },
-      ],
+      plans: [{
+        id: 7,
+        group_id: 3,
+        name: 'Starter',
+        description: '',
+        price: 128,
+        original_price: 0,
+        validity_days: 30,
+        validity_unit: 'day',
+        rate_multiplier: 1,
+        daily_limit_usd: null,
+        weekly_limit_usd: null,
+        monthly_limit_usd: null,
+        features: [],
+        group_platform: 'openai',
+        sort_order: 1,
+        for_sale: true,
+        group_name: 'OpenAI',
+      }],
     },
   }
 }
@@ -181,6 +183,89 @@ function oauthOrderFixture() {
     },
   }
 }
+
+describe('PaymentView payment recovery', () => {
+  beforeEach(() => {
+    vi.useRealTimers()
+    routeState.path = '/purchase'
+    routeState.query = {}
+    routerReplace.mockReset().mockResolvedValue(undefined)
+    routerPush.mockReset().mockResolvedValue(undefined)
+    routerResolve.mockClear()
+    createOrder.mockReset()
+    refreshUser.mockReset()
+    fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+    showError.mockReset()
+    showInfo.mockReset()
+    showWarning.mockReset()
+    fetchPublicSettings.mockReset().mockResolvedValue(null)
+    bridgeInvoke.mockReset()
+    window.localStorage.clear()
+    ;(window as Window & { WeixinJSBridge?: { invoke: typeof bridgeInvoke } }).WeixinJSBridge = undefined
+  })
+
+  it('restores a custom EasyPay method as the selected payment method', async () => {
+    getCheckoutInfo.mockResolvedValue(checkoutInfoFixture({
+      methods: {
+        wxpay: checkoutInfoFixture().data.methods.wxpay,
+        ldc: {
+          daily_limit: 0,
+          daily_used: 0,
+          daily_remaining: 0,
+          single_min: 0,
+          single_max: 0,
+          fee_rate: 0,
+          available: true,
+          display_name: 'LDC Pay',
+        },
+      },
+    }))
+    window.localStorage.setItem(PAYMENT_RECOVERY_STORAGE_KEY, JSON.stringify({
+      orderId: 888,
+      amount: 66,
+      qrCode: 'ldc-qr',
+      expiresAt: '2099-01-01T00:10:00.000Z',
+      paymentType: 'ldc',
+      payUrl: 'https://pay.example.com/ldc',
+      outTradeNo: 'sub2_ldc_888',
+      clientSecret: '',
+      intentId: '',
+      currency: '',
+      countryCode: '',
+      paymentEnv: '',
+      payAmount: 66,
+      orderType: 'balance',
+      paymentMode: 'popup',
+      resumeToken: '',
+      createdAt: Date.now(),
+    }))
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: {
+            template: '<div><slot /></div>',
+          },
+          PaymentStatusPanel: {
+            template: '<button data-test="payment-done" @click="$emit(\'done\')" />',
+          },
+          PaymentMethodSelector: {
+            props: ['selected'],
+            template: '<div data-test="method-selector">{{ selected }}</div>',
+          },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await flushPromises()
+    await wrapper.find('[data-test="payment-done"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="method-selector"]').text()).toBe('ldc')
+  })
+})
 
 describe('PaymentView WeChat JSAPI flow', () => {
   beforeEach(() => {

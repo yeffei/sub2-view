@@ -33,13 +33,13 @@ type accountRepoStubForBulkUpdate struct {
 	listCalled       bool
 	lastListParams   pagination.PaginationParams
 	lastListFilters  struct {
-		platform    string
-		accountType string
-		status      string
+		platform      string
+		accountType   string
+		status        string
 		anomalyReason string
-		search      string
-		groupID     int64
-		privacyMode string
+		search        string
+		groupID       int64
+		privacyMode   string
 	}
 }
 
@@ -86,6 +86,10 @@ func (s *accountRepoStubForBulkUpdate) ListByGroup(_ context.Context, groupID in
 	if rows, ok := s.listByGroupData[groupID]; ok {
 		return rows, nil
 	}
+	return nil, nil
+}
+
+func (s *accountRepoStubForBulkUpdate) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]Account, error) {
 	return nil, nil
 }
 

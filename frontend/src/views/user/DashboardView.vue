@@ -353,7 +353,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
-import { formatDateTime } from '@/utils/format'
+import { formatDateLocalInput, formatDateTime } from '@/utils/format'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem } from '@/utils/imageWorkshop'
 import { buildWorkbenchModelInsight } from '@/utils/apiKeyWorkbench'
@@ -983,7 +983,7 @@ const trendBars = computed(() => {
   const weekdayFormatter = new Intl.DateTimeFormat(localeCode.value, { weekday: 'short' })
   const recentDays = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(Date.now() - (6 - index) * 86400000)
-    return formatLD(date)
+    return formatDateLocalInput(date)
   })
   const pointMap = new Map(trendData.value.map((point) => [point.date, point.total_tokens || 0]))
   const values = recentDays.map((date) => pointMap.get(date) ?? 0)
@@ -1256,9 +1256,8 @@ const quotaUsageLabel = (quota: PlatformQuotaItem) => {
   if (!usages.length) return dashboardCopy.value.labels.windowUnused
   return dashboardCopy.value.labels.maxUsage + formatCost(Math.max(...usages))
 }
-const formatLD = (d: Date) => d.toISOString().split('T')[0]
-const startDate = ref(formatLD(new Date(Date.now() - 6 * 86400000)))
-const endDate = ref(formatLD(new Date()))
+const startDate = ref(formatDateLocalInput(new Date(Date.now() - 6 * 86400000)))
+const endDate = ref(formatDateLocalInput(new Date()))
 const granularity = ref<'day' | 'hour'>('day')
 
 

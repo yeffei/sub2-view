@@ -67,6 +67,9 @@ func (m *sessionWindowMockRepo) GetByID(context.Context, int64) (*Account, error
 func (m *sessionWindowMockRepo) GetByIDs(context.Context, []int64) ([]*Account, error) {
 	panic("unexpected")
 }
+func (m *sessionWindowMockRepo) ListShadowsByParent(context.Context, int64) ([]*Account, error) {
+	return nil, nil
+}
 func (m *sessionWindowMockRepo) ExistsByID(context.Context, int64) (bool, error) {
 	panic("unexpected")
 }
@@ -85,6 +88,9 @@ func (m *sessionWindowMockRepo) List(context.Context, pagination.PaginationParam
 	panic("unexpected")
 }
 func (m *sessionWindowMockRepo) ListWithFilters(context.Context, pagination.PaginationParams, string, string, string, string, string, int64, string) ([]Account, *pagination.PaginationResult, error) {
+	panic("unexpected")
+}
+func (m *sessionWindowMockRepo) ListAllWithFilters(context.Context, string, string, string, string, int64, string) ([]Account, error) {
 	panic("unexpected")
 }
 func (m *sessionWindowMockRepo) ListByGroup(context.Context, int64) ([]Account, error) {

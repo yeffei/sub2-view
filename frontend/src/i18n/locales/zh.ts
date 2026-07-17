@@ -1,4 +1,20 @@
-export default {
+import officialMessages from './zh/index'
+
+type LocaleTree = Record<string, unknown>
+
+const mergeLocaleMessages = (base: LocaleTree, overrides: LocaleTree): LocaleTree => {
+  const result: LocaleTree = { ...base }
+  for (const [key, value] of Object.entries(overrides)) {
+    const current = result[key]
+    result[key] = current && typeof current === 'object' && !Array.isArray(current) &&
+      value && typeof value === 'object' && !Array.isArray(value)
+      ? mergeLocaleMessages(current as LocaleTree, value as LocaleTree)
+      : value
+  }
+  return result
+}
+
+const sstMessages = {
   // Home Page
   home: {
     viewOnGithub: '在 GitHub 上查看',
@@ -8481,3 +8497,5 @@ export default {
   },
 
 }
+
+export default mergeLocaleMessages(officialMessages, sstMessages)

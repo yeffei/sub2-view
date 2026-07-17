@@ -300,7 +300,7 @@ function initializeScene() {
 
     new THREE.TextureLoader().load(
       inkGoldfishTexture,
-      (loadedTexture) => {
+      (loadedTexture: THREE.Texture) => {
         if (!bodyFish || !tailFish || !renderer) {
           loadedTexture.dispose()
           return

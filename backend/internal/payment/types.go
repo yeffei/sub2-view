@@ -31,6 +31,7 @@ const (
 	OrderStatusFailed            = "FAILED"
 	OrderStatusRefundRequested   = "REFUND_REQUESTED"
 	OrderStatusRefunding         = "REFUNDING"
+	OrderStatusRefundPending     = "REFUND_PENDING"
 	OrderStatusPartiallyRefunded = "PARTIALLY_REFUNDED"
 	OrderStatusRefunded          = "REFUNDED"
 	OrderStatusRefundFailed      = "REFUND_FAILED"
@@ -181,6 +182,13 @@ type RefundRequest struct {
 	Reason  string
 }
 
+type RefundQueryRequest struct {
+	TradeNo  string
+	OrderID  string
+	RefundID string
+	Amount   string
+}
+
 // RefundResponse is returned after a refund request.
 type RefundResponse struct {
 	RefundID string
@@ -213,6 +221,11 @@ type Provider interface {
 	VerifyNotification(ctx context.Context, rawBody string, headers map[string]string) (*PaymentNotification, error)
 	// Refund requests a refund from the upstream provider.
 	Refund(ctx context.Context, req RefundRequest) (*RefundResponse, error)
+}
+
+type RefundQueryProvider interface {
+	Provider
+	QueryRefund(ctx context.Context, req RefundQueryRequest) (*RefundResponse, error)
 }
 
 // CancelableProvider extends Provider with the ability to cancel pending payments.

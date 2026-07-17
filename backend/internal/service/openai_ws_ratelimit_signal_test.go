@@ -34,6 +34,10 @@ type openAICodexExtraListRepo struct {
 	rateLimitCh chan time.Time
 }
 
+func (r *openAICodexExtraListRepo) CreateWithAccountGroups(_ context.Context, _ *Account, _ []AccountGroup) error {
+	return nil
+}
+
 func (r *openAIWSRateLimitSignalRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
 	r.rateLimitCalls = append(r.rateLimitCalls, resetAt)
 	return nil

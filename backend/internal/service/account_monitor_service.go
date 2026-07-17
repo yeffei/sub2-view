@@ -223,9 +223,6 @@ func (s *AccountMonitorService) seedGatewayRuntimeHealth(health map[int64]Accoun
 		if snapshot.SampleCount < 3 || snapshot.P95TTFTMs <= 0 {
 			continue
 		}
-		if s.gatewayService != nil {
-			s.gatewayService.SeedAccountRuntimeTTFT(accountID, snapshot.P95TTFTMs)
-		}
 		if s.openAIGatewayService != nil {
 			s.openAIGatewayService.SeedOpenAIAccountRuntimeTTFT(accountID, snapshot.P95TTFTMs)
 		}

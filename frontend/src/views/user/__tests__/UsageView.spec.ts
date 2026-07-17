@@ -241,6 +241,7 @@ describe('user UsageView tooltip', () => {
         duration_ms: 345,
         created_at: '2026-03-08T00:00:00Z',
         model: 'gpt-5.4',
+        ip_address: '203.0.113.10',
         reasoning_effort: null,
         api_key: { name: 'demo-key' },
       },
@@ -291,6 +292,12 @@ describe('user UsageView tooltip', () => {
     await setupState.exportToCSV()
 
     expect(exportedBlob).not.toBeNull()
+    const csvContent = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = () => reject(reader.error)
+      reader.readAsText(exportedBlob!)
+    })
     const hasSortedExportQuery = query.mock.calls.some((call) => {
       const params = call[0] as Record<string, unknown> | undefined
       const config = call[1]
@@ -304,6 +311,18 @@ describe('user UsageView tooltip', () => {
     expect(hasSortedExportQuery).toBe(true)
     expect(clickSpy).toHaveBeenCalled()
     expect(showSuccess).toHaveBeenCalled()
+    const csvRows = csvContent.startsWith('\uFEFF') ? csvContent.slice(1) : csvContent
+    expect(csvRows).toBe([
+      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms)',
+      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345',
+    ].join('\n'))
+    expect(csvContent).toContain('IP Address')
+    expect(csvContent).toContain('203.0.113.10')
+    expect(csvContent).toContain('Billed Cost')
+    expect(csvContent).toContain('Original Cost')
+    expect(csvContent).not.toContain('Upstream Endpoint')
+    expect(csvContent).not.toContain('account_cost')
+    expect(csvContent).not.toContain('account_rate_multiplier')
 
     window.URL.createObjectURL = originalCreateObjectURL
     window.URL.revokeObjectURL = originalRevokeObjectURL

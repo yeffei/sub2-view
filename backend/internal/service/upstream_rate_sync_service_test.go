@@ -87,7 +87,7 @@ func TestUpstreamRateSyncServiceSyncAllReportsPartialFailure(t *testing.T) {
 	}}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-	testSvc := NewAccountTestService(nil, nil, nil, nil, upstreamRateSyncHTTPStub{}, cfg, nil)
+	testSvc := NewAccountTestService(nil, nil, nil, nil, nil, upstreamRateSyncHTTPStub{}, cfg, nil)
 	svc := NewUpstreamRateSyncService(admin, testSvc)
 
 	result, err := svc.SyncAllAPIKeyAccounts(context.Background())

@@ -50,8 +50,8 @@ func TestBatchSyncUpstreamRateMultipliersNormalizesIDsAndReportsPartialFailure(t
 	}
 	cfg := &config.Config{}
 	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
-	testSvc := service.NewAccountTestService(nil, nil, nil, nil, rateSyncHTTPUpstream{}, cfg, nil)
-	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, testSvc, nil, nil, nil, nil, nil)
+	testSvc := service.NewAccountTestService(nil, nil, nil, nil, nil, rateSyncHTTPUpstream{}, cfg, nil)
+	handler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, testSvc, nil, nil, nil, nil, nil)
 
 	payload, err := handler.batchSyncUpstreamRateMultipliers(context.Background(), []int64{0, 1, 2, 1, -5, 404})
 	require.NoError(t, err)

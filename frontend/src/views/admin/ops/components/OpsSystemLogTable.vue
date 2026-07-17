@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { opsAPI, type OpsRuntimeLogConfig, type OpsSystemLog, type OpsSystemLogSinkHealth } from '@/api/admin/ops'
 import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
@@ -11,6 +12,7 @@ import {
 } from '../utils/cacheInstrumentation'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 
 const props = withDefaults(defineProps<{
   platformFilter?: string
@@ -51,6 +53,7 @@ const filters = reactive({
   time_range: '1h' as '5m' | '30m' | '1h' | '6h' | '24h' | '7d' | '30d',
   start_time: '',
   end_time: '',
+  host: '',
   level: '',
   component: '',
   request_id: '',
@@ -272,6 +275,7 @@ const buildQuery = () => {
   }
   if (filters.start_time) query.start_time = toRFC3339(filters.start_time)
   if (filters.end_time) query.end_time = toRFC3339(filters.end_time)
+  if (filters.host.trim()) query.host = filters.host.trim()
   if (filters.level.trim()) query.level = filters.level.trim()
   if (filters.component.trim()) query.component = filters.component.trim()
   if (filters.request_id.trim()) query.request_id = filters.request_id.trim()
@@ -381,6 +385,7 @@ const cleanupCurrentFilter = async () => {
     const payload = {
       start_time: toRFC3339(filters.start_time),
       end_time: toRFC3339(filters.end_time),
+      host: filters.host.trim() || undefined,
       level: filters.level.trim() || undefined,
       component: filters.component.trim() || undefined,
       request_id: filters.request_id.trim() || undefined,
@@ -405,6 +410,7 @@ const resetFilters = () => {
   filters.time_range = '1h'
   filters.start_time = ''
   filters.end_time = ''
+  filters.host = ''
   filters.level = ''
   filters.component = ''
   filters.request_id = ''
@@ -730,6 +736,10 @@ onMounted(async () => {
         <input v-model="filters.component" type="text" class="input mt-1" placeholder="如 http.access" />
       </label>
       <label class="text-xs text-gray-600 dark:text-gray-300">
+        {{ t('admin.ops.systemLogs.host') }}
+        <input v-model="filters.host" type="text" class="input mt-1" />
+      </label>
+      <label class="text-xs text-gray-600 dark:text-gray-300">
         request_id
         <input v-model="filters.request_id" type="text" class="input mt-1" />
       </label>
@@ -844,9 +854,10 @@ onMounted(async () => {
         <table class="min-w-full table-fixed divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="bg-gray-50 dark:bg-dark-900">
             <tr>
-              <th class="w-[170px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">时间</th>
-              <th class="w-[80px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">级别</th>
-              <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500">日志详细信息</th>
+              <th class="w-[170px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.time') }}</th>
+              <th class="w-[160px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.host') }}</th>
+              <th class="w-[80px] px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.level') }}</th>
+              <th class="px-3 py-2 text-left text-[11px] font-semibold text-gray-500">{{ t('admin.ops.systemLogs.logDetails') }}</th>
             </tr>
           </thead>
           <tbody class="ops-system-log-table-body divide-y divide-gray-100 dark:divide-dark-800">
@@ -859,6 +870,9 @@ onMounted(async () => {
                 : (isRoutingExplanationLog(row) ? 'bg-amber-50/60 dark:bg-amber-950/10' : '')"
             >
               <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">{{ formatTime(row.created_at) }}</td>
+              <td class="px-3 py-2 text-xs text-gray-700 dark:text-gray-300">
+                <span class="block truncate" :title="row.host || '-'">{{ row.host || '-' }}</span>
+              </td>
               <td class="px-3 py-2 text-xs">
                 <span class="inline-flex rounded-full px-2 py-0.5 font-semibold" :class="levelBadgeClass(row.level)">
                   {{ row.level }}

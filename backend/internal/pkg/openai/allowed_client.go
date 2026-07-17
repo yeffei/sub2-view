@@ -16,8 +16,21 @@ const (
 // 整体安全失败（return false）；每一项都必须出现在 User-Agent 中。
 // 这确保双因子匹配不会因缺失 UA 声明而退化为仅凭可伪造的 originator 单因子放行。
 type AllowedClientEntry struct {
-	Originator string
-	UAContains []string
+	Originator            string   `json:"originator"`
+	UAContains            []string `json:"ua_contains"`
+	SkipEngineFingerprint bool     `json:"skip_engine_fingerprint"`
+}
+
+func (e AllowedClientEntry) IsWhitelistable() bool {
+	if normalizeCodexClientHeader(e.Originator) == "" || len(e.UAContains) == 0 {
+		return false
+	}
+	for _, marker := range e.UAContains {
+		if normalizeCodexClientHeader(marker) == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // allowedClientRegistry 固化各命名预设的签名规则。
@@ -62,6 +75,38 @@ func IsAllowedClientMatch(userAgent, originator string, entry AllowedClientEntry
 	return true
 }
 
+func MatchClientEntry(userAgent, originator string, entries []AllowedClientEntry) (AllowedClientEntry, bool) {
+	for _, entry := range entries {
+		if IsAllowedClientMatch(userAgent, originator, entry) {
+			return entry, true
+		}
+	}
+	return AllowedClientEntry{}, false
+}
+
+// IsDeniedClientMatch applies intentionally broad OR semantics for deny-list entries.
+func IsDeniedClientMatch(userAgent, originator string, entry AllowedClientEntry) bool {
+	if wanted := normalizeCodexClientHeader(entry.Originator); wanted != "" && normalizeCodexClientHeader(originator) == wanted {
+		return true
+	}
+	ua := normalizeCodexClientHeader(userAgent)
+	for _, marker := range entry.UAContains {
+		if normalized := normalizeCodexClientHeader(marker); normalized != "" && strings.Contains(ua, normalized) {
+			return true
+		}
+	}
+	return false
+}
+
+func MatchDenyEntries(userAgent, originator string, entries []AllowedClientEntry) bool {
+	for _, entry := range entries {
+		if IsDeniedClientMatch(userAgent, originator, entry) {
+			return true
+		}
+	}
+	return false
+}
+
 // MatchAllowedClients 判断请求头是否命中 clientIDs 引用的任一预设签名。
 // 未知预设 ID 会被忽略；空列表恒不放行（默认拒绝）。
 func MatchAllowedClients(userAgent, originator string, clientIDs []string) bool {
@@ -75,4 +120,17 @@ func MatchAllowedClients(userAgent, originator string, clientIDs []string) bool 
 		}
 	}
 	return false
+}
+
+// ResolveAllowedClientEntries converts named, registry-backed client presets
+// into strict whitelist entries. Unknown IDs are ignored.
+func ResolveAllowedClientEntries(clientIDs []string) []AllowedClientEntry {
+	entries := make([]AllowedClientEntry, 0, len(clientIDs))
+	for _, id := range clientIDs {
+		entry, ok := allowedClientRegistry[normalizeCodexClientHeader(id)]
+		if ok {
+			entries = append(entries, entry)
+		}
+	}
+	return entries
 }

@@ -200,6 +200,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_RequestErrorTriggersFailover(
 	upstream := &anthropicHTTPUpstreamRecorder{err: context.DeadlineExceeded}
 	svc := &GatewayService{
 		httpUpstream: upstream,
+		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 	}
 	account := newAnthropicAPIKeyAccountForTest()
 	parsed := &ParsedRequest{

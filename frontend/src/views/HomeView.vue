@@ -162,6 +162,7 @@ import PublicSiteHeader from '@/components/layout/PublicSiteHeader.vue'
 import { IMAGE_WORKSHOP_MENU_ID, findImageWorkshopMenuItem } from '@/utils/imageWorkshop'
 import { useThemeState } from '@/utils/theme'
 import paperInkBg from '@/assets/brand/sst-paper-ink-bg.png'
+import { sanitizeUrl } from '@/utils/url'
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
@@ -186,7 +187,7 @@ const heroSubtitle = computed(() => {
     ? subtitle
     : t('publicHome.heroSubtitle')
 })
-const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const resolvedDocsRoute = '/docs'
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
 const trimmedHomeContent = computed(() => homeContent.value.trim())

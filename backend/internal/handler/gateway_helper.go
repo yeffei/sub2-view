@@ -163,20 +163,15 @@ func wrapReleaseOnDone(ctx context.Context, releaseFunc func()) func() {
 		return nil
 	}
 	var once sync.Once
-	var stop func() bool
-
-	release := func() {
-		once.Do(func() {
-			if stop != nil {
-				_ = stop()
-			}
-			releaseFunc()
-		})
+	releaseOnce := func() {
+		once.Do(releaseFunc)
 	}
+	stop := context.AfterFunc(ctx, releaseOnce)
 
-	stop = context.AfterFunc(ctx, release)
-
-	return release
+	return func() {
+		_ = stop()
+		releaseOnce()
+	}
 }
 
 // IncrementWaitCount increments the wait count for a user
@@ -234,6 +229,15 @@ func (h *ConcurrencyHelper) TryAcquireAccountSlotForAccount(ctx context.Context,
 		return nil, false, nil
 	}
 	return result.ReleaseFunc, true, nil
+}
+
+// AcquireOpenAIWSIngressLease bounds the whole client WebSocket lifecycle,
+// independently from per-turn user and account slots.
+func (h *ConcurrencyHelper) AcquireOpenAIWSIngressLease(ctx context.Context, apiKeyID int64, maxConnections int) (*service.OpenAIWSIngressLease, bool, error) {
+	if h == nil || h.concurrencyService == nil {
+		return nil, false, fmt.Errorf("concurrency service is unavailable")
+	}
+	return h.concurrencyService.AcquireOpenAIWSIngressLease(ctx, apiKeyID, maxConnections)
 }
 
 // AcquireUserSlotWithWait acquires a user concurrency slot, waiting if necessary.

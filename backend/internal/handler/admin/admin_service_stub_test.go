@@ -10,34 +10,42 @@ import (
 )
 
 type stubAdminService struct {
-	users                  []service.User
-	apiKeys                []service.APIKey
-	groups                 []service.Group
-	accounts               []service.Account
-	upstreamPools          []service.UpstreamPool
-	upstreamPoolMembers    []service.UpstreamPoolMember
-	accountSets            []service.UpstreamAccountSet
-	accountSetMembers      []service.UpstreamAccountSetMember
-	upstreamPoolMemberSets []service.UpstreamPoolMemberSet
-	upstreamPoolBindings   []service.UpstreamPoolBinding
-	capacityPressures      []service.UpstreamCapacityPressure
-	proxies                []service.Proxy
-	proxyCounts            []service.ProxyWithAccountCount
-	redeems                []service.RedeemCode
-	boundAuthIdentity      *service.AdminBindAuthIdentityInput
-	boundAuthIdentityFor   int64
-	createdAccounts        []*service.CreateAccountInput
-	createdProxies         []*service.CreateProxyInput
-	updatedProxyIDs        []int64
-	updatedProxies         []*service.UpdateProxyInput
-	testedProxyIDs         []int64
-	getUserErr             error
-	createAccountErr       error
-	updateAccountErr       error
-	getAccountsByIDsFunc   func(context.Context, []int64) ([]*service.Account, error)
-	bulkUpdateAccountErr   error
-	checkMixedErr          error
-	lastMixedCheck         struct {
+	users                               []service.User
+	apiKeys                             []service.APIKey
+	groups                              []service.Group
+	accounts                            []service.Account
+	upstreamPools                       []service.UpstreamPool
+	upstreamPoolMembers                 []service.UpstreamPoolMember
+	accountSets                         []service.UpstreamAccountSet
+	accountSetMembers                   []service.UpstreamAccountSetMember
+	upstreamPoolMemberSets              []service.UpstreamPoolMemberSet
+	upstreamPoolBindings                []service.UpstreamPoolBinding
+	capacityPressures                   []service.UpstreamCapacityPressure
+	proxies                             []service.Proxy
+	proxyCounts                         []service.ProxyWithAccountCount
+	redeems                             []service.RedeemCode
+	boundAuthIdentity                   *service.AdminBindAuthIdentityInput
+	boundAuthIdentityFor                int64
+	createdAccounts                     []*service.CreateAccountInput
+	createdProxies                      []*service.CreateProxyInput
+	updatedProxyIDs                     []int64
+	updatedProxies                      []*service.UpdateProxyInput
+	testedProxyIDs                      []int64
+	getUserErr                          error
+	createAccountErr                    error
+	updateAccountErr                    error
+	getAccountsByIDsFunc                func(context.Context, []int64) ([]*service.Account, error)
+	bulkUpdateAccountErr                error
+	createSparkShadowErr                error
+	getAccountResult                    *service.Account
+	updateAccountCalls                  int
+	updateAccountExtraCalls             int
+	accountSchedulerScoreFilterAccounts []service.Account
+	openAISchedulerScorePoolAccounts    []service.Account
+	schedulerScoreFilterCalls           int
+	openAISchedulerScorePoolCalls       int
+	checkMixedErr                       error
+	lastMixedCheck                      struct {
 		accountID int64
 		platform  string
 		groupIDs  []int64
@@ -659,7 +667,45 @@ func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int,
 	return s.accounts[start:end], int64(len(s.accounts)), nil
 }
 
+func (s *stubAdminService) ListAccountsForSchedulerScoreFilter(_ context.Context, platform, accountType, status, search string, groupID int64, privacyMode string) ([]service.Account, error) {
+	s.schedulerScoreFilterCalls++
+	if s.accountSchedulerScoreFilterAccounts != nil {
+		return s.accountSchedulerScoreFilterAccounts, nil
+	}
+	return s.accounts, nil
+}
+
+func (s *stubAdminService) ListOpenAISchedulableAccountsForSchedulerScore(_ context.Context, groupID *int64) ([]service.Account, error) {
+	s.openAISchedulerScorePoolCalls++
+	accounts := s.openAISchedulerScorePoolAccounts
+	if accounts == nil {
+		accounts = s.accounts
+	}
+	out := make([]service.Account, 0, len(accounts))
+	for _, account := range accounts {
+		if account.Platform != service.PlatformOpenAI || !account.IsSchedulable() {
+			continue
+		}
+		if groupID == nil {
+			if len(account.AccountGroups) == 0 && len(account.GroupIDs) == 0 {
+				out = append(out, account)
+			}
+			continue
+		}
+		for _, accountGroup := range account.AccountGroups {
+			if accountGroup.GroupID == *groupID {
+				out = append(out, account)
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
 func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.Account, error) {
+	if s.getAccountResult != nil {
+		return s.getAccountResult, nil
+	}
 	account := service.Account{ID: id, Name: "account", Status: service.StatusActive}
 	return &account, nil
 }
@@ -687,7 +733,17 @@ func (s *stubAdminService) CreateAccount(ctx context.Context, input *service.Cre
 	return &account, nil
 }
 
+func (s *stubAdminService) DuplicateAccount(ctx context.Context, id int64, actorScope, operationKey string) (*service.Account, error) {
+	account := service.Account{ID: 301, Name: "account (Copy)", Status: service.StatusActive, Schedulable: false}
+	return &account, nil
+}
+
+func (s *stubAdminService) RecoverDuplicateAccount(ctx context.Context, id int64, actorScope, operationKey string) (*service.Account, error) {
+	return nil, nil
+}
+
 func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
+	s.updateAccountCalls++
 	if s.updateAccountErr != nil {
 		return nil, s.updateAccountErr
 	}
@@ -696,6 +752,7 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
 }
 
 func (s *stubAdminService) UpdateAccountExtra(ctx context.Context, id int64, updates map[string]any) error {
+	s.updateAccountExtraCalls++
 	return nil
 }
 

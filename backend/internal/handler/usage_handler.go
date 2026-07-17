@@ -504,7 +504,7 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{
-		"models":     stats,
+		"models":     dto.UserModelStatsFromService(stats),
 		"start_date": startTime.Format("2006-01-02"),
 		"end_date":   endTime.Add(-24 * time.Hour).Format("2006-01-02"),
 	})
@@ -516,14 +516,14 @@ type BatchAPIKeysUsageRequest struct {
 }
 
 type APIKeyWorkbenchSummary struct {
-	APIKeyID            int64                              `json:"api_key_id"`
-	TodayActualCost     float64                            `json:"today_actual_cost"`
-	TotalActualCost     float64                            `json:"total_actual_cost"`
-	SuccessRequests24h  int64                              `json:"success_requests_24h"`
-	ErrorCount24h       int64                              `json:"error_count_24h"`
-	AttemptCount24h     int64                              `json:"attempt_count_24h"`
-	SuccessRate24h      *float64                           `json:"success_rate_24h,omitempty"`
-	LatestError         *service.APIKeyLatestErrorSummary `json:"latest_error,omitempty"`
+	APIKeyID           int64                             `json:"api_key_id"`
+	TodayActualCost    float64                           `json:"today_actual_cost"`
+	TotalActualCost    float64                           `json:"total_actual_cost"`
+	SuccessRequests24h int64                             `json:"success_requests_24h"`
+	ErrorCount24h      int64                             `json:"error_count_24h"`
+	AttemptCount24h    int64                             `json:"attempt_count_24h"`
+	SuccessRate24h     *float64                          `json:"success_rate_24h,omitempty"`
+	LatestError        *service.APIKeyLatestErrorSummary `json:"latest_error,omitempty"`
 }
 
 // DashboardAPIKeysUsage handles getting usage stats for user's own API keys

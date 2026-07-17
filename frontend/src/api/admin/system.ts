@@ -91,6 +91,22 @@ export interface UpdateResult {
   operation_id?: string
 }
 
+export interface RollbackVersionInfo {
+  version: string
+  published_at: string
+  html_url: string
+}
+
+/**
+ * Get versions available for rollback (up to 3 versions older than current)
+ */
+export async function getRollbackVersions(): Promise<{ versions: RollbackVersionInfo[] }> {
+  const { data } = await apiClient.get<{ versions: RollbackVersionInfo[] }>(
+    '/admin/system/rollback-versions'
+  )
+  return data
+}
+
 /**
  * Perform system update
  * Downloads and applies the latest version
@@ -104,13 +120,24 @@ export async function performUpdate(idempotencyKey?: string): Promise<UpdateResu
 }
 
 /**
- * Rollback to previous version
+ * Rollback to a previous version
+ * @param version - Target version (e.g. "0.1.146"); omit to restore the local backup binary.
+ *   A non-version first argument remains supported as the legacy SST idempotency key.
+ * @param idempotencyKey - Optional idempotency key for a versioned rollback.
  */
-export async function rollback(idempotencyKey?: string): Promise<UpdateResult> {
-  const { data } = await apiClient.post<UpdateResult>('/admin/system/rollback', undefined, {
-    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
-    timeout: 5 * 60 * 1000
-  })
+export async function rollback(version?: string, idempotencyKey?: string): Promise<UpdateResult> {
+  const looksLikeVersion = typeof version === 'string' && /^v?\d+\.\d+\.\d+(?:[-+].+)?$/.test(version)
+  const targetVersion = looksLikeVersion ? version : undefined
+  const legacyIdempotencyKey = looksLikeVersion ? undefined : version
+  const body = targetVersion ? { version: targetVersion } : undefined
+  const requestIdempotencyKey = idempotencyKey || legacyIdempotencyKey
+  const response = requestIdempotencyKey
+    ? await apiClient.post<UpdateResult>('/admin/system/rollback', body, {
+        headers: { 'Idempotency-Key': requestIdempotencyKey },
+        timeout: 5 * 60 * 1000
+      })
+    : await apiClient.post<UpdateResult>('/admin/system/rollback', body)
+  const { data } = response
   return data
 }
 
@@ -130,6 +157,7 @@ export const systemAPI = {
   checkUpdates,
   checkUpdatePreflight,
   performUpdate,
+  getRollbackVersions,
   rollback,
   restartService
 }

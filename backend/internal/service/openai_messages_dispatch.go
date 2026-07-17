@@ -63,6 +63,9 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 	if requestedModel == "" {
 		return ""
 	}
+	if g.Platform == PlatformGrok && claudeMessagesDispatchFamily(requestedModel) != "" {
+		return "grok-4.5"
+	}
 
 	cfg := normalizeOpenAIMessagesDispatchModelConfig(g.MessagesDispatchModelConfig)
 	if mappedModel := strings.TrimSpace(cfg.ExactModelMappings[requestedModel]); mappedModel != "" {

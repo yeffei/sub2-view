@@ -269,6 +269,23 @@ func (h *OpenAIOAuthHandler) CreateAccountFromOAuth(c *gin.Context) {
 	response.Success(c, dto.AccountFromService(account))
 }
 
+// CreateAccountFromCodexPAT is unavailable because the v0.1.156 source snapshot
+// does not include the required personal-access-token validation implementation.
+func (h *OpenAIOAuthHandler) CreateAccountFromCodexPAT(c *gin.Context) {
+	var req struct {
+		Extra map[string]any `json:"extra"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := service.ValidateOpenAILongContextBillingExtra(service.PlatformOpenAI, req.Extra); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Error(c, 501, "Codex personal access token import is unavailable in this build")
+}
+
 // QueryQuota queries the rate-limit / quota usage for an OpenAI account.
 // GET /api/v1/admin/openai/accounts/:id/quota
 func (h *OpenAIOAuthHandler) QueryQuota(c *gin.Context) {

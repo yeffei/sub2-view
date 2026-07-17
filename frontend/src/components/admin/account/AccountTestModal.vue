@@ -269,6 +269,8 @@ import Select from '@/components/common/Select.vue'
 import TextArea from '@/components/common/TextArea.vue'
 import { Icon } from '@/components/icons'
 import { useClipboard } from '@/composables/useClipboard'
+import { buildApiUrl } from '@/api/client'
+import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 import { adminAPI } from '@/api/admin'
 import type { Account, ClaudeModel } from '@/types'
 
@@ -492,14 +494,16 @@ const startTest = async () => {
       requestBody.mode = testMode.value
     }
 
-    const url = `/api/v1/admin/accounts/${props.account.id}/test`
+    // Use the configured API base; EventSource does not support POST.
+    const url = buildApiUrl(`/admin/accounts/${props.account.id}/test`)
 
     // Use fetch with streaming for SSE since EventSource doesn't support POST
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        [ADMIN_UI_REQUEST_HEADER]: '1'
       },
       body: JSON.stringify(requestBody),
       signal: abortController.signal
@@ -599,7 +603,11 @@ const handleEvent = (event: {
       break
 
     case 'test_complete':
-      streamingContent.value = ''
+      // Move streaming content to output lines
+      if (streamingContent.value) {
+        addLine(streamingContent.value, 'text-green-300')
+        streamingContent.value = ''
+      }
       if (event.success) {
         status.value = 'success'
       } else {

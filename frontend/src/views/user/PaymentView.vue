@@ -281,7 +281,7 @@ import type { CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
-import { METHOD_ORDER, getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   buildCreateOrderPayload,
@@ -517,6 +517,7 @@ const checkout = ref<CheckoutInfoResponse>({
   recharge_campaign_enabled: false,
   recharge_campaign_amount: 100,
   recharge_campaign_bonus_rate: 10,
+  subscription_usd_to_cny_rate: 0,
   help_text: '',
   help_image_url: '',
   stripe_publishable_key: '',
@@ -574,6 +575,7 @@ const campaignBonusAmount = computed(() => {
     ) / 100
   )
 })
+
 const totalCreditedAmount = computed(
   () => Math.round((creditedAmount.value + campaignBonusAmount.value) * 100) / 100,
 )
@@ -623,6 +625,7 @@ const methodOptions = computed<PaymentMethodOption[]>(() =>
     const limit = visibleMethods.value[type]
     return {
       type,
+      display_name: limit?.display_name,
       fee_rate: limit?.fee_rate ?? 0,
       available:
         !rechargeUnavailable.value &&
@@ -683,12 +686,12 @@ watch(
 )
 
 const paymentButtonClass = computed(() => {
-  const method = selectedMethod.value
-  if (!method) return 'btn-primary'
-  if (method.includes('alipay')) return 'btn-alipay'
-  if (method.includes('wxpay')) return 'btn-wxpay'
-  if (method === 'stripe') return 'btn-stripe'
-  if (method === 'airwallex') return 'btn-airwallex'
+  const m = selectedMethod.value
+  if (!m) return 'btn-primary'
+  if (isBuiltInAlipayMethod(m)) return 'btn-alipay'
+  if (isBuiltInWxpayMethod(m)) return 'btn-wxpay'
+  if (m === 'stripe') return 'btn-stripe'
+  if (m === 'airwallex') return 'btn-airwallex'
   return 'btn-primary'
 })
 
@@ -1139,6 +1142,7 @@ onMounted(async () => {
         paymentState.value = restored
         paymentPhase.value = 'paying'
         const restoredMethod = normalizeVisibleMethod(restored.paymentType)
+          || (visibleMethods.value[restored.paymentType] ? restored.paymentType : '')
         if (restoredMethod) {
           selectedMethod.value = restoredMethod
         }

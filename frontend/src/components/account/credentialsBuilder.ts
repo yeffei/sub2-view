@@ -42,10 +42,12 @@ export type HeaderOverrideRowError =
   | 'invalidValue'
   | null
 
+/** 请求头覆写支持的平台（与后端 IsHeaderOverrideEligible 保持一致） */
 export function isHeaderOverridePlatform(platform: string): boolean {
   return platform === 'anthropic' || platform === 'openai'
 }
 
+/** 禁止覆写的请求头（与后端 headerOverrideBlockedNames 保持一致） */
 const HEADER_OVERRIDE_BLOCKED_NAMES = new Set([
   'host',
   'content-length',
@@ -78,6 +80,7 @@ const HEADER_OVERRIDE_BLOCKED_NAMES = new Set([
   'x-client-request-id'
 ])
 
+/** RFC 7230 token：合法的 HTTP header 名称字符集 */
 const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/
 
 function isValidHeaderOverrideName(name: string): boolean {
@@ -101,6 +104,7 @@ const ANTHROPIC_HEADER_OVERRIDE_TEMPLATE = [
   'x-stainless-timeout'
 ]
 
+/** 模板：Codex CLI 标准客户端请求头（值留空由管理员填写） */
 const OPENAI_HEADER_OVERRIDE_TEMPLATE = [
   'user-agent',
   'originator',
@@ -116,10 +120,12 @@ export function getHeaderOverrideTemplate(platform: string): HeaderOverrideRow[]
   return names.map((name) => ({ name, value: '' }))
 }
 
+/** 与后端 maxHeaderOverride* 常量保持一致 */
 const HEADER_OVERRIDE_MAX_ENTRIES = 64
 const HEADER_OVERRIDE_MAX_NAME_LENGTH = 200
 const HEADER_OVERRIDE_MAX_VALUE_LENGTH = 8192
 
+/** header value 不允许包含控制字符（与后端 httpguts.ValidHeaderFieldValue 对齐） */
 // eslint-disable-next-line no-control-regex
 const HEADER_VALUE_INVALID_PATTERN = /[\x00-\x08\x0a-\x1f\x7f]/
 
@@ -206,6 +212,7 @@ export function collectHeaderOverrideRowErrors(rows: HeaderOverrideRow[]): Heade
   return rowErrors
 }
 
+/** 行数组 → credentials 存储对象（名称小写化，丢弃空行） */
 export function buildHeaderOverridesObject(rows: HeaderOverrideRow[]): Record<string, string> {
   const result: Record<string, string> = {}
   for (const row of rows) {
@@ -216,6 +223,7 @@ export function buildHeaderOverridesObject(rows: HeaderOverrideRow[]): Record<st
   return result
 }
 
+/** credentials 存储对象 → 行数组（按名称排序保证稳定展示） */
 export function splitHeaderOverridesObject(record: unknown): HeaderOverrideRow[] {
   if (!record || typeof record !== 'object' || Array.isArray(record)) return []
   return Object.entries(record as Record<string, unknown>)
@@ -224,6 +232,10 @@ export function splitHeaderOverridesObject(record: unknown): HeaderOverrideRow[]
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/**
+ * 将请求头覆写写入 credentials。
+ * create 模式：关闭时不写入任何字段；edit 模式：关闭时删除字段（全量替换语义）。
+ */
 export function applyHeaderOverride(
   credentials: Record<string, unknown>,
   enabled: boolean,
@@ -237,4 +249,87 @@ export function applyHeaderOverride(
     delete credentials[HEADER_OVERRIDE_ENABLED_CREDENTIAL_KEY]
     delete credentials[HEADER_OVERRIDES_CREDENTIAL_KEY]
   }
+}
+// ===== OpenAI plan_type (ChatGPT 订阅档位) 手动覆盖 =====
+
+export interface PlanTypeOption {
+  value: string
+  label: string
+  // 兼容 common/Select.vue 的 SelectOption(含索引签名)
+  [key: string]: unknown
+}
+
+/**
+ * plan_type 值的友好显示标签，镜像 PlatformTypeBadge 的映射
+ * （canonical 值 chatgptpro 显示为 Pro，team 显示为 Team）。未知值原样返回。
+ */
+export function planTypeDisplayLabel(value: string): string {
+  switch (value.trim().toLowerCase()) {
+    case 'plus':
+      return 'Plus'
+    case 'pro':
+    case 'chatgptpro':
+      return 'Pro'
+    case 'free':
+      return 'Free'
+    case 'team':
+      return 'Team'
+    default:
+      return value
+  }
+}
+
+/**
+ * 从凭据里读取 plan_type，仅接受字符串（脏数据 42/true 等一律视为空，
+ * 避免被当作合法自定义项保留）。
+ */
+export function readPlanType(credentials: Record<string, unknown> | undefined | null): string {
+  const v = credentials?.plan_type
+  return typeof v === 'string' ? v : ''
+}
+
+/**
+ * 构建 plan_type 下拉选项：清空 + Plus/Pro/Free 预设。
+ * 若当前值是某预设的别名（如 chatgptpro↔Pro），用当前的 canonical 值占据该
+ * 标签位（保留 canonical，显示友好标签，避免重复项）；若是完全预设外的值
+ * （如 team 或异常值），追加为一项，避免编辑时下拉丢失原值。
+ */
+export function buildPlanTypeOptions(current: string, clearLabel: string): PlanTypeOption[] {
+  const cur = (current || '').trim()
+  const curLabel = cur ? planTypeDisplayLabel(cur) : ''
+  const presets: PlanTypeOption[] = [
+    { value: 'plus', label: 'Plus' },
+    { value: 'pro', label: 'Pro' },
+    { value: 'free', label: 'Free' }
+  ]
+  const opts: PlanTypeOption[] = [{ value: '', label: clearLabel }]
+  for (const p of presets) {
+    if (cur && p.value !== cur.toLowerCase() && p.label === curLabel) {
+      // 当前值是该预设的别名：用 canonical 当前值占位，标签仍显示友好名
+      opts.push({ value: cur, label: p.label })
+    } else {
+      opts.push(p)
+    }
+  }
+  if (cur && !opts.some(o => o.value.toLowerCase() === cur.toLowerCase())) {
+    opts.push({ value: cur, label: planTypeDisplayLabel(cur) })
+  }
+  return opts
+}
+
+/**
+ * 把手动选择的 plan_type 写入凭据：非空则设置，空则删除该键（清空/自动识别）。
+ * 直接修改传入对象并返回。
+ */
+export function applyPlanType(
+  credentials: Record<string, unknown>,
+  planType: string
+): Record<string, unknown> {
+  const pt = (planType || '').trim()
+  if (pt) {
+    credentials.plan_type = pt
+  } else {
+    delete credentials.plan_type
+  }
+  return credentials
 }

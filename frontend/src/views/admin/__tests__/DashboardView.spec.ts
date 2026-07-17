@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 
 import type { DashboardStats } from '@/types'
 import zh from '@/i18n/locales/zh'
@@ -35,6 +36,13 @@ vi.mock('@/stores/app', () => ({
     showError: showErrorMock,
     showSuccess: showSuccessMock
   })
+}))
+
+vi.mock('@/composables/useBatchImageAccess', () => ({
+  useBatchImageAccess: () => ({
+    canUseBatchImage: true,
+    refreshBatchImageAccess: vi.fn(),
+  }),
 }))
 
 vi.mock('vue-router', () => ({
@@ -133,6 +141,7 @@ const createWrapper = () =>
 describe('admin DashboardView', () => {
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
+    setActivePinia(createPinia())
     getSnapshotV2.mockReset()
     showErrorMock.mockReset()
     showSuccessMock.mockReset()
@@ -375,8 +384,6 @@ describe('admin DashboardView', () => {
     expect(wrapper.text()).toContain('失败率走高')
   })
 })
-
-
 
 
 

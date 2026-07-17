@@ -692,7 +692,6 @@ const formatDuration = (ms: number | null | undefined): string => {
   if (ms < 1000) return `${ms.toFixed(0)}ms`
   return `${(ms / 1000).toFixed(2)}s`
 }
-
 type FormattedUserAgent = {
   primary: string
   secondary: string
@@ -998,6 +997,7 @@ const exportToCSV = async () => {
       'Model',
       'Reasoning Effort',
       'Inbound Endpoint',
+      'IP Address',
       'Type',
       'Billing Mode',
       'Input Tokens',
@@ -1017,6 +1017,7 @@ const exportToCSV = async () => {
         log.model,
         formatReasoningEffort(log.reasoning_effort),
         log.inbound_endpoint || '',
+        log.ip_address || '',
         getRequestTypeExportText(log),
         getBillingModeLabel(getDisplayBillingMode(log), t),
         log.input_tokens,
@@ -1035,8 +1036,7 @@ const exportToCSV = async () => {
       headers.map(escapeCSVValue).join(','),
       ...rows.map((row) => row.join(','))
     ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
