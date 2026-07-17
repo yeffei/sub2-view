@@ -88,6 +88,11 @@ export default defineConfig(({ mode }) => {
               return 'vendor-chart'
             }
 
+            // WebGL 只由首页金鱼场景按需加载，避免混入常规界面依赖。
+            if (id.includes('/three/')) {
+              return 'vendor-webgl'
+            }
+
             // 国际化
             if (id.includes('/vue-i18n/') || id.includes('/@intlify/')) {
               return 'vendor-i18n'
