@@ -254,6 +254,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					if failoverErr.ShouldReportAccountScheduleFailure() {
 						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
 					}
+					h.gatewayService.ReportOpenAIUpstreamFailure(c.Request.Context(), account, failoverErr.StatusCode)
 					if !failoverErr.ShouldRetryNextAccount() {
 						h.handleFailoverExhausted(c, failoverErr, streamStarted)
 						return
@@ -315,6 +316,23 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 		if result != nil {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
+			h.gatewayService.ReportOpenAIUpstreamPostWriteWait(
+				c.Request.Context(),
+				account,
+				contextLatencyMs(c, service.OpsUpstreamPostWriteWaitMsKey),
+			)
+			if result.FirstTokenMs != nil && *result.FirstTokenMs >= service.OpenAIPoolModeHighTTFTThresholdMs {
+				reqLog.Warn("openai.high_ttft_observed",
+					zap.Int64("account_id", account.ID),
+					zap.Int("ttft_ms", *result.FirstTokenMs),
+					zap.Int64("upstream_request_written_ms", contextLatencyMs(c, service.OpsUpstreamRequestWrittenMsKey)),
+					zap.Int64("upstream_first_byte_ms", contextLatencyMs(c, service.OpsUpstreamFirstByteMsKey)),
+					zap.Int64("upstream_post_write_wait_ms", contextLatencyMs(c, service.OpsUpstreamPostWriteWaitMsKey)),
+				)
+			}
+			if h.gatewayService.HandleOpenAIPoolModeHighTTFT(c.Request.Context(), account, result.FirstTokenMs) {
+				reqLog.Warn("openai.high_ttft_circuit_opened", zap.Int64("account_id", account.ID))
+			}
 		} else {
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, nil)
 		}

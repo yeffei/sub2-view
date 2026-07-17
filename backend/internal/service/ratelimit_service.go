@@ -32,6 +32,8 @@ type RateLimitService struct {
 	runtimeBlocker        AccountRuntimeBlocker
 	usageCacheMu          sync.RWMutex
 	usageCache            map[int64]*geminiUsageCacheEntry
+	openAIHighTTFTMu      sync.Mutex
+	openAIHighTTFTStreaks map[int64]int
 }
 
 type AccountRuntimeBlocker interface {
@@ -81,17 +83,26 @@ const (
 	openAI403CounterWindowMinutes   = 180
 )
 
-const openAIPoolMode5xxCooldownMinutesDefault = 10
+const (
+	openAIPoolMode5xxCooldownMinutesDefault = 10
+
+	// OpenAIPoolModeHighTTFTThresholdMs is intentionally well above the
+	// regular sticky-escape threshold. It opens a global circuit only for
+	// sustained severe degradation, not normal per-session variance.
+	OpenAIPoolModeHighTTFTThresholdMs = 30_000
+	openAIPoolModeHighTTFTConsecutive = 3
+)
 
 // NewRateLimitService 创建RateLimitService实例
 func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogRepository, cfg *config.Config, geminiQuotaService *GeminiQuotaService, tempUnschedCache TempUnschedCache) *RateLimitService {
 	return &RateLimitService{
-		accountRepo:        accountRepo,
-		usageRepo:          usageRepo,
-		cfg:                cfg,
-		geminiQuotaService: geminiQuotaService,
-		tempUnschedCache:   tempUnschedCache,
-		usageCache:         make(map[int64]*geminiUsageCacheEntry),
+		accountRepo:           accountRepo,
+		usageRepo:             usageRepo,
+		cfg:                   cfg,
+		geminiQuotaService:    geminiQuotaService,
+		tempUnschedCache:      tempUnschedCache,
+		usageCache:            make(map[int64]*geminiUsageCacheEntry),
+		openAIHighTTFTStreaks: make(map[int64]int),
 	}
 }
 
@@ -810,6 +821,89 @@ func (s *RateLimitService) handleOpenAIPoolModeServerError(ctx context.Context, 
 	}
 	slog.Info("pool_mode_5xx_temp_unscheduled", "account_id", account.ID, "status_code", statusCode, "until", until)
 	return true
+}
+
+// HandleOpenAIPoolModeHighTTFT opens a global, temporary circuit for a pool
+// account only after consecutive severe TTFT samples. The account is written
+// to both durable storage and the fast scheduler cache, matching 5xx handling.
+func (s *RateLimitService) HandleOpenAIPoolModeHighTTFT(ctx context.Context, account *Account, firstTokenMs *int) bool {
+	if s == nil || account == nil || !account.IsPoolMode() || account.Platform != PlatformOpenAI {
+		return false
+	}
+
+	observedMs := 0
+	if firstTokenMs != nil {
+		observedMs = *firstTokenMs
+	}
+	streak := s.recordOpenAIPoolModeHighTTFT(account.ID, observedMs)
+
+	if streak < openAIPoolModeHighTTFTConsecutive {
+		return false
+	}
+
+	now := time.Now()
+	cooldown := openAIPoolMode5xxCooldownMinutesDefault * time.Minute
+	if s.runtimeBlocker != nil {
+		cooldown = s.runtimeBlocker.OpenAIRoutingPoolMode5xxCooldown(ctx, OpenAIRoutingGroupIDFromContext(ctx), cooldown)
+	}
+	until := now.Add(cooldown)
+	message := fmt.Sprintf("consecutive high TTFT: %dms (%d/%d, threshold=%dms)", observedMs, streak, openAIPoolModeHighTTFTConsecutive, OpenAIPoolModeHighTTFTThresholdMs)
+	state := &TempUnschedState{
+		UntilUnix:       until.Unix(),
+		TriggeredAtUnix: now.Unix(),
+		MatchedKeyword:  "pool_mode_high_ttft",
+		RuleIndex:       -1,
+		ErrorMessage:    message,
+	}
+	reasonBytes, err := json.Marshal(state)
+	if err != nil {
+		return false
+	}
+
+	s.notifyAccountSchedulingBlocked(account, until, "pool_mode_high_ttft")
+	if s.accountRepo == nil {
+		slog.Warn("pool_mode_high_ttft_temp_unsched_repo_missing", "account_id", account.ID, "ttft_ms", observedMs, "streak", streak)
+		return false
+	}
+	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, string(reasonBytes)); err != nil {
+		slog.Warn("pool_mode_high_ttft_temp_unsched_set_failed", "account_id", account.ID, "ttft_ms", observedMs, "streak", streak, "error", err)
+		return false
+	}
+	if s.tempUnschedCache != nil {
+		if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
+			slog.Warn("pool_mode_high_ttft_temp_unsched_cache_set_failed", "account_id", account.ID, "error", err)
+		}
+	}
+
+	s.resetOpenAIPoolModeHighTTFT(account.ID)
+	slog.Warn("pool_mode_high_ttft_temp_unscheduled", "account_id", account.ID, "ttft_ms", observedMs, "streak", streak, "until", until)
+	return true
+}
+
+func (s *RateLimitService) recordOpenAIPoolModeHighTTFT(accountID int64, observedMs int) int {
+	if s == nil || accountID <= 0 {
+		return 0
+	}
+	s.openAIHighTTFTMu.Lock()
+	defer s.openAIHighTTFTMu.Unlock()
+	if s.openAIHighTTFTStreaks == nil {
+		s.openAIHighTTFTStreaks = make(map[int64]int)
+	}
+	if observedMs >= OpenAIPoolModeHighTTFTThresholdMs {
+		s.openAIHighTTFTStreaks[accountID]++
+	} else {
+		delete(s.openAIHighTTFTStreaks, accountID)
+	}
+	return s.openAIHighTTFTStreaks[accountID]
+}
+
+func (s *RateLimitService) resetOpenAIPoolModeHighTTFT(accountID int64) {
+	if s == nil || accountID <= 0 {
+		return
+	}
+	s.openAIHighTTFTMu.Lock()
+	delete(s.openAIHighTTFTStreaks, accountID)
+	s.openAIHighTTFTMu.Unlock()
 }
 
 func buildForbiddenErrorMessage(prefix string, upstreamMsg string, responseBody []byte, fallback string) string {

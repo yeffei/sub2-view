@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -46,6 +47,8 @@ const (
 	waitQueueKeyPrefix = "concurrency:wait:"
 	// 账号级等待队列计数器格式: wait:account:{accountID}
 	accountWaitKeyPrefix = "wait:account:"
+	// 自动并发状态使用独立键，所有网关进程读取同一份有效上限。
+	autoConcurrencyStateKeyPrefix = "concurrency:auto:"
 
 	// 默认槽位过期时间（分钟），可通过配置覆盖
 	defaultSlotTTLMinutes = 15
@@ -64,6 +67,10 @@ const (
 	// 且有流量时 TTL 会被不断刷新，必须清扫一次。marker 存在即代表已完成。
 	legacyWaitSweepMarkerKey = "concurrency:startup:legacy_wait_sweep:v1"
 )
+
+func autoConcurrencyStateKey(key string) string {
+	return autoConcurrencyStateKeyPrefix + key
+}
 
 var (
 	// acquireScript 使用有序集合计数并在未达上限时添加槽位
@@ -1061,6 +1068,35 @@ func (c *concurrencyCache) GetAccountWaitingCount(ctx context.Context, accountID
 		return 0, nil
 	}
 	return val, nil
+}
+
+func (c *concurrencyCache) GetAutoConcurrencyState(ctx context.Context, key string) (*service.AutoConcurrencyState, error) {
+	if c == nil || c.rdb == nil || strings.TrimSpace(key) == "" {
+		return nil, nil
+	}
+	value, err := c.rdb.Get(ctx, autoConcurrencyStateKey(key)).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var state service.AutoConcurrencyState
+	if err := json.Unmarshal(value, &state); err != nil {
+		return nil, fmt.Errorf("unmarshal auto concurrency state: %w", err)
+	}
+	return &state, nil
+}
+
+func (c *concurrencyCache) SetAutoConcurrencyState(ctx context.Context, key string, state *service.AutoConcurrencyState, ttl time.Duration) error {
+	if c == nil || c.rdb == nil || strings.TrimSpace(key) == "" || state == nil || ttl <= 0 {
+		return nil
+	}
+	value, err := json.Marshal(state)
+	if err != nil {
+		return fmt.Errorf("marshal auto concurrency state: %w", err)
+	}
+	return c.rdb.Set(ctx, autoConcurrencyStateKey(key), value, ttl).Err()
 }
 
 func (c *concurrencyCache) GetAccountsLoadBatch(ctx context.Context, accounts []service.AccountWithConcurrency) (map[int64]*service.AccountLoadInfo, error) {

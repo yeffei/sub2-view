@@ -290,7 +290,8 @@ const (
 
 // ConcurrencyService 管理账号和用户的并发限制。
 type ConcurrencyService struct {
-	cache ConcurrencyCache
+	cache           ConcurrencyCache
+	autoConcurrency *autoConcurrencyController
 
 	accountLoadCacheTTL atomic.Int64
 	accountLoadCacheMu  sync.RWMutex
@@ -307,6 +308,7 @@ type cachedAccountLoadBatch struct {
 func NewConcurrencyService(cache ConcurrencyCache) *ConcurrencyService {
 	svc := &ConcurrencyService{
 		cache:            cache,
+		autoConcurrency:  newAutoConcurrencyController(cache),
 		accountLoadCache: make(map[string]cachedAccountLoadBatch),
 	}
 	svc.SetAccountLoadBatchCacheTTL(defaultAccountLoadBatchCacheTTL)
@@ -411,6 +413,24 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 }
 
 func (s *ConcurrencyService) AcquireAccountSlotWithScope(ctx context.Context, scope AccountConcurrencyScope) (*AcquireResult, error) {
+	return s.acquireAccountSlotWithScope(ctx, scope)
+}
+
+// AcquireAutoAccountSlotWithScope applies the OpenAI upstream adaptive limit
+// before acquiring a real Redis slot. It is intentionally opt-in so unrelated
+// gateway platforms retain their existing concurrency semantics.
+func (s *ConcurrencyService) AcquireAutoAccountSlotWithScope(ctx context.Context, scope AccountConcurrencyScope) (*AcquireResult, error) {
+	if s != nil && s.autoConcurrency != nil {
+		resolved, err := s.autoConcurrency.resolveScope(ctx, scope)
+		if err != nil {
+			return nil, err
+		}
+		scope = resolved
+	}
+	return s.acquireAccountSlotWithScope(ctx, scope)
+}
+
+func (s *ConcurrencyService) acquireAccountSlotWithScope(ctx context.Context, scope AccountConcurrencyScope) (*AcquireResult, error) {
 	if scope.Capacity != nil {
 		return s.acquireCapacityAccountSlot(ctx, scope)
 	}
@@ -733,9 +753,42 @@ func (s *ConcurrencyService) GetAccountsLoadBatch(ctx context.Context, accounts 
 	return s.getAccountsLoadBatch(ctx, accounts, true)
 }
 
+// GetAccountsLoadBatchWithAutoConcurrency evaluates OpenAI scheduler load
+// against the same effective limits used by AcquireAutoAccountSlotWithScope.
+func (s *ConcurrencyService) GetAccountsLoadBatchWithAutoConcurrency(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
+	return s.getAccountsLoadBatchWithAutoConcurrency(ctx, accounts, true)
+}
+
 // GetAccountsLoadBatchFresh 绕过极短 TTL 缓存，用于抢槽失败后的实时刷新兜底。
 func (s *ConcurrencyService) GetAccountsLoadBatchFresh(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
 	return s.getAccountsLoadBatch(ctx, accounts, false)
+}
+
+func (s *ConcurrencyService) GetAccountsLoadBatchFreshWithAutoConcurrency(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
+	return s.getAccountsLoadBatchWithAutoConcurrency(ctx, accounts, false)
+}
+
+func (s *ConcurrencyService) getAccountsLoadBatchWithAutoConcurrency(ctx context.Context, accounts []AccountWithConcurrency, allowCache bool) (map[int64]*AccountLoadInfo, error) {
+	if s == nil || s.autoConcurrency == nil || len(accounts) == 0 {
+		return s.getAccountsLoadBatch(ctx, accounts, allowCache)
+	}
+	resolvedAccounts := make([]AccountWithConcurrency, 0, len(accounts))
+	for _, account := range accounts {
+		resolved, err := s.autoConcurrency.resolveScope(ctx, AccountConcurrencyScope{
+			AccountID:    account.ID,
+			AccountLimit: account.MaxConcurrency,
+			Capacity:     account.Capacity,
+		})
+		if err != nil {
+			return nil, err
+		}
+		resolvedAccounts = append(resolvedAccounts, AccountWithConcurrency{
+			ID:             resolved.AccountID,
+			MaxConcurrency: resolved.AccountLimit,
+			Capacity:       resolved.Capacity,
+		})
+	}
+	return s.getAccountsLoadBatch(ctx, resolvedAccounts, allowCache)
 }
 
 func (s *ConcurrencyService) getAccountsLoadBatch(ctx context.Context, accounts []AccountWithConcurrency, allowCache bool) (map[int64]*AccountLoadInfo, error) {
@@ -790,6 +843,25 @@ func (s *ConcurrencyService) fetchAccountsLoadBatch(ctx context.Context, account
 	redisCtx, cancel := context.WithTimeout(baseCtx, accountLoadBatchFetchTimeout)
 	defer cancel()
 	return s.cache.GetAccountsLoadBatch(redisCtx, accounts)
+}
+
+// ReportUpstreamPostWriteWait applies the automatic concurrency feedback loop
+// only to time spent after the request was written to the upstream. Local slot
+// queue time and request-upload time must not shrink the upstream limit.
+func (s *ConcurrencyService) ReportUpstreamPostWriteWait(ctx context.Context, scope AccountConcurrencyScope, upstreamWaitMs int64) error {
+	if s == nil || s.autoConcurrency == nil {
+		return nil
+	}
+	return s.autoConcurrency.observe(ctx, scope, upstreamWaitMs)
+}
+
+// ReportUpstreamFailure immediately contracts the affected OpenAI account and
+// its capacity domain for a 429 or 5xx response.
+func (s *ConcurrencyService) ReportUpstreamFailure(ctx context.Context, scope AccountConcurrencyScope, reason string) error {
+	if s == nil || s.autoConcurrency == nil {
+		return nil
+	}
+	return s.autoConcurrency.contract(ctx, scope, reason)
 }
 
 func (s *ConcurrencyService) getCachedAccountLoadBatch(key string, now time.Time) (map[int64]*AccountLoadInfo, bool) {

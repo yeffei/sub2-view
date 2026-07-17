@@ -22,6 +22,13 @@ const (
 	OpsUpstreamLatencyMsKey  = "ops_upstream_latency_ms"
 	OpsResponseLatencyMsKey  = "ops_response_latency_ms"
 	OpsTimeToFirstTokenMsKey = "ops_time_to_first_token_ms"
+	// HTTP request phase timings for outbound OpenAI-compatible upstreams.
+	// RequestWritten measures from outbound request start through the complete
+	// request write; FirstResponseByte measures to the first upstream byte;
+	// PostWriteWait isolates the wait after the full request body was sent.
+	OpsUpstreamRequestWrittenMsKey = "ops_upstream_request_written_ms"
+	OpsUpstreamFirstByteMsKey      = "ops_upstream_first_byte_ms"
+	OpsUpstreamPostWriteWaitMsKey  = "ops_upstream_post_write_wait_ms"
 	// OpenAI WS 关键观测字段
 	OpsOpenAIWSQueueWaitMsKey = "ops_openai_ws_queue_wait_ms"
 	OpsOpenAIWSConnPickMsKey  = "ops_openai_ws_conn_pick_ms"

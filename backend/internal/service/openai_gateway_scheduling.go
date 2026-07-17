@@ -1035,7 +1035,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		return nil, true, nil
 	}
 
-	loadMap, err := s.concurrencyService.GetAccountsLoadBatch(ctx, accountLoads)
+	loadMap, err := s.concurrencyService.GetAccountsLoadBatchWithAutoConcurrency(ctx, accountLoads)
 	if err != nil {
 		ordered := append([]*Account(nil), candidates...)
 		sortAccountsByPriorityAndLastUsed(ordered, false)
@@ -1072,7 +1072,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		} else if selection != nil {
 			return selection, nil
 		} else if attempted {
-			if freshLoadMap, loadErr := s.concurrencyService.GetAccountsLoadBatchFresh(ctx, accountLoads); loadErr == nil {
+			if freshLoadMap, loadErr := s.concurrencyService.GetAccountsLoadBatchFreshWithAutoConcurrency(ctx, accountLoads); loadErr == nil {
 				if selection, _, selectErr := tryAcquireFromLoadMap(freshLoadMap); selectErr != nil {
 					return nil, selectErr
 				} else if selection != nil {

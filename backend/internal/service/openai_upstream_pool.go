@@ -62,7 +62,7 @@ func (s *OpenAIGatewayService) tryAcquireAccountSlotForAccount(ctx context.Conte
 	if account == nil {
 		return nil, errors.New("account is required")
 	}
-	return s.concurrencyService.AcquireAccountSlotWithScope(ctx, account.ConcurrencyScope())
+	return s.concurrencyService.AcquireAutoAccountSlotWithScope(ctx, account.ConcurrencyScope())
 }
 
 func (s *OpenAIGatewayService) isAccountAllowedByResolvedPool(ctx context.Context, groupID *int64, platform string, accountID int64) bool {

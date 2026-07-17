@@ -221,7 +221,7 @@ func (h *ConcurrencyHelper) TryAcquireAccountSlotForAccount(ctx context.Context,
 	}
 	scope := account.ConcurrencyScope()
 	scope.AccountLimit = maxConcurrency
-	result, err := h.concurrencyService.AcquireAccountSlotWithScope(ctx, scope)
+	result, err := h.acquireAccountSlotWithScope(ctx, account, scope)
 	if err != nil {
 		return nil, false, err
 	}
@@ -340,7 +340,7 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 		if account != nil {
 			scope := account.ConcurrencyScope()
 			scope.AccountLimit = maxConcurrency
-			return h.concurrencyService.AcquireAccountSlotWithScope(ctx, scope)
+			return h.acquireAccountSlotWithScope(ctx, account, scope)
 		}
 		return nil, fmt.Errorf("account is required")
 	}
@@ -418,6 +418,13 @@ func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType 
 			timer.Reset(backoff)
 		}
 	}
+}
+
+func (h *ConcurrencyHelper) acquireAccountSlotWithScope(ctx context.Context, account *service.Account, scope service.AccountConcurrencyScope) (*service.AcquireResult, error) {
+	if account != nil && account.Platform == service.PlatformOpenAI {
+		return h.concurrencyService.AcquireAutoAccountSlotWithScope(ctx, scope)
+	}
+	return h.concurrencyService.AcquireAccountSlotWithScope(ctx, scope)
 }
 
 func (h *ConcurrencyHelper) AcquireAccountSlotWithWaitTimeoutForAccount(c *gin.Context, account *service.Account, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool) (func(), error) {

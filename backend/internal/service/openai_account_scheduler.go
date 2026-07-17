@@ -807,7 +807,7 @@ func (s *defaultOpenAIAccountScheduler) hasPreferredOpenAIAccountTypeCandidateBe
 	if s.service.concurrencyService == nil {
 		return true
 	}
-	loadMap, err := s.service.concurrencyService.GetAccountsLoadBatch(ctx, buildOpenAIAccountLoadReq(preferred))
+	loadMap, err := s.service.concurrencyService.GetAccountsLoadBatchWithAutoConcurrency(ctx, buildOpenAIAccountLoadReq(preferred))
 	if err != nil {
 		return true
 	}
@@ -1600,7 +1600,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 	loadReq := buildOpenAIAccountLoadReq(typeStrategyBase)
 	loadMap := map[int64]*AccountLoadInfo{}
 	if s.service.concurrencyService != nil {
-		if batchLoad, loadErr := s.service.concurrencyService.GetAccountsLoadBatch(ctx, loadReq); loadErr == nil {
+		if batchLoad, loadErr := s.service.concurrencyService.GetAccountsLoadBatchWithAutoConcurrency(ctx, loadReq); loadErr == nil {
 			loadMap = batchLoad
 		}
 	}
@@ -1711,7 +1711,7 @@ func (s *defaultOpenAIAccountScheduler) trySelectByLoadBalancePool(
 
 	if s.service.concurrencyService != nil {
 		loadReq := buildOpenAIAccountLoadRequest(filtered)
-		if freshLoadMap, loadErr := s.service.concurrencyService.GetAccountsLoadBatchFresh(ctx, loadReq); loadErr == nil {
+		if freshLoadMap, loadErr := s.service.concurrencyService.GetAccountsLoadBatchFreshWithAutoConcurrency(ctx, loadReq); loadErr == nil {
 			freshPlan := s.buildOpenAIAccountLoadPlan(ctx, req, filtered, freshLoadMap)
 			if len(freshPlan.selectionOrder) > 0 {
 				freshResult, freshCompactBlocked, freshAcquireErr := s.tryAcquireOpenAISelectionOrder(ctx, req, freshPlan.selectionOrder)
