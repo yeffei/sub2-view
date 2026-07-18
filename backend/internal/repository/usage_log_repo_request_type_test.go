@@ -463,7 +463,7 @@ func TestUsageLogRepositoryGetModelStatsAccountCostColumn(t *testing.T) {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
 
-	mock.ExpectQuery("FROM usage_logs").
+	mock.ExpectQuery("(?s)cache_read_tokens.*cache_read_hit_requests.*cache_creation_requests.*FROM usage_logs").
 		WithArgs(start, end).
 		WillReturnRows(sqlmock.NewRows([]string{
 			"model", "requests", "input_tokens", "output_tokens",
